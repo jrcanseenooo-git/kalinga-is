@@ -18,8 +18,9 @@ use Illuminate\Support\Facades\Hash;
  * for every role arrive in one inbox. Runs once: if the demo cases already
  * exist, only the passwords are refreshed.
  *
- * DEMO_GOOGLE_EMAIL (optional) gives the case-worker account that exact
- * address, so "Continue with Google" can sign in to it.
+ * DEMO_WORKER_EMAIL, DEMO_SUPERVISOR_EMAIL, DEMO_CPU_EMAIL and
+ * DEMO_ADMIN_EMAIL (optional) give that role's account an exact address, so
+ * "Continue with Google" can sign in to it (DEMO_GOOGLE_EMAIL = worker).
  *
  * Fictional data only. Turn DEMO_SEED off and use a fresh database before any
  * real case is recorded.
@@ -61,9 +62,25 @@ class SeedDemoData extends Command
 
         $alreadySeeded = DB::table('cases')->where('case_number', 'like', 'DEMO-%')->exists();
 
-        $google = trim((string) env('DEMO_GOOGLE_EMAIL', ''));
-        if ($google !== '' && !filter_var($google, FILTER_VALIDATE_EMAIL)) {
-            $this->error('DEMO_GOOGLE_EMAIL is not a valid email address; no demo data loaded.');
+        // Exact addresses per role (for "Continue with Google"); DEMO_GOOGLE_EMAIL is the case worker.
+        $google = [];
+        foreach (array_keys(self::ACCOUNTS) as $key) {
+            $value = trim((string) env('DEMO_' . strtoupper($key) . '_EMAIL', ''));
+            if ($key === 'worker' && $value === '') {
+                $value = trim((string) env('DEMO_GOOGLE_EMAIL', ''));
+            }
+            if ($value === '') {
+                continue;
+            }
+            if (!filter_var($value, FILTER_VALIDATE_EMAIL)) {
+                $this->error('DEMO_' . strtoupper($key) . '_EMAIL is not a valid email address; no demo data loaded.');
+
+                return self::FAILURE;
+            }
+            $google[$key] = strtolower($value);
+        }
+        if (count($google) !== count(array_unique($google))) {
+            $this->error('Each demo role needs a different email address; no demo data loaded.');
 
             return self::FAILURE;
         }
@@ -96,16 +113,16 @@ class SeedDemoData extends Command
     }
 
     /** The address an account should end up with: the Google address for the case worker when set. */
-    private function targetFor(string $key, string $original, string $inbox, string $google): string
+    private function targetFor(string $key, string $original, string $inbox, array $google): string
     {
-        if ($key === 'worker' && $google !== '') {
-            return $google;
+        if (isset($google[$key])) {
+            return $google[$key];
         }
 
         return $this->addressFor($key, $inbox) ?? $original;
     }
 
-    private function findAccount(string $key, string $original, string $inbox, string $google): ?User
+    private function findAccount(string $key, string $original, string $inbox, array $google): ?User
     {
         foreach (array_filter([$this->targetFor($key, $original, $inbox, $google), $this->addressFor($key, $inbox), $original]) as $email) {
             if ($user = User::where('email', $email)->where('role', self::ACCOUNTS[$key]['role'])->first()) {
@@ -113,7 +130,8 @@ class SeedDemoData extends Command
             }
         }
 
-        return null;
+        // An address set earlier and changed since: the demo account keeps its name.
+        return User::where('name', self::ACCOUNTS[$key]['name'])->where('role', self::ACCOUNTS[$key]['role'])->orderBy('id')->first();
     }
 
     private function addressFor(string $key, string $inbox): ?string
