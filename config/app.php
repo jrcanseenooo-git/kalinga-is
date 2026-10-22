@@ -98,7 +98,13 @@ return [
 
     'cipher' => 'AES-256-CBC',
 
-    'key' => env('APP_KEY'),
+    // Render's generated keys are plain base64 without Laravel's "base64:" prefix.
+    'key' => (static function () {
+        $key = (string) env('APP_KEY', '');
+        $raw = base64_decode($key, true);
+
+        return $key !== '' && !str_starts_with($key, 'base64:') && $raw !== false && strlen($raw) === 32 ? 'base64:' . $key : $key;
+    })(),
 
     'previous_keys' => [
         ...array_filter(
