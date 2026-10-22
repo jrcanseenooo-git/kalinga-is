@@ -18,6 +18,9 @@ use Illuminate\Support\Facades\Hash;
  * for every role arrive in one inbox. Runs once: if the demo cases already
  * exist, only the passwords are refreshed.
  *
+ * DEMO_GOOGLE_EMAIL (optional) gives the case-worker account that exact
+ * address, so "Continue with Google" can sign in to it.
+ *
  * Fictional data only. Turn DEMO_SEED off and use a fresh database before any
  * real case is recorded.
  */
@@ -58,13 +61,17 @@ class SeedDemoData extends Command
 
         $alreadySeeded = DB::table('cases')->where('case_number', 'like', 'DEMO-%')->exists();
 
-        DB::transaction(function () use ($password, $inbox, $alreadySeeded) {
+        $google = trim((string) env('DEMO_GOOGLE_EMAIL', ''));
+        if ($google !== '' && !filter_var($google, FILTER_VALIDATE_EMAIL)) {
+            $this->error('DEMO_GOOGLE_EMAIL is not a valid email address; no demo data loaded.');
+
+            return self::FAILURE;
+        }
+
+        DB::transaction(function () use ($password, $inbox, $google, $alreadySeeded) {
             foreach (self::ACCOUNTS as $key => $account) {
-                $target = $this->addressFor($key, $inbox) ?? $account['email'];
-                $user = User::where('email', $target)->first() ?? User::where('email', $account['email'])->first();
-                if (!$user) {
-                    $user = User::create($account + ['email_verified_at' => now(), 'password' => Hash::make($password)]);
-                }
+                $user = $this->findAccount($key, $account['email'], $inbox, $google)
+                    ?? User::create($account + ['email_verified_at' => now(), 'password' => Hash::make($password)]);
                 // Always replace the password, so the local "password" never reaches a server.
                 $user->forceFill(['password' => Hash::make($password)])->save();
             }
@@ -73,11 +80,12 @@ class SeedDemoData extends Command
                 (new KalingaDemoSeeder)->setContainer(app())->setCommand($this)->run();
             }
 
-            // Move the accounts to the presenter's inbox after the seeder has linked them.
+            // Move the accounts to their final addresses after the seeder has linked them.
             foreach (self::ACCOUNTS as $key => $account) {
-                $target = $this->addressFor($key, $inbox);
-                if ($target && !User::where('email', $target)->exists()) {
-                    User::where('email', $account['email'])->update(['email' => $target]);
+                $target = $this->targetFor($key, $account['email'], $inbox, $google);
+                $user = $this->findAccount($key, $account['email'], $inbox, $google);
+                if ($user && $user->email !== $target && !User::where('email', $target)->exists()) {
+                    $user->forceFill(['email' => $target])->save();
                 }
             }
         });
@@ -85,6 +93,27 @@ class SeedDemoData extends Command
         $this->info($alreadySeeded ? 'Demo data already present; demo passwords refreshed.' : 'Fictional demo data loaded.');
 
         return self::SUCCESS;
+    }
+
+    /** The address an account should end up with: the Google address for the case worker when set. */
+    private function targetFor(string $key, string $original, string $inbox, string $google): string
+    {
+        if ($key === 'worker' && $google !== '') {
+            return $google;
+        }
+
+        return $this->addressFor($key, $inbox) ?? $original;
+    }
+
+    private function findAccount(string $key, string $original, string $inbox, string $google): ?User
+    {
+        foreach (array_filter([$this->targetFor($key, $original, $inbox, $google), $this->addressFor($key, $inbox), $original]) as $email) {
+            if ($user = User::where('email', $email)->where('role', self::ACCOUNTS[$key]['role'])->first()) {
+                return $user;
+            }
+        }
+
+        return null;
     }
 
     private function addressFor(string $key, string $inbox): ?string

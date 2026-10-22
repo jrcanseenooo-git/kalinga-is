@@ -91,3 +91,17 @@ services:
         sync: false
       - key: DEMO_ACCOUNT_EMAIL
         sync: false
+      # Optional: the case-worker demo account gets this exact address, so
+      # "Continue with Google" can sign in to it.
+      - key: DEMO_GOOGLE_EMAIL
+        sync: false
+
+      # "Continue with Google" (Google Cloud Console > APIs & Services >
+      # Credentials > OAuth client ID, type Web application). Google sign-in
+      # works only for emails that already have an active Kalinga account.
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_REDIRECT_URI
+        value: https://kalinga-is.onrender.com/auth/google/callback
