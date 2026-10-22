@@ -1,0 +1,2 @@
+export interface MonitoringVisit {id:number;visited_at:string;observations:string;location:string|null;risks:string|null;next_steps:string|null;created_at:string}
+export interface ProgressNote {id:number;body:string;action_taken?:string|null;next_steps?:string|null;note_type:string|null;record_type:string;occurred_at:string|null;created_at:string;finalized_at:string|null;author:string;previous_note_id:number|null;addendum_reason:string|null}

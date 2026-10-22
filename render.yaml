@@ -1,0 +1,93 @@
+# Kalinga IS on Render, data in Supabase PostgreSQL.
+# Runbook: docs/07-installation/RENDER-SUPABASE-DEPLOYMENT.md
+#
+# One web service. The scheduler runs inside it (RUN_SCHEDULER), so no paid
+# cron service is needed for the pilot or a presentation.
+services:
+  - type: web
+    name: kalinga-is
+    runtime: docker
+    # Same region as the Supabase project (Southeast Asia, Singapore).
+    # OWNER REVIEW: hosting location.
+    region: singapore
+    # Free sleeps after 15 minutes without visits (about a minute to wake).
+    # Use starter or higher for the pilot.
+    plan: free
+    healthCheckPath: /up
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: "false"
+      - key: APP_KEY
+        generateValue: true
+      # APP_URL is taken from Render's RENDER_EXTERNAL_URL automatically.
+      # Set it only when you add your own domain.
+
+      # Supabase: Connect > Session pooler string, with the password filled in.
+      - key: DB_URL
+        sync: false
+      - key: DB_CONNECTION
+        value: pgsql
+      - key: DB_SSLMODE
+        value: require
+
+      - key: SESSION_DRIVER
+        value: database
+      - key: SESSION_ENCRYPT
+        value: "true"
+      - key: SESSION_SECURE_COOKIE
+        value: "true"
+      - key: TRUSTED_PROXIES
+        value: "*"
+      - key: CACHE_STORE
+        value: database
+      - key: QUEUE_CONNECTION
+        value: sync
+      - key: LOG_CHANNEL
+        value: stderr
+      - key: REGISTRATION_ENABLED
+        value: "false"
+      - key: RUN_SCHEDULER
+        value: "true"
+
+      # Documents: the container disk for the demo (private, but wiped on every
+      # restart). Before real documents: FILESYSTEM_DISK=s3 with a private
+      # Supabase Storage bucket (AWS_* settings, see the runbook).
+      - key: FILESYSTEM_DISK
+        value: local
+      # Malware scanning needs more memory than the free instance has.
+      # With "none", uploads stay quarantined (not downloadable). Use
+      # "clamav" on an instance with at least 2 GB before real documents.
+      - key: SCAN_DRIVER
+        value: none
+
+      # Sign-in codes are sent by email. Gmail: smtp.gmail.com, port 587,
+      # your Gmail address and an App Password.
+      - key: MAIL_MAILER
+        value: smtp
+      - key: MAIL_HOST
+        value: smtp.gmail.com
+      - key: MAIL_PORT
+        value: "587"
+      - key: MAIL_SCHEME
+        value: smtp
+      - key: MAIL_USERNAME
+        sync: false
+      - key: MAIL_PASSWORD
+        sync: false
+      - key: MAIL_FROM_ADDRESS
+        sync: false
+      - key: MAIL_FROM_NAME
+        value: "Kalinga CEFMU"
+
+      # First real administrator: add PROVISION_ADMIN_EMAIL and
+      # PROVISION_ADMIN_PASSWORD in Render when you move past the demo.
+      # Presentation data: fictional cases and four demo accounts.
+      # Set DEMO_SEED to "false" and use a new database before real cases.
+      - key: DEMO_SEED
+        value: "true"
+      - key: DEMO_PASSWORD
+        sync: false
+      - key: DEMO_ACCOUNT_EMAIL
+        sync: false

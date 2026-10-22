@@ -1,0 +1,33 @@
+// Kalinga context diagram (who and what exchanges data with the system).
+// Render: dot -Tpng -Gdpi=150 context-diagram.dot -o context-diagram.png
+digraph context {
+  graph [rankdir=LR, fontname="Helvetica", nodesep=0.45, ranksep=1.1, bgcolor="white", pad=0.3];
+  node [fontname="Helvetica", fontsize=11, shape=box, style="rounded,filled", fillcolor="#f4f1fa", color="#5b21b6", penwidth=1.2];
+  edge [fontname="Helvetica", fontsize=9, color="#5b5670", fontcolor="#3b2f74"];
+  kalinga [label="KALINGA\nCEFMU Case Management\nInformation System", shape=box, fillcolor="#5b21b6", fontcolor="white", fontsize=13, width=2.6, height=1.2];
+  cm [label="Case Manager / Social Worker\n(C/MSWDO)"];
+  fo [label="Field Office User\n(provincial / regional)"];
+  cpu [label="CPU Member\n(MDT: PNP-WCPD, health,\nlegal, barangay, DepEd)"];
+  co [label="Central Office (DSWD-STB)\naggregate monitoring"];
+  admin [label="System Administrator"];
+  public [label="Public reporter\n(community, school, family)"];
+  mail [label="Email service\n(sign-in codes, alerts)", fillcolor="#ffffff", style="rounded,dashed"];
+  scan [label="Malware scanner\n(ClamAV)", fillcolor="#ffffff", style="rounded,dashed"];
+  store [label="Private file storage\n(S3 or server disk)", fillcolor="#ffffff", style="rounded,dashed"];
+  device [label="Field device\n(encrypted offline workspace)", fillcolor="#ffffff", style="rounded,dashed"];
+  cm -> kalinga [label="intake, assessments, plans,\nprogress notes, referrals"];
+  kalinga -> cm [label="case folder, reports,\ncalendar, suggestions"];
+  fo -> kalinga [label="review, reassignment"];
+  kalinga -> fo [label="provincial case view,\nanalytics"];
+  kalinga -> cpu [label="referrals, MDT tasks\n(need-to-know)"];
+  cpu -> kalinga [label="referral responses,\nMDT notes, Connect"];
+  kalinga -> co [label="aggregate dashboards\n(no names, small cells withheld)"];
+  admin -> kalinga [label="accounts, LGUs,\nform fields"];
+  kalinga -> admin [label="audit trail"];
+  public -> kalinga [label="report of a possible\nCEFMU case"];
+  kalinga -> mail [label="one-time codes"];
+  kalinga -> scan [label="uploaded files"];
+  kalinga -> store [label="documents (private)"];
+  device -> kalinga [label="queued intakes and notes\n(encrypted sync)"];
+  kalinga -> device [label="case pack (72 h)"];
+}

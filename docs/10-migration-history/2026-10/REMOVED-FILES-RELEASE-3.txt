@@ -1,0 +1,28 @@
+Delete these files from your project after copying Release 3.
+They are no longer used; nothing imports them.
+
+Unused components and pages:
+  resources/js/Components/ApplicationLogo.vue
+  resources/js/Components/DangerButton.vue
+  resources/js/Components/Dropdown.vue
+  resources/js/Components/DropdownLink.vue
+  resources/js/Components/NavLink.vue
+  resources/js/Components/PrimaryButton.vue
+  resources/js/Components/ResponsiveNavLink.vue
+  resources/js/Components/SecondaryButton.vue
+  resources/js/Components/UI/FilterBar.vue
+  resources/js/Pages/Welcome.vue
+
+Replaced in Release 2 (merged into tests/Feature/SecurityHardeningTest.php):
+  tests/Feature/ProductionAssetsTest.php
+
+Development leftover (must never be deployed):
+  public/hot
+
+Moved (delete the old copy in the project root; the new copy is in this package):
+  HANDOFF.md -> docs/00-project-plan/AGENT-HANDOFF-2026-10-14.md
+  BATCH*.md, CALENDAR-*.md, CASE-DETAILS-*.md, CONNECT-CHAT-*.md, GROUP-A-*.md,
+  PHASE1-*.md, RELEASE-1-*.md, RELEASE-2-*.md, UI-REDESIGN-*.md
+    -> docs/10-migration-history/2026-10/
+
+Removed method (no file to delete): OperationsController::storeReport.

@@ -1,0 +1,5 @@
+<script setup lang="ts">
+defineProps<{steps:string[];current:number;busy?:boolean}>();
+defineEmits<{select:[step:number]}>();
+</script>
+<template><nav aria-label="CEFMU intake steps" class="my-5"><ol class="flex items-center gap-2 overflow-x-auto pb-1"><li v-for="(label,index) in steps" :key="label" class="flex min-w-0 shrink-0 items-center gap-2"><button type="button" :disabled="index+1>current || busy" :aria-current="current===index+1?'step':undefined" class="flex min-h-11 items-center gap-2 rounded-lg px-1 text-sm font-medium disabled:cursor-default" :class="current===index+1?'text-brand-800':index+1<current?'text-slate-700 hover:text-brand-800':'text-slate-500'" @click="index+1<current&&$emit('select',index+1)"><span class="grid h-7 w-7 shrink-0 place-items-center rounded-full text-xs font-bold" :class="current===index+1?'bg-brand-700 text-white':index+1<current?'bg-brand-100 text-brand-800':'border border-slate-300 bg-white text-slate-500'">{{index+1}}</span><span class="sr-only min-[768px]:not-sr-only">{{label}}</span></button><span v-if="index<steps.length-1" aria-hidden="true" class="h-px w-6 shrink-0 bg-slate-300 sm:w-10" /></li></ol></nav></template>

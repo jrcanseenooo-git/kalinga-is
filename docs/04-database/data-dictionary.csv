@@ -1,0 +1,981 @@
+Group,Table,Column,Type,Required,Notes
+Clients and identity,clients,,,,"The child (client) of a case: identifying information, address, safe contact and primary caregiver."
+,clients,first_name,text,Yes,
+,clients,last_name,text,Yes,
+,clients,birthdate,date,,
+,clients,sex,varchar(24),,
+,clients,phone,text,,
+,clients,barangay,text,,
+,clients,municipality,text,,City or municipality.
+,clients,province,text,,
+,clients,identifiers,json,,
+,clients,deleted_at,timestamp,,When the record was archived (soft delete); empty if active.
+,clients,region,text,,
+,clients,middle_name,text,,
+,clients,suffix,text,,
+,clients,civil_status,text,,
+,clients,religion,text,,
+,clients,ip_category,text,,
+,clients,education_attainment,text,,
+,clients,house_no_street,text,,
+,clients,permanent_house_no_street,text,,
+,clients,permanent_region,text,,
+,clients,permanent_province,text,,
+,clients,permanent_municipality,text,,
+,clients,permanent_barangay,text,,
+,clients,safe_contact_method,varchar(100),,
+,clients,safe_contact_notes,text,,
+,clients,primary_caregiver_name,varchar(160),,
+,clients,primary_caregiver_relationship,varchar(100),,
+,clients,primary_caregiver_contact,varchar(80),,
+,clients,identity_status,varchar(32),Yes,
+,clients,canonical_client_id,bigint,,Links to clients
+,clients,identity_updated_at,timestamp,,Date and time: identity updated.
+Clients and identity,client_identifiers,,,,"Official identifiers recorded for a client, used for duplicate checks."
+,client_identifiers,client_id,bigint,Yes,Links to clients
+,client_identifiers,identifier_type,varchar(80),Yes,
+,client_identifiers,protected_value,text,,
+,client_identifiers,normalized_hash,character,,
+,client_identifiers,display_hint,varchar(64),,
+,client_identifiers,verification_status,varchar(32),Yes,
+,client_identifiers,source_type,varchar(80),,Kind of record this came from.
+,client_identifiers,recorded_by,bigint,,Links to users. User who recorded the record.
+Clients and identity,client_identity_links,,,,Links between client records confirmed as the same person.
+,client_identity_links,left_client_id,bigint,Yes,Links to clients
+,client_identity_links,right_client_id,bigint,Yes,Links to clients
+,client_identity_links,link_type,varchar(50),Yes,
+,client_identity_links,status,varchar(32),Yes,Current status of the record.
+,client_identity_links,rationale,text,,
+,client_identity_links,created_by,bigint,Yes,Links to users. User who created the record.
+Clients and identity,client_identity_merges,,,,Approved merges of duplicate client records.
+,client_identity_merges,candidate_id,bigint,,Links to identity_duplicate_candidates
+,client_identity_merges,source_client_id,bigint,Yes,Links to clients
+,client_identity_merges,survivor_client_id,bigint,Yes,Links to clients
+,client_identity_merges,status,varchar(32),Yes,Current status of the record.
+,client_identity_merges,reason,text,Yes,Reason given.
+,client_identity_merges,source_signature,varchar(64),Yes,
+,client_identity_merges,survivor_signature,varchar(64),Yes,
+,client_identity_merges,proposed_by,bigint,Yes,Links to users. User who proposed the record.
+,client_identity_merges,proposed_at,timestamp,Yes,Date and time: proposed.
+,client_identity_merges,approved_by,bigint,,Links to users. User who approved the record.
+,client_identity_merges,approved_at,timestamp,,Date and time: approved.
+,client_identity_merges,executed_by,bigint,,Links to users. User who executed the record.
+,client_identity_merges,executed_at,timestamp,,Date and time: executed.
+,client_identity_merges,correction_notes,text,,
+Clients and identity,client_identity_merge_affected_records,,,,Records moved from one client to another during a merge.
+,client_identity_merge_affected_records,merge_id,bigint,Yes,Links to client_identity_merges
+,client_identity_merge_affected_records,record_type,varchar(80),Yes,Kind of record.
+,client_identity_merge_affected_records,record_id,bigint,Yes,Number of the related record.
+,client_identity_merge_affected_records,from_client_id,bigint,Yes,Number of the related from client.
+,client_identity_merge_affected_records,to_client_id,bigint,Yes,Number of the related to client.
+Clients and identity,client_identity_merge_field_decisions,,,,Which value was kept for each field during a merge.
+,client_identity_merge_field_decisions,merge_id,bigint,Yes,Links to client_identity_merges
+,client_identity_merge_field_decisions,field_name,varchar(80),Yes,
+,client_identity_merge_field_decisions,resolution,varchar(40),Yes,
+,client_identity_merge_field_decisions,frozen_value,text,,
+,client_identity_merge_field_decisions,rationale,text,,
+Clients and identity,client_identity_merge_identifier_conflicts,,,,Identifiers that disagreed between merged clients.
+,client_identity_merge_identifier_conflicts,merge_id,bigint,Yes,Links to client_identity_merges
+,client_identity_merge_identifier_conflicts,source_identifier_id,bigint,Yes,Links to client_identifiers
+,client_identity_merge_identifier_conflicts,survivor_identifier_id,bigint,,Links to client_identifiers
+,client_identity_merge_identifier_conflicts,identifier_type,varchar(80),Yes,
+,client_identity_merge_identifier_conflicts,resolution,varchar(48),Yes,
+,client_identity_merge_identifier_conflicts,review_note,text,,
+Clients and identity,identity_duplicate_candidates,,,,"Possible duplicate clients found by the system, for review."
+,identity_duplicate_candidates,client_a_id,bigint,Yes,Links to clients
+,identity_duplicate_candidates,client_b_id,bigint,Yes,Links to clients
+,identity_duplicate_candidates,candidate_key,varchar(80),Yes,
+,identity_duplicate_candidates,status,varchar(40),Yes,Current status of the record.
+,identity_duplicate_candidates,matching_signals,json,Yes,
+,identity_duplicate_candidates,jurisdiction_context,varchar(32),Yes,
+,identity_duplicate_candidates,created_by,bigint,,Links to users. User who created the record.
+,identity_duplicate_candidates,reviewed_at,timestamp,,Date and time: reviewed.
+,identity_duplicate_candidates,reviewed_by,bigint,,Links to users. User who reviewed the record.
+Clients and identity,identity_review_decisions,,,,Decisions taken on possible duplicates.
+,identity_review_decisions,candidate_id,bigint,Yes,Links to identity_duplicate_candidates
+,identity_review_decisions,decision,varchar(40),Yes,
+,identity_review_decisions,rationale,text,,
+,identity_review_decisions,reviewed_by,bigint,Yes,Links to users. User who reviewed the record.
+,identity_review_decisions,reviewed_at,timestamp,Yes,Date and time: reviewed.
+Clients and identity,relationships,,,,Family members and support persons of a client (family composition).
+,relationships,client_id,bigint,Yes,Links to clients
+,relationships,related_client_id,bigint,,Links to clients
+,relationships,name,text,,
+,relationships,relationship_type,text,Yes,
+,relationships,phone,text,,
+,relationships,is_guardian,boolean,Yes,Yes/no: is guardian.
+,relationships,sex,varchar(24),,
+,relationships,birthdate,date,,
+,relationships,education,text,,
+,relationships,occupation,text,,
+Clients and identity,households,,,,Households a client belongs to.
+,households,status,varchar(32),Yes,Current status of the record.
+,households,locality_hint,text,,
+,households,source_type,varchar(80),,Kind of record this came from.
+,households,created_by,bigint,,Links to users. User who created the record.
+Clients and identity,household_memberships,,,,Membership of clients in households.
+,household_memberships,household_id,bigint,Yes,Links to households
+,household_memberships,client_id,bigint,Yes,Links to clients
+,household_memberships,effective_from,date,,
+,household_memberships,effective_to,date,,
+,household_memberships,membership_status,varchar(32),Yes,
+,household_memberships,source_type,varchar(80),,Kind of record this came from.
+,household_memberships,correction_reason,text,,
+,household_memberships,recorded_by,bigint,,Links to users. User who recorded the record.
+Reports and intake,reports,,,,"Reports of possible CEFMU cases received from the public or partners, before a case is opened."
+,reports,reference_no,text,Yes,
+,reports,client_id,bigint,,Links to clients
+,reports,status,text,Yes,Current status of the record.
+,reports,source,text,,
+,reports,narrative,text,Yes,
+,reports,priority,text,Yes,"Priority (low, normal, high, urgent)."
+,reports,submitted_at,timestamp,,Date and time: submitted.
+,reports,created_by,bigint,,Links to users. User who created the record.
+,reports,deleted_at,timestamp,,When the record was archived (soft delete); empty if active.
+,reports,source_other,text,,
+,reports,reporter_name,text,,
+,reports,reporter_contact,text,,
+,reports,subject_first,text,,
+,reports,subject_last,text,,
+,reports,subject_middle,text,,
+,reports,subject_birthdate,date,,
+,reports,subject_age,smallint,,
+,reports,subject_sex,varchar(24),,
+,reports,category,text,,
+,reports,region,text,,
+,reports,province,text,,
+,reports,municipality,text,,City or municipality.
+,reports,barangay,text,,
+,reports,latitude,numeric,,
+,reports,longitude,numeric,,
+,reports,geo_accuracy_m,numeric,,
+,reports,geo_source,text,,
+,reports,screened_at,timestamp,,Date and time: screened.
+,reports,screened_by,bigint,,Links to users. User who screened the record.
+,reports,screening_remarks,text,,
+,reports,validated_at,timestamp,,Date and time: validated.
+,reports,validated_by,bigint,,Links to users. User who validated the record.
+,reports,validation_remarks,text,,
+,reports,decided_at,timestamp,,Date and time: decided.
+,reports,decided_by,bigint,,Links to users. User who decided the record.
+,reports,decision_reason,text,,
+,reports,duplicate_of_report_id,bigint,,Links to reports
+,reports,referred_out_to,text,,
+,reports,is_public_submission,boolean,Yes,Yes/no: is public submission.
+,reports,endorsed_municipality,text,,
+,reports,lgu_id,bigint,,Links to lgu_units
+Reports and intake,reference_sequences,,,,Counters used to issue report and case numbers.
+,reference_sequences,prefix,varchar(16),Yes,
+,reference_sequences,year,smallint,Yes,
+,reference_sequences,last_number,bigint,Yes,
+,reference_sequences,initialized_at,timestamp,,Date and time: initialized.
+Case folder,cases,,,,"The case folder: status, stage, CEFMU classification, intake details, risk level, consent, assignment and LGU."
+,cases,case_number,text,Yes,
+,cases,client_id,bigint,Yes,Links to clients
+,cases,report_id,bigint,,Links to reports
+,cases,assigned_to,bigint,,Links to users
+,cases,status,text,Yes,Current status of the record.
+,cases,stage,text,Yes,
+,cases,priority,text,Yes,"Priority (low, normal, high, urgent)."
+,cases,category,text,,
+,cases,opened_at,timestamp,Yes,Date and time: opened.
+,cases,last_activity_at,timestamp,,Date and time: last activity.
+,cases,retention_review_at,timestamp,,Date and time: retention review.
+,cases,deleted_at,timestamp,,When the record was archived (soft delete); empty if active.
+,cases,offline_version,integer,Yes,
+,cases,closure_summary,text,,
+,cases,closed_at,timestamp,,Date and time: closed.
+,cases,case_type,text,,
+,cases,circumstance,text,,
+,cases,pregnancy_status,text,,
+,cases,disability_evidence,text,,
+,cases,functional_difficulty,text,,
+,cases,immediate_safety_concern,boolean,Yes,Yes/no: immediate safety concern.
+,cases,mode_of_admission,text,,
+,cases,referred_by,text,,
+,cases,referral_date,date,,Date: referral.
+,cases,problem_presented,text,,
+,cases,initial_assessment,text,,
+,cases,plan_recommendations,text,,
+,cases,intake_remarks,text,,
+,cases,initial_risk_level,varchar(20),,
+,cases,risk_indicators,json,,
+,cases,immediate_actions,text,,
+,cases,safety_plan,text,,
+,cases,next_review_at,timestamp,,Date and time: next review.
+,cases,intake_completed_at,timestamp,,Date and time: intake completed.
+,cases,cefmu_situation,varchar(60),,
+,cases,union_type,varchar(60),,
+,cases,partner_age_band,varchar(60),,
+,cases,education_status_at_intake,varchar(100),,
+,cases,pregnancy_parenting_status,varchar(100),,
+,cases,cefmu_context,text,,
+,cases,privacy_notice_provided_at,timestamp,,Date and time: privacy notice provided.
+,cases,privacy_notice_method,varchar(80),,
+,cases,data_sharing_basis,varchar(80),,
+,cases,consent_status,varchar(80),,
+,cases,cefmu_classifications,json,,
+,cases,closure_reviewed_by,bigint,,Links to users. User who closure reviewed the record.
+,cases,closure_reviewed_at,timestamp,,Date and time: closure reviewed.
+,cases,current_risk_level,varchar(20),,
+,cases,current_risk_assessed_at,timestamp,,Date and time: current risk assessed.
+,cases,lgu_id,bigint,,Links to lgu_units
+Case folder,case_status_history,,,,"Every change of case status, with who and when."
+,case_status_history,case_id,bigint,Yes,Links to cases
+,case_status_history,from_status,text,,
+,case_status_history,to_status,text,Yes,
+,case_status_history,reason,text,,Reason given.
+,case_status_history,changed_by,bigint,Yes,Links to users. User who changed the record.
+Case folder,case_lifecycle_policies,,,,Rules for allowed case status changes.
+,case_lifecycle_policies,scope,varchar(60),Yes,
+,case_lifecycle_policies,key,varchar(100),Yes,
+,case_lifecycle_policies,value,varchar(40),Yes,
+,case_lifecycle_policies,description,text,,
+,case_lifecycle_policies,requires_owner_validation,boolean,Yes,Yes/no: requires owner validation.
+Case folder,case_notes,,,,"Progress notes and their addenda (corrections), with purpose, action taken and next steps."
+,case_notes,case_id,bigint,Yes,Links to cases
+,case_notes,body,text,Yes,Text of the note or message.
+,case_notes,visibility,text,Yes,
+,case_notes,created_by,bigint,Yes,Links to users. User who created the record.
+,case_notes,source_type,varchar(80),,Kind of record this came from.
+,case_notes,source_id,bigint,,Number of the record this came from.
+,case_notes,provenance_summary,text,,
+,case_notes,captured_at,timestamp,,Date and time: captured.
+,case_notes,record_type,varchar(30),Yes,Kind of record.
+,case_notes,note_type,varchar(80),Yes,
+,case_notes,occurred_at,timestamp,,Date and time: occurred.
+,case_notes,previous_note_id,bigint,,Links to case_notes
+,case_notes,addendum_reason,text,,
+,case_notes,finalized_at,timestamp,,When the record was finalized (locked).
+,case_notes,finalized_by,bigint,,Links to users. User who finalized the record.
+,case_notes,is_current,boolean,Yes,Whether this is the current version.
+,case_notes,action_taken,text,,
+,case_notes,next_steps,text,,
+Case folder,monitoring_visits,,,,Home and monitoring visits.
+,monitoring_visits,case_id,bigint,Yes,Links to cases
+,monitoring_visits,visited_at,date,Yes,Date and time: visited.
+,monitoring_visits,location,text,,
+,monitoring_visits,observations,text,Yes,
+,monitoring_visits,risks,text,,
+,monitoring_visits,next_steps,text,,
+,monitoring_visits,latitude,numeric,,
+,monitoring_visits,longitude,numeric,,
+,monitoring_visits,created_by,bigint,Yes,Links to users. User who created the record.
+Case folder,tasks,,,,"Calendar activities and follow-ups (visits, conferences, deadlines)."
+,tasks,case_id,bigint,,Links to cases
+,tasks,assigned_to,bigint,Yes,Links to users
+,tasks,title,text,Yes,
+,tasks,due_at,timestamp,,Date and time: due.
+,tasks,status,text,Yes,Current status of the record.
+,tasks,source_type,varchar(80),,Kind of record this came from.
+,tasks,source_id,bigint,,Number of the record this came from.
+,tasks,event_type,varchar(40),,
+,tasks,location,text,,
+,tasks,details,text,,
+Case folder,consents,,,,Consent and lawful basis for processing and sharing case information.
+,consents,case_id,bigint,Yes,Links to cases
+,consents,lawful_basis,text,Yes,Lawful basis under the Data Privacy Act.
+,consents,purposes,json,Yes,
+,consents,sharing_allowed,boolean,Yes,Yes/no: sharing allowed.
+,consents,granted_at,timestamp,Yes,Date and time: granted.
+,consents,withdrawn_at,timestamp,,Date and time: withdrawn.
+,consents,recorded_by,bigint,Yes,Links to users. User who recorded the record.
+Case folder,documents,,,,Uploaded case documents (stored privately; quarantined until scanned).
+,documents,case_id,bigint,Yes,Links to cases
+,documents,name,text,Yes,
+,documents,disk,text,Yes,
+,documents,path,text,Yes,
+,documents,mime_type,text,Yes,
+,documents,version,integer,Yes,Version number; a new version is created instead of overwriting.
+,documents,uploaded_by,bigint,Yes,Links to users. User who uploaded the record.
+,documents,deleted_at,timestamp,,When the record was archived (soft delete); empty if active.
+,documents,lineage_id,uuid,,Number of the related lineage.
+,documents,previous_document_id,bigint,,Links to documents
+,documents,source_module,varchar(64),,
+,documents,uploader_notes,text,,
+Assessment,risk_assessments,,,,Safety and risk assessments.
+,risk_assessments,case_id,bigint,Yes,Links to cases
+,risk_assessments,assessment_type,varchar(30),Yes,
+,risk_assessments,assessed_at,timestamp,Yes,Date and time: assessed.
+,risk_assessments,overall_risk_level,varchar(20),Yes,
+,risk_assessments,immediate_protection_required,boolean,Yes,Yes/no: immediate protection required.
+,risk_assessments,safety_plan_status,varchar(30),Yes,
+,risk_assessments,required_action,text,,
+,risk_assessments,responsible_person,text,,
+,risk_assessments,target_date,date,,Target completion date.
+,risk_assessments,next_reassessment_at,timestamp,,Date and time: next reassessment.
+,risk_assessments,professional_rationale,text,,
+,risk_assessments,status,varchar(20),Yes,Current status of the record.
+,risk_assessments,assessed_by,bigint,Yes,Links to users. User who assessed the record.
+,risk_assessments,finalized_by,bigint,,Links to users. User who finalized the record.
+,risk_assessments,finalized_at,timestamp,,When the record was finalized (locked).
+,risk_assessments,version,integer,Yes,Version number; a new version is created instead of overwriting.
+Assessment,risk_assessment_factors,,,,Risk factors rated in a safety and risk assessment.
+,risk_assessment_factors,risk_assessment_id,bigint,Yes,Links to risk_assessments
+,risk_assessment_factors,domain,varchar(80),Yes,
+,risk_assessment_factors,finding_level,varchar(30),Yes,
+,risk_assessment_factors,is_protective_factor,boolean,Yes,Yes/no: is protective factor.
+,risk_assessment_factors,notes,text,,
+Assessment,case_assessments,,,,Comprehensive assessments (versioned).
+,case_assessments,case_id,bigint,Yes,Links to cases
+,case_assessments,previous_assessment_id,bigint,,Links to case_assessments
+,case_assessments,version,integer,Yes,Version number; a new version is created instead of overwriting.
+,case_assessments,assessment_date,date,Yes,Date: assessment.
+,case_assessments,status,varchar(30),Yes,Current status of the record.
+,case_assessments,authored_by,bigint,Yes,Links to users. User who authored the record.
+,case_assessments,reviewed_by,bigint,,Links to users. User who reviewed the record.
+,case_assessments,reviewed_at,timestamp,,Date and time: reviewed.
+,case_assessments,finalized_by,bigint,,Links to users. User who finalized the record.
+,case_assessments,finalized_at,timestamp,,When the record was finalized (locked).
+,case_assessments,is_current,boolean,Yes,Whether this is the current version.
+,case_assessments,review_comments,text,,
+,case_assessments,returned_by,bigint,,Links to users. User who returned the record.
+,case_assessments,returned_at,timestamp,,Date and time: returned.
+,case_assessments,amendment_reason,varchar(500),,
+,case_assessments,record_type,varchar(20),Yes,Kind of record.
+Assessment,case_assessment_sections,,,,"Sections of a comprehensive assessment (facts, observations, analysis)."
+,case_assessment_sections,case_assessment_id,bigint,Yes,Links to case_assessments
+,case_assessment_sections,section_key,varchar(80),Yes,
+,case_assessment_sections,completion_state,varchar(30),Yes,
+,case_assessment_sections,source_type,varchar(50),,Kind of record this came from.
+,case_assessment_sections,facts,text,,
+,case_assessment_sections,reported_information,text,,
+,case_assessment_sections,observations,text,,
+,case_assessment_sections,analysis,text,,
+,case_assessment_sections,conflicting_information,text,,
+,case_assessment_sections,restricted,boolean,Yes,Yes/no: restricted.
+Assessment,case_assessment_workflow_events,,,,Review and approval steps of a comprehensive assessment.
+,case_assessment_workflow_events,case_assessment_id,bigint,Yes,Links to case_assessments
+,case_assessment_workflow_events,event,varchar(30),Yes,Event name.
+,case_assessment_workflow_events,actor_id,bigint,Yes,Links to users
+,case_assessment_workflow_events,comments,text,,
+Assessment,assessments,,,,"Assessments from the earlier system, kept for reference."
+,assessments,case_id,bigint,Yes,Links to cases
+,assessments,status,text,Yes,Current status of the record.
+,assessments,responses,json,,
+,assessments,summary,text,,
+,assessments,completed_by,bigint,,Links to users. User who completed the record.
+,assessments,completed_at,timestamp,,Date and time: completed.
+,assessments,version,integer,Yes,Version number; a new version is created instead of overwriting.
+Assessment,legacy_assessment_reconciliations,,,,How earlier-system assessments were matched to current records.
+,legacy_assessment_reconciliations,legacy_assessment_id,bigint,Yes,Links to assessments
+,legacy_assessment_reconciliations,case_id,bigint,Yes,Links to cases
+,legacy_assessment_reconciliations,proposed_case_assessment_id,bigint,,Links to case_assessments
+,legacy_assessment_reconciliations,classification,varchar(40),Yes,
+,legacy_assessment_reconciliations,validation_status,varchar(40),Yes,
+,legacy_assessment_reconciliations,unresolved_fields,json,,
+,legacy_assessment_reconciliations,migration_version,varchar(40),,
+,legacy_assessment_reconciliations,reviewed_by,bigint,,Links to users. User who reviewed the record.
+,legacy_assessment_reconciliations,migrated_at,timestamp,,Date and time: migrated.
+Assessment,child_participation_records,,,,Records of the child's views and participation in decisions.
+,child_participation_records,case_id,bigint,Yes,Links to cases
+,child_participation_records,previous_record_id,bigint,,Links to child_participation_records
+,child_participation_records,lineage_key,uuid,Yes,
+,child_participation_records,version,integer,Yes,Version number; a new version is created instead of overwriting.
+,child_participation_records,record_type,varchar(20),Yes,Kind of record.
+,child_participation_records,occasion_type,varchar(40),Yes,
+,child_participation_records,decision_title,text,Yes,
+,child_participation_records,participation_date,date,Yes,Date: participation.
+,child_participation_records,participation_status,varchar(40),Yes,
+,child_participation_records,non_participation_reason,text,,
+,child_participation_records,amendment_reason,text,,
+,child_participation_records,status,varchar(30),Yes,Current status of the record.
+,child_participation_records,authored_by,bigint,Yes,Links to users. User who authored the record.
+,child_participation_records,reviewed_by,bigint,,Links to users. User who reviewed the record.
+,child_participation_records,reviewed_at,timestamp,,Date and time: reviewed.
+,child_participation_records,returned_by,bigint,,Links to users. User who returned the record.
+,child_participation_records,returned_at,timestamp,,Date and time: returned.
+,child_participation_records,review_comments,text,,
+,child_participation_records,finalized_by,bigint,,Links to users. User who finalized the record.
+,child_participation_records,finalized_at,timestamp,,When the record was finalized (locked).
+,child_participation_records,is_current,boolean,Yes,Whether this is the current version.
+,child_participation_records,developmental_considerations,text,,
+,child_participation_records,preferred_language,varchar(120),,
+,child_participation_records,communication_method,text,,
+,child_participation_records,accessibility_accommodation,text,,
+,child_participation_records,interpreter_or_support,text,,
+,child_participation_records,trusted_adult_or_support_person,text,,
+,child_participation_records,location_environment,text,,
+,child_participation_records,privacy_reasonably_provided,boolean,,Yes/no: privacy reasonably provided.
+,child_participation_records,comfortable_to_continue,boolean,,Yes/no: comfortable to continue.
+,child_participation_records,child_views,text,,
+,child_participation_records,direct_quote,text,,
+,child_participation_records,worker_observation,text,,
+,child_participation_records,reported_information,text,,
+,child_participation_records,professional_consideration,text,,
+,child_participation_records,child_preference,text,,
+,child_participation_records,factors_considered,text,,
+,child_participation_records,view_influence,text,,
+,child_participation_records,decision_alignment,varchar(30),,
+,child_participation_records,best_interest_rationale,text,,
+,child_participation_records,safeguards_mitigating_actions,text,,
+,child_participation_records,outcome_explained_to_child,boolean,,Yes/no: outcome explained to child.
+,child_participation_records,feedback_date,date,,Date: feedback.
+,child_participation_records,feedback_by,text,,
+,child_participation_records,feedback_method_language,text,,
+,child_participation_records,child_response_questions,text,,
+,child_participation_records,follow_up_needed,text,,
+,child_participation_records,sharing_preference,text,,
+,child_participation_records,sharing_professional_consideration,text,,
+,child_participation_records,necessary_disclosure_basis,text,,
+Assessment,child_participation_workflow_events,,,,Review steps of child participation records.
+,child_participation_workflow_events,child_participation_record_id,bigint,Yes,Links to child_participation_records
+,child_participation_workflow_events,event,varchar(30),Yes,Event name.
+,child_participation_workflow_events,actor_id,bigint,Yes,Links to users
+,child_participation_workflow_events,comments,text,,
+Planning and services,case_plans,,,,"Intervention plans (versioned): objective, status, review date."
+,case_plans,case_id,bigint,Yes,Links to cases
+,case_plans,summary,text,,
+,case_plans,review_due_at,date,,Date the next review is due.
+,case_plans,status,text,Yes,Current status of the record.
+,case_plans,previous_plan_id,bigint,,Links to case_plans
+,case_plans,version,integer,Yes,Version number; a new version is created instead of overwriting.
+,case_plans,plan_date,date,,Date: plan.
+,case_plans,authored_by,bigint,,Links to users. User who authored the record.
+,case_plans,reviewed_by,bigint,,Links to users. User who reviewed the record.
+,case_plans,reviewed_at,timestamp,,Date and time: reviewed.
+,case_plans,returned_by,bigint,,Links to users. User who returned the record.
+,case_plans,returned_at,timestamp,,Date and time: returned.
+,case_plans,review_comments,text,,
+,case_plans,overall_objective,text,,
+,case_plans,comprehensive_assessment_id,bigint,,Links to case_assessments
+,case_plans,risk_assessment_id,bigint,,Links to risk_assessments
+,case_plans,child_participation_record_id,bigint,,Links to child_participation_records
+,case_plans,is_current,boolean,Yes,Whether this is the current version.
+Planning and services,case_plan_goals,,,,"Goals of an intervention plan by domain, with target dates."
+,case_plan_goals,case_plan_id,bigint,Yes,Links to case_plans
+,case_plan_goals,domain,varchar(80),Yes,
+,case_plan_goals,need_problem,varchar(500),Yes,
+,case_plan_goals,goal_statement,text,Yes,
+,case_plan_goals,priority,varchar(20),Yes,"Priority (low, normal, high, urgent)."
+,case_plan_goals,target_date,date,,Target completion date.
+,case_plan_goals,status,varchar(30),Yes,Current status of the record.
+,case_plan_goals,outcome,varchar(40),,
+,case_plan_goals,outcome_observations,text,,
+,case_plan_goals,completed_at,timestamp,,Date and time: completed.
+Planning and services,case_plan_history,,,,Changes to an intervention plan.
+,case_plan_history,case_plan_id,bigint,Yes,Links to case_plans
+,case_plan_history,event,varchar(80),Yes,Event name.
+,case_plan_history,actor_id,bigint,,Links to users
+,case_plan_history,comments,text,,
+Planning and services,case_plan_reviews,,,,Periodic reviews of an intervention plan.
+,case_plan_reviews,case_plan_id,bigint,Yes,Links to case_plans
+,case_plan_reviews,reviewed_by,bigint,Yes,Links to users. User who reviewed the record.
+,case_plan_reviews,review_date,date,Yes,Date: review.
+,case_plan_reviews,overall_progress,varchar(40),Yes,
+,case_plan_reviews,changed_needs,text,,
+,case_plan_reviews,barriers,text,,
+,case_plan_reviews,continuing_concerns,text,,
+,case_plan_reviews,outcome_observations,text,,
+,case_plan_reviews,recommendation,text,,
+,case_plan_reviews,revision_required,boolean,Yes,Yes/no: revision required.
+,case_plan_reviews,next_review_at,date,,Date and time: next review.
+,case_plan_reviews,finalized_at,timestamp,,When the record was finalized (locked).
+Planning and services,interventions,,,,"Activities and services planned under each goal, with responsible person and progress."
+,interventions,case_plan_id,bigint,Yes,Links to case_plans
+,interventions,need,text,Yes,
+,interventions,goal,text,Yes,
+,interventions,service_category,text,Yes,
+,interventions,target_date,date,,Target completion date.
+,interventions,progress,text,Yes,
+,interventions,outcome,text,,
+,interventions,case_plan_goal_id,bigint,,Links to case_plan_goals
+,interventions,activity,text,,
+,interventions,responsible_user_id,bigint,,Links to users
+,interventions,responsible_office,varchar(180),,
+,interventions,service_provider_id,bigint,,Links to service_providers
+,interventions,start_date,date,,Date: start.
+,interventions,priority,varchar(20),Yes,"Priority (low, normal, high, urgent)."
+,interventions,expected_outcome,text,,
+,interventions,actual_outcome,text,,
+,interventions,outcome_status,varchar(40),,
+,interventions,barriers,text,,
+,interventions,next_action,text,,
+,interventions,completed_at,timestamp,,Date and time: completed.
+,interventions,origin_type,varchar(80),,
+,interventions,origin_id,bigint,,Number of the related origin.
+,interventions,operational_record_type,varchar(80),,
+,interventions,operational_record_id,bigint,,Number of the related operational record.
+Planning and services,services_provided,,,,Services and assistance actually given to the client.
+,services_provided,case_id,bigint,Yes,Links to cases
+,services_provided,service_type,varchar(60),Yes,
+,services_provided,specific_detail,text,,
+,services_provided,amount,numeric,,
+,services_provided,date_provided,date,Yes,
+,services_provided,provided_by,varchar(160),,
+,services_provided,referral_id,bigint,,Links to referrals
+,services_provided,case_note_id,bigint,,Links to case_notes
+,services_provided,recorded_by,bigint,Yes,Links to users. User who recorded the record.
+Planning and services,service_providers,,,,Directory of agencies and offices that receive referrals.
+,service_providers,name,text,Yes,
+,service_providers,service_type,text,Yes,
+,service_providers,contact_person,text,,
+,service_providers,phone,text,,
+,service_providers,municipality,text,,City or municipality.
+,service_providers,active,boolean,Yes,Whether the record is in use.
+,service_providers,region,text,,
+,service_providers,province,text,,
+,service_providers,barangay,text,,
+Planning and services,referrals,,,,"Referrals to CPU members and agencies, with status, outcome and dates."
+,referrals,case_id,bigint,Yes,Links to cases
+,referrals,service_provider_id,bigint,,Links to service_providers
+,referrals,status,text,Yes,Current status of the record.
+,referrals,service_category,text,Yes,
+,referrals,reason,text,,Reason given.
+,referrals,referred_at,timestamp,,Date and time: referred.
+,referrals,accepted_at,timestamp,,Date and time: accepted.
+,referrals,completed_at,timestamp,,Date and time: completed.
+,referrals,created_by,bigint,Yes,Links to users. User who created the record.
+,referrals,lawful_basis,varchar(40),,Lawful basis under the Data Privacy Act.
+,referrals,sharing_authorized_by,bigint,,Links to users. User who sharing authorized the record.
+,referrals,sharing_authorized_at,timestamp,,Date and time: sharing authorized.
+,referrals,outcome,text,,
+,referrals,status_reason,text,,
+,referrals,referred_to,varchar(160),,
+,referrals,purpose,varchar(160),,
+,referrals,case_note_id,bigint,,Links to case_notes
+,referrals,lgu_cpu_member_id,bigint,,Links to lgu_cpu_members
+,referrals,recipient_user_id,bigint,,Links to users
+,referrals,mdt_case_access_id,bigint,,Links to mdt_case_access
+,referrals,target_date,date,,Target completion date.
+Planning and services,referral_events,,,,Each status change of a referral.
+,referral_events,referral_id,bigint,Yes,Links to referrals
+,referral_events,from_status,varchar(40),,
+,referral_events,to_status,varchar(40),Yes,
+,referral_events,remarks,text,,
+,referral_events,outcome,text,,
+,referral_events,reason,text,,Reason given.
+,referral_events,actor_id,bigint,,Links to users
+Planning and services,case_conferences,,,,Case conferences.
+,case_conferences,case_id,bigint,Yes,Links to cases
+,case_conferences,conference_type,varchar(80),Yes,
+,case_conferences,other_type_reason,varchar(500),,
+,case_conferences,status,varchar(40),Yes,Current status of the record.
+,case_conferences,scheduled_at,timestamp,,Date and time: scheduled.
+,case_conferences,started_at,timestamp,,Date and time: started.
+,case_conferences,completed_at,timestamp,,Date and time: completed.
+,case_conferences,venue_mode,varchar(100),,
+,case_conferences,facilitator_name,varchar(180),,
+,case_conferences,recorder_name,varchar(180),,
+,case_conferences,purpose,text,,
+,case_conferences,case_updates,text,,
+,case_conferences,key_issues,text,,
+,case_conferences,child_participation_status,varchar(60),,
+,case_conferences,child_participation_record_id,bigint,,Links to child_participation_records
+,case_conferences,risk_assessment_id,bigint,,Links to risk_assessments
+,case_conferences,family_perspective,text,,
+,case_conferences,professional_observations,text,,
+,case_conferences,next_review_at,timestamp,,Date and time: next review.
+,case_conferences,confidentiality,varchar(40),Yes,
+,case_conferences,created_by,bigint,Yes,Links to users. User who created the record.
+,case_conferences,reviewed_by,bigint,,Links to users. User who reviewed the record.
+,case_conferences,finalized_by,bigint,,Links to users. User who finalized the record.
+,case_conferences,finalized_at,timestamp,,When the record was finalized (locked).
+,case_conferences,returned_by,bigint,,Links to users. User who returned the record.
+,case_conferences,returned_at,timestamp,,Date and time: returned.
+,case_conferences,review_comments,text,,
+,case_conferences,previous_conference_id,bigint,,Links to case_conferences
+,case_conferences,record_type,varchar(30),Yes,Kind of record.
+,case_conferences,addendum_reason,text,,
+Planning and services,case_conference_participants,,,,People invited to or attending a case conference.
+,case_conference_participants,case_conference_id,bigint,Yes,Links to case_conferences
+,case_conference_participants,user_id,bigint,,Links to users
+,case_conference_participants,name,varchar(180),Yes,
+,case_conference_participants,professional_role,varchar(140),,
+,case_conference_participants,organization,varchar(180),,
+,case_conference_participants,attendance_status,varchar(40),Yes,
+,case_conference_participants,participation_mode,varchar(60),,
+,case_conference_participants,conference_role,varchar(80),,
+Planning and services,case_conference_decisions,,,,Decisions taken at a case conference.
+,case_conference_decisions,case_conference_id,bigint,Yes,Links to case_conferences
+,case_conference_decisions,decision_type,varchar(20),Yes,
+,case_conference_decisions,statement,text,Yes,
+,case_conference_decisions,status,varchar(40),Yes,Current status of the record.
+Planning and services,case_conference_actions,,,,Actions agreed at a case conference.
+,case_conference_actions,case_conference_id,bigint,Yes,Links to case_conferences
+,case_conference_actions,action,text,Yes,
+,case_conference_actions,category,varchar(100),,
+,case_conference_actions,responsible_user_id,bigint,,Links to users
+,case_conference_actions,responsible_office,varchar(180),,
+,case_conference_actions,target_at,timestamp,,Date and time: target.
+,case_conference_actions,priority,varchar(30),Yes,"Priority (low, normal, high, urgent)."
+,case_conference_actions,local_status,varchar(40),Yes,
+,case_conference_actions,source_type,varchar(80),,Kind of record this came from.
+,case_conference_actions,source_id,bigint,,Number of the record this came from.
+,case_conference_actions,outcome_remarks,text,,
+Planning and services,case_conference_history,,,,Changes to case conference records.
+,case_conference_history,case_conference_id,bigint,Yes,Links to case_conferences
+,case_conference_history,event,varchar(80),Yes,Event name.
+,case_conference_history,actor_id,bigint,,Links to users
+,case_conference_history,comments,text,,
+,case_conference_history,prior_scheduled_at,timestamp,,Date and time: prior scheduled.
+,case_conference_history,new_scheduled_at,timestamp,,Date and time: new scheduled.
+"Closure, transfer and aftercare",case_closure_records,,,,Closure summaries and their review (versioned).
+,case_closure_records,case_id,bigint,Yes,Links to cases
+,case_closure_records,version,integer,Yes,Version number; a new version is created instead of overwriting.
+,case_closure_records,current_slot,smallint,,
+,case_closure_records,summary,text,,
+,case_closure_records,source,varchar(40),Yes,
+,case_closure_records,recorded_by,bigint,,Links to users. User who recorded the record.
+,case_closure_records,recorded_at,timestamp,,Date and time: recorded.
+,case_closure_records,captured_by,bigint,,Links to users. User who captured the record.
+,case_closure_records,reviewed_by,bigint,,Links to users. User who reviewed the record.
+,case_closure_records,reviewed_at,timestamp,,Date and time: reviewed.
+,case_closure_records,closed_at,timestamp,,Date and time: closed.
+,case_closure_records,superseded_at,timestamp,,Date and time: superseded.
+"Closure, transfer and aftercare",case_aftercare_plans,,,,Aftercare plans after closure.
+,case_aftercare_plans,case_id,bigint,Yes,Links to cases
+,case_aftercare_plans,case_plan_id,bigint,,Links to case_plans
+,case_aftercare_plans,required,boolean,Yes,Yes/no: required.
+,case_aftercare_plans,basis,text,,
+,case_aftercare_plans,responsible_user_id,bigint,,Links to users
+,case_aftercare_plans,responsible_office,varchar(180),,
+,case_aftercare_plans,initial_follow_up_at,date,,Date and time: initial follow up.
+,case_aftercare_plans,status,varchar(30),Yes,Current status of the record.
+,case_aftercare_plans,continuity_notes,text,,
+,case_aftercare_plans,created_by,bigint,Yes,Links to users. User who created the record.
+"Closure, transfer and aftercare",case_reintegrations,,,,Reintegration plans.
+,case_reintegrations,case_id,bigint,Yes,Links to cases
+,case_reintegrations,case_plan_id,bigint,,Links to case_plans
+,case_reintegrations,applicable,boolean,Yes,Yes/no: applicable.
+,case_reintegrations,basis,text,,
+,case_reintegrations,status,varchar(30),Yes,Current status of the record.
+,case_reintegrations,child_participation_record_id,bigint,,Links to child_participation_records
+,case_reintegrations,risk_assessment_id,bigint,,Links to risk_assessments
+,case_reintegrations,continuity_plan,text,,
+,case_reintegrations,safeguards,text,,
+,case_reintegrations,responsible_office,varchar(180),,
+,case_reintegrations,target_date,date,,Target completion date.
+,case_reintegrations,review_at,date,,Date and time: review.
+,case_reintegrations,created_by,bigint,Yes,Links to users. User who created the record.
+"Closure, transfer and aftercare",case_transfers,,,,Formal handover of a case to another worker or office.
+,case_transfers,case_id,bigint,Yes,Links to cases
+,case_transfers,status,varchar(40),Yes,Current status of the record.
+,case_transfers,originating_office,varchar(180),Yes,
+,case_transfers,receiving_office,varchar(180),Yes,
+,case_transfers,originating_worker_id,bigint,,Links to users
+,case_transfers,receiving_worker_id,bigint,,Links to users
+,case_transfers,reason,text,Yes,Reason given.
+,case_transfers,new_locality,text,,
+,case_transfers,requested_at,timestamp,,Date and time: requested.
+,case_transfers,endorsed_at,timestamp,,Date and time: endorsed.
+,case_transfers,accepted_at,timestamp,,Date and time: accepted.
+,case_transfers,completed_at,timestamp,,Date and time: completed.
+,case_transfers,continuity_notes,text,,
+,case_transfers,clarification_comments,text,,
+,case_transfers,created_by,bigint,Yes,Links to users. User who created the record.
+"Closure, transfer and aftercare",case_transfer_history,,,,Steps of a case handover.
+,case_transfer_history,case_transfer_id,bigint,Yes,Links to case_transfers
+,case_transfer_history,event,varchar(80),Yes,Event name.
+,case_transfer_history,actor_id,bigint,,Links to users
+,case_transfer_history,comments,text,,
+Multidisciplinary team and coordination,mdt_case_access,,,,"Time-limited access of a CPU/MDT member to one case, with purpose and lawful basis."
+,mdt_case_access,case_id,bigint,Yes,Links to cases
+,mdt_case_access,user_id,bigint,Yes,Links to users
+,mdt_case_access,professional_role,varchar(120),Yes,
+,mdt_case_access,organization,varchar(180),Yes,
+,mdt_case_access,purpose,text,Yes,
+,mdt_case_access,status,varchar(32),Yes,Current status of the record.
+,mdt_case_access,allowed_categories,json,Yes,
+,mdt_case_access,remarks,text,,
+,mdt_case_access,lawful_basis,varchar(180),,Lawful basis under the Data Privacy Act.
+,mdt_case_access,assigned_by,bigint,Yes,Links to users. User who assigned the record.
+,mdt_case_access,assigned_at,timestamp,Yes,Date and time: assigned.
+,mdt_case_access,acknowledged_at,timestamp,,Date and time: acknowledged.
+,mdt_case_access,access_starts_at,timestamp,,Date and time: access starts.
+,mdt_case_access,access_expires_at,timestamp,,Date and time: access expires.
+,mdt_case_access,completed_at,timestamp,,Date and time: completed.
+,mdt_case_access,revoked_at,timestamp,,Date and time: revoked.
+,mdt_case_access,revoked_by,bigint,,Links to users. User who revoked the record.
+,mdt_case_access,expire_on_completion,boolean,Yes,Yes/no: expire on completion.
+,mdt_case_access,aftercare_allowed,boolean,Yes,Yes/no: aftercare allowed.
+Multidisciplinary team and coordination,mdt_case_notes,,,,Notes written by MDT members on a case they were given access to.
+,mdt_case_notes,case_id,bigint,Yes,Links to cases
+,mdt_case_notes,mdt_access_id,bigint,Yes,Links to mdt_case_access
+,mdt_case_notes,previous_note_id,bigint,,Links to mdt_case_notes
+,mdt_case_notes,category,varchar(100),Yes,
+,mdt_case_notes,action_performed,text,,
+,mdt_case_notes,findings,text,,
+,mdt_case_notes,recommendation,text,,
+,mdt_case_notes,follow_up_needed,text,,
+,mdt_case_notes,status,varchar(32),Yes,Current status of the record.
+,mdt_case_notes,finalized_at,timestamp,,When the record was finalized (locked).
+,mdt_case_notes,created_by,bigint,Yes,Links to users. User who created the record.
+,mdt_case_notes,record_type,varchar(24),Yes,Kind of record.
+,mdt_case_notes,addendum_reason,text,,
+,mdt_case_notes,source_type,varchar(80),,Kind of record this came from.
+,mdt_case_notes,source_id,bigint,,Number of the record this came from.
+,mdt_case_notes,provenance_summary,text,,
+,mdt_case_notes,captured_at,timestamp,,Date and time: captured.
+Multidisciplinary team and coordination,mdt_actions,,,,Actions assigned to MDT members.
+,mdt_actions,case_id,bigint,Yes,Links to cases
+,mdt_actions,mdt_access_id,bigint,Yes,Links to mdt_case_access
+,mdt_actions,title,text,Yes,
+,mdt_actions,instructions,text,,
+,mdt_actions,status,varchar(32),Yes,Current status of the record.
+,mdt_actions,due_at,timestamp,,Date and time: due.
+,mdt_actions,responded_at,timestamp,,Date and time: responded.
+,mdt_actions,completed_at,timestamp,,Date and time: completed.
+,mdt_actions,created_by,bigint,Yes,Links to users. User who created the record.
+Multidisciplinary team and coordination,mdt_attachments,,,,Files attached in MDT collaboration.
+,mdt_attachments,case_id,bigint,Yes,Links to cases
+,mdt_attachments,mdt_access_id,bigint,Yes,Links to mdt_case_access
+,mdt_attachments,mdt_action_id,bigint,,Links to mdt_actions
+,mdt_attachments,mdt_note_id,bigint,,Links to mdt_case_notes
+,mdt_attachments,purpose_category,varchar(100),Yes,
+,mdt_attachments,name,text,Yes,
+,mdt_attachments,disk,text,Yes,
+,mdt_attachments,path,text,Yes,
+,mdt_attachments,mime_type,text,Yes,
+,mdt_attachments,size_bytes,integer,Yes,
+,mdt_attachments,uploaded_by,bigint,Yes,Links to users. User who uploaded the record.
+,mdt_attachments,revoked_at,timestamp,,Date and time: revoked.
+,mdt_attachments,scan_state,varchar(24),Yes,
+Multidisciplinary team and coordination,mdt_discussions,,,,MDT discussion messages on a case.
+,mdt_discussions,case_id,bigint,Yes,Links to cases
+,mdt_discussions,mdt_access_id,bigint,,Links to mdt_case_access
+,mdt_discussions,parent_id,bigint,,Links to mdt_discussions
+,mdt_discussions,author_id,bigint,Yes,Links to users
+,mdt_discussions,body,text,Yes,Text of the note or message.
+,mdt_discussions,is_system_event,boolean,Yes,Yes/no: is system event.
+Multidisciplinary team and coordination,mdt_discussion_reads,,,,Which discussion messages each member has read.
+,mdt_discussion_reads,discussion_id,bigint,Yes,Links to mdt_discussions
+,mdt_discussion_reads,user_id,bigint,Yes,Links to users
+,mdt_discussion_reads,read_at,timestamp,Yes,Date and time: read.
+Multidisciplinary team and coordination,lgu_coordination_circles,,,,Kalinga Connect coordination groups per LGU.
+,lgu_coordination_circles,lgu_id,bigint,Yes,Links to lgu_units
+,lgu_coordination_circles,name,varchar(180),Yes,
+,lgu_coordination_circles,active,boolean,Yes,Whether the record is in use.
+Multidisciplinary team and coordination,lgu_coordination_members,,,,Members of a coordination group.
+,lgu_coordination_members,circle_id,bigint,Yes,Links to lgu_coordination_circles
+,lgu_coordination_members,user_id,bigint,Yes,Links to users
+,lgu_coordination_members,membership_role,varchar(80),Yes,
+,lgu_coordination_members,joined_at,timestamp,Yes,Date and time: joined.
+,lgu_coordination_members,left_at,timestamp,,Date and time: left.
+,lgu_coordination_members,configured_by,bigint,,Links to users. User who configured the record.
+Multidisciplinary team and coordination,lgu_coordination_messages,,,,Kalinga Connect messages.
+,lgu_coordination_messages,circle_id,bigint,Yes,Links to lgu_coordination_circles
+,lgu_coordination_messages,author_id,bigint,Yes,Links to users
+,lgu_coordination_messages,parent_id,bigint,,Links to lgu_coordination_messages
+,lgu_coordination_messages,case_id,bigint,,Links to cases
+,lgu_coordination_messages,case_reference,varchar(80),,
+,lgu_coordination_messages,body,text,Yes,Text of the note or message.
+,lgu_coordination_messages,is_urgent,boolean,Yes,Yes/no: is urgent.
+,lgu_coordination_messages,follow_up,boolean,Yes,Yes/no: follow up.
+Multidisciplinary team and coordination,lgu_coordination_message_mentions,,,,People mentioned in a message.
+,lgu_coordination_message_mentions,message_id,bigint,Yes,Links to lgu_coordination_messages
+,lgu_coordination_message_mentions,user_id,bigint,Yes,Links to users
+Multidisciplinary team and coordination,lgu_coordination_message_reads,,,,Read receipts of messages.
+,lgu_coordination_message_reads,message_id,bigint,Yes,Links to lgu_coordination_messages
+,lgu_coordination_message_reads,user_id,bigint,Yes,Links to users
+,lgu_coordination_message_reads,read_at,timestamp,Yes,Date and time: read.
+Records governance,record_governance,,,,Classification and retention status of a record.
+,record_governance,case_id,bigint,Yes,Links to cases
+,record_governance,record_type,varchar(64),Yes,Kind of record.
+,record_governance,record_id,bigint,Yes,Number of the related record.
+,record_governance,record_classification_id,bigint,,Links to record_classifications
+,record_governance,retention_rule_id,bigint,,Links to retention_rules
+,record_governance,lifecycle_state,varchar(40),Yes,
+,record_governance,retention_review_at,timestamp,,Date and time: retention review.
+,record_governance,scan_state,varchar(32),Yes,
+,record_governance,legacy_record,boolean,Yes,Yes/no: legacy record.
+,record_governance,classified_by,bigint,,Links to users. User who classified the record.
+,record_governance,classified_at,timestamp,,Date and time: classified.
+Records governance,record_classifications,,,,Record classification categories and sensitivity.
+,record_classifications,code,text,Yes,Short code.
+,record_classifications,label,text,Yes,Display label.
+,record_classifications,sensitivity_level,varchar(32),Yes,
+,record_classifications,restricted,boolean,Yes,Yes/no: restricted.
+,record_classifications,policy_validated,boolean,Yes,Yes/no: policy validated.
+,record_classifications,active,boolean,Yes,Whether the record is in use.
+,record_classifications,owner_notes,text,,
+Records governance,retention_rules,,,,How long each kind of record is kept.
+,retention_rules,code,text,Yes,Short code.
+,retention_rules,label,text,Yes,Display label.
+,retention_rules,record_type,varchar(64),Yes,Kind of record.
+,retention_rules,record_classification_id,bigint,,Links to record_classifications
+,retention_rules,case_status,text,,
+,retention_rules,review_after_days,integer,,
+,retention_rules,policy_validated,boolean,Yes,Yes/no: policy validated.
+,retention_rules,approved_at,timestamp,,Date and time: approved.
+,retention_rules,approved_by,bigint,,Links to users. User who approved the record.
+Records governance,legal_holds,,,,Legal holds that stop disposal of records.
+,legal_holds,case_id,bigint,Yes,Links to cases
+,legal_holds,scope,varchar(24),Yes,
+,legal_holds,reason_code,varchar(120),Yes,
+,legal_holds,authority,text,Yes,
+,legal_holds,placed_by,bigint,Yes,Links to users. User who placed the record.
+,legal_holds,placed_at,timestamp,Yes,Date and time: placed.
+,legal_holds,review_at,timestamp,,Date and time: review.
+,legal_holds,released_by,bigint,,Links to users. User who released the record.
+,legal_holds,released_at,timestamp,,Date and time: released.
+,legal_holds,release_reason,varchar(1000),,
+Records governance,legal_hold_records,,,,Records covered by a legal hold.
+,legal_hold_records,legal_hold_id,bigint,Yes,Links to legal_holds
+,legal_hold_records,record_type,varchar(64),Yes,Kind of record.
+,legal_hold_records,record_id,bigint,Yes,Number of the related record.
+Records governance,record_dispositions,,,,Proposals to dispose of records at the end of retention.
+,record_dispositions,record_governance_id,bigint,Yes,Links to record_governance
+,record_dispositions,status,varchar(40),Yes,Current status of the record.
+,record_dispositions,proposal_reason,varchar(1000),,
+,record_dispositions,proposed_by,bigint,,Links to users. User who proposed the record.
+,record_dispositions,proposed_at,timestamp,,Date and time: proposed.
+,record_dispositions,reviewed_by,bigint,,Links to users. User who reviewed the record.
+,record_dispositions,reviewed_at,timestamp,,Date and time: reviewed.
+,record_dispositions,approved_by,bigint,,Links to users. User who approved the record.
+,record_dispositions,approved_at,timestamp,,Date and time: approved.
+,record_dispositions,executed_at,timestamp,,Date and time: executed.
+,record_dispositions,executed_by,bigint,,Links to users. User who executed the record.
+Records governance,record_disposition_history,,,,Review and approval steps of a disposition.
+,record_disposition_history,record_disposition_id,bigint,Yes,Links to record_dispositions
+,record_disposition_history,event,varchar(48),Yes,Event name.
+,record_disposition_history,actor_id,bigint,,Links to users
+,record_disposition_history,reason_code,varchar(120),,
+Records governance,record_disclosures,,,,"Records released to an outside party, with purpose and authority."
+,record_disclosures,case_id,bigint,Yes,Links to cases
+,record_disclosures,recipient_organization,text,Yes,
+,record_disclosures,recipient_name,text,,
+,record_disclosures,purpose,varchar(500),Yes,
+,record_disclosures,lawful_authority,text,Yes,
+,record_disclosures,delivery_method,varchar(100),Yes,
+,record_disclosures,authorized_by,bigint,Yes,Links to users. User who authorized the record.
+,record_disclosures,authorized_at,timestamp,Yes,Date and time: authorized.
+,record_disclosures,acknowledged_at,timestamp,,Date and time: acknowledged.
+Records governance,record_disclosure_items,,,,Items included in a disclosure.
+,record_disclosure_items,record_disclosure_id,bigint,Yes,Links to record_disclosures
+,record_disclosure_items,record_type,varchar(64),Yes,Kind of record.
+,record_disclosure_items,record_id,bigint,Yes,Number of the related record.
+,record_disclosure_items,category,varchar(120),Yes,
+LGU and organisation,lgu_units,,,,Cities and municipalities (PSGC) using Kalinga.
+,lgu_units,psgc_code,varchar(20),Yes,
+,lgu_units,name,varchar(160),Yes,
+,lgu_units,province,varchar(120),,
+,lgu_units,region,varchar(120),,
+,lgu_units,active,boolean,Yes,Whether the record is in use.
+LGU and organisation,lgu_profiles,,,,"Office details, logo and office head (signatory) of each LGU."
+,lgu_profiles,lgu_id,bigint,Yes,Links to lgu_units
+,lgu_profiles,office_name,varchar(180),,
+,lgu_profiles,office_short_name,varchar(40),,
+,lgu_profiles,address,text,,
+,lgu_profiles,contact_number,varchar(60),,
+,lgu_profiles,email,varchar(160),,
+,lgu_profiles,logo_path,text,,
+,lgu_profiles,head_name,varchar(160),,
+,lgu_profiles,head_position,varchar(160),,
+,lgu_profiles,head_designation,varchar(160),,
+,lgu_profiles,updated_by,bigint,,Links to users. User who updated the record.
+LGU and organisation,lgu_cpu_members,,,,Composition of the LGU Child Protection Unit.
+,lgu_cpu_members,lgu_id,bigint,Yes,Links to lgu_units
+,lgu_cpu_members,name,varchar(160),Yes,
+,lgu_cpu_members,position,varchar(160),,
+,lgu_cpu_members,office,varchar(160),,
+,lgu_cpu_members,cpu_role,varchar(80),Yes,
+,lgu_cpu_members,user_id,bigint,,Links to users
+,lgu_cpu_members,sort_order,smallint,Yes,
+,lgu_cpu_members,active,boolean,Yes,Whether the record is in use.
+LGU and organisation,lgu_reconciliation_queue,,,,Records whose LGU must be confirmed.
+,lgu_reconciliation_queue,record_type,varchar(80),Yes,Kind of record.
+,lgu_reconciliation_queue,record_id,bigint,Yes,Number of the related record.
+,lgu_reconciliation_queue,legacy_municipality,varchar(120),,
+,lgu_reconciliation_queue,legacy_province,varchar(120),,
+,lgu_reconciliation_queue,proposed_lgu_id,bigint,,Links to lgu_units
+,lgu_reconciliation_queue,match_status,varchar(40),Yes,
+,lgu_reconciliation_queue,reviewed_by,bigint,,Links to users. User who reviewed the record.
+,lgu_reconciliation_queue,reviewed_at,timestamp,,Date and time: reviewed.
+LGU and organisation,user_lgu_assignments,,,,"Which LGUs each user works in, with effective dates."
+,user_lgu_assignments,user_id,bigint,Yes,Links to users
+,user_lgu_assignments,lgu_id,bigint,Yes,Links to lgu_units
+,user_lgu_assignments,effective_from,timestamp,Yes,
+,user_lgu_assignments,effective_to,timestamp,,
+,user_lgu_assignments,active,boolean,Yes,Whether the record is in use.
+,user_lgu_assignments,assigned_by,bigint,,Links to users. User who assigned the record.
+Users and security,users,,,,"User accounts: role, position, location, 2FA settings and status."
+,users,name,text,Yes,
+,users,email,text,Yes,
+,users,role,text,Yes,
+,users,province,text,,
+,users,municipality,text,,City or municipality.
+,users,email_verified_at,timestamp,,Date and time: email verified.
+,users,password,text,Yes,
+,users,remember_token,varchar(100),,
+,users,active,boolean,Yes,Whether the record is in use.
+,users,access_revoked_at,timestamp,,Date and time: access revoked.
+,users,google_id,text,,Number of the related google.
+,users,region,varchar(120),,
+,users,account_status,varchar(20),Yes,
+,users,requested_role,varchar(60),,
+,users,registration_note,text,,
+,users,reviewed_at,timestamp,,Date and time: reviewed.
+,users,reviewed_by,bigint,,
+,users,cpu_discipline,varchar(40),,
+,users,two_factor_secret,text,,
+,users,two_factor_confirmed_at,timestamp,,Date and time: two factor confirmed.
+,users,two_factor_recovery_codes,text,,
+,users,two_factor_method,varchar(10),Yes,
+,users,two_factor_email_code,text,,
+,users,two_factor_email_code_expires_at,timestamp,,Date and time: two factor email code expires.
+,users,position,varchar(160),,
+Users and security,roles,,,,Roles available in the system.
+,roles,code,text,Yes,Short code.
+,roles,name,text,Yes,
+,roles,description,text,,
+Users and security,permissions,,,,Permissions that can be granted.
+,permissions,code,text,Yes,Short code.
+,permissions,name,text,Yes,
+,permissions,module,text,Yes,
+Users and security,permission_role,,,,Permissions granted to each role.
+,permission_role,role_id,bigint,Yes,Links to roles
+,permission_role,permission_id,bigint,Yes,Links to permissions
+Users and security,password_reset_tokens,,,,One-time password reset tokens.
+,password_reset_tokens,email,text,Yes,
+,password_reset_tokens,token,text,Yes,
+Users and security,sessions,,,,Active sign-in sessions (encrypted).
+,sessions,user_id,bigint,,Number of the related user.
+,sessions,ip_address,varchar(45),,Client network address at the time of the action.
+,sessions,user_agent,text,,
+,sessions,payload,text,Yes,
+,sessions,last_activity,integer,Yes,
+Users and security,audit_logs,,,,"Append-only audit trail of sign-ins, views and every change (ids and codes, no narratives)."
+,audit_logs,user_id,bigint,,Links to users
+,audit_logs,event,text,Yes,Event name.
+,audit_logs,auditable_type,text,Yes,
+,audit_logs,auditable_id,bigint,,Number of the related auditable.
+,audit_logs,changes,json,,Details of the change (ids and codes only).
+,audit_logs,outcome,text,Yes,
+,audit_logs,ip_address,varchar(45),,Client network address at the time of the action.
+Users and security,notifications,,,,In-app notifications to users.
+,notifications,user_id,bigint,Yes,Links to users
+,notifications,type,text,Yes,
+,notifications,title,text,Yes,
+,notifications,body,text,Yes,Text of the note or message.
+,notifications,action_url,text,,
+,notifications,read_at,timestamp,,Date and time: read.
+Offline field mode,offline_devices,,,,"Devices registered for Field mode, with their case pack expiry and revocation."
+,offline_devices,user_id,bigint,Yes,Links to users
+,offline_devices,device_id,uuid,Yes,Number of the related device.
+,offline_devices,last_seen_at,timestamp,Yes,Date and time: last seen.
+,offline_devices,pack_expires_at,timestamp,,Date and time: pack expires.
+,offline_devices,revoked_at,timestamp,,Date and time: revoked.
+,offline_devices,device_name,varchar(80),,
+Offline field mode,offline_sync_items,,,,Records sent from Field mode and their sync status.
+,offline_sync_items,offline_id,uuid,Yes,Number of the related offline.
+,offline_sync_items,user_id,bigint,Yes,Links to users
+,offline_sync_items,resource,text,Yes,
+,offline_sync_items,payload,json,Yes,
+,offline_sync_items,status,text,Yes,Current status of the record.
+,offline_sync_items,conflict_reason,text,,
+Configuration,form_fields,,,,Extra form fields configured by the administrator.
+,form_fields,form,text,Yes,
+,form_fields,key,text,Yes,
+,form_fields,label,text,Yes,Display label.
+,form_fields,type,text,Yes,
+,form_fields,required,boolean,Yes,Yes/no: required.
+,form_fields,options,json,,
+,form_fields,sort_order,integer,Yes,
+Configuration,reference_data,,,,Lists used in forms (reference values).
+,reference_data,set_name,text,Yes,
+,reference_data,code,text,Yes,Short code.
+,reference_data,label,text,Yes,Display label.
+,reference_data,definition,text,,
+,reference_data,source,text,,
+,reference_data,active,boolean,Yes,Whether the record is in use.

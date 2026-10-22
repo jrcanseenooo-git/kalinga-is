@@ -1,0 +1,342 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Services\CaseAccessScope;
+use App\Services\NoteReferrals;
+use App\Services\OperationalNotification;
+use App\Services\ReferenceNumberService;
+use App\Services\ReferralTracking;
+use App\Services\WorkerTasks;
+use App\Support\AuditLog;
+use Carbon\Carbon;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
+use Inertia\Inertia;
+
+class OperationsController extends Controller
+{
+    public function __construct(private readonly ReferenceNumberService $references, private readonly CaseAccessScope $scope, private readonly OperationalNotification $notifications) {}
+
+    /** Legacy report queue: a submitted report is not a case until accepted. */
+    private const REPORT_TRANSITIONS = [
+        'NEW' => ['FOR_SCREENING'],
+        'FOR_SCREENING' => ['UNDER_VALIDATION', 'REJECTED', 'DUPLICATE', 'REFERRED_OUT'],
+        'UNDER_VALIDATION' => ['VALIDATED', 'RETURNED', 'REJECTED', 'DUPLICATE', 'REFERRED_OUT'],
+        'VALIDATED' => ['ACCEPTED', 'RETURNED', 'REJECTED'],
+        'RETURNED' => ['FOR_SCREENING'],
+        'ACCEPTED' => ['CASE_CREATED'],
+    ];
+
+    public const REFERRAL_TRANSITIONS = ['DRAFT' => ['PENDING'], 'PENDING' => ['SENT', 'WITHDRAWN'], 'SENT' => ['ACCEPTED', 'DECLINED', 'RETURNED', 'UNAVAILABLE'], 'ACCEPTED' => ['IN_PROGRESS', 'WITHDRAWN'], 'IN_PROGRESS' => ['COMPLETED', 'RETURNED', 'UNAVAILABLE']];
+
+    public function reports(Request $r)
+    {
+        $this->authorize('reports.view');
+        $items = DB::table('reports')->leftJoin('clients', 'clients.id', '=', 'reports.client_id');
+        $this->scopeFieldWorkerReports($items, $r);
+
+        return Inertia::render('Reports/Index', ['items' => $items->latest('reports.created_at')->get(['reports.*', 'clients.first_name', 'clients.last_name']), 'reportTransitions' => self::REPORT_TRANSITIONS]);
+    }
+
+    private function caseAccess(Request $r, int $case): void
+    {
+        $record = DB::table('cases')->find($case);
+        abort_unless($record, 404);
+        $this->authorize('cases.view');
+        $location = DB::table('clients')->find($record->client_id, ['municipality', 'province']);
+        abort_unless($location && $this->scope->allowsCase($record, $r->user(), $location->municipality, $location->province), 403);
+    }
+
+    private function scopeFieldWorkerReports($query, Request $r): void
+    {
+        $municipality = trim((string) $r->user()->municipality);
+        if ($municipality === '') {
+            $query->whereRaw('1 = 0');
+
+            return;
+        } $query->where('reports.is_public_submission', true)->where('reports.endorsed_municipality', $municipality);
+    }
+
+    private function reportAccess(Request $r, object $report): void
+    {
+        $this->authorize('reports.view');
+        abort_unless($report->is_public_submission && trim((string) $report->endorsed_municipality) !== '' && $report->endorsed_municipality === $r->user()->municipality, 403);
+    }
+
+    private function hasSharingConsent(int $case): bool
+    {
+        return app(ReferralTracking::class)->hasSharingConsent($case);
+    }
+
+    /** The old task list now lives in the calendar. */
+    public function tasks(Request $request)
+    {
+        $this->authorize('activities.manage');
+
+        return redirect()->route('calendar.index');
+    }
+
+    public const EVENT_TYPES = ['home_visit', 'monitoring_visit', 'case_conference', 'assessment', 'medical', 'court', 'referral_follow_up', 'family_meeting', 'deadline', 'other'];
+
+    public function calendar(Request $request)
+    {
+        $this->authorize('activities.manage');
+        $user = $request->user();
+        $service = app(WorkerTasks::class);
+        $own = $service->query($user)->where(fn ($q) => $q->where('tasks.status', 'open')->orWhere('tasks.updated_at', '>=', now()->subDays(90)))
+            ->orderBy('tasks.due_at')->get(['tasks.id', 'tasks.title', 'tasks.event_type', 'tasks.due_at', 'tasks.location', 'tasks.details', 'tasks.status', 'tasks.case_id', 'cases.case_number']);
+        $events = $service->withIsoDates($own);
+        $open = $service->query($user)->where('tasks.status', 'open')->whereNotNull('tasks.due_at');
+        $now = now();
+        $startOfToday = $now->copy()->timezone('Asia/Manila')->startOfDay()->utc();
+        $endOfToday = $now->copy()->timezone('Asia/Manila')->endOfDay()->utc();
+
+        return Inertia::render('Calendar/Index', [
+            'tasks' => $events->values(),
+            'caseEvents' => $this->caseCalendarEvents($user),
+            'availableCases' => $service->cases($user)->whereNotIn('cases.status', ['CLOSED', 'ARCHIVED'])->orderByDesc('cases.updated_at')->limit(300)->get(['cases.id', 'cases.case_number']),
+            'summary' => ['open' => (clone $open)->count(), 'overdue' => (clone $open)->where('tasks.due_at', '<', $now)->count(),
+                'dueToday' => (clone $open)->whereBetween('tasks.due_at', [$startOfToday, $endOfToday])->count()],
+        ]);
+    }
+
+    /**
+     * Read-only dates that come from case records, so the worker sees them without
+     * re-typing: scheduled case conferences, safety reviews, care plan reviews and
+     * referral follow-ups. Limited to cases the user may open.
+     */
+    private function caseCalendarEvents($user): array
+    {
+        $service = app(WorkerTasks::class);
+        $caseIds = $service->cases($user)->whereNotIn('cases.status', ['CLOSED', 'ARCHIVED'])->pluck('cases.id');
+        if ($caseIds->isEmpty()) {
+            return [];
+        }
+        $from = now()->subDays(45);
+        $to = now()->addDays(120);
+        $iso = fn ($value) => $value ? Carbon::parse($value)->toIso8601String() : null;
+        $events = [];
+        foreach (DB::table('case_conferences')->join('cases', 'cases.id', '=', 'case_conferences.case_id')->whereIn('case_conferences.case_id', $caseIds)
+            ->whereNotNull('case_conferences.scheduled_at')->whereNull('case_conferences.completed_at')->whereBetween('case_conferences.scheduled_at', [$from, $to])
+            ->get(['case_conferences.id', 'case_conferences.case_id', 'case_conferences.scheduled_at', 'case_conferences.conference_type', 'cases.case_number']) as $row) {
+            $events[] = ['key' => 'conf-' . $row->id, 'type' => 'case_conference', 'title' => 'Case conference', 'at' => $iso($row->scheduled_at), 'case_id' => $row->case_id, 'case_number' => $row->case_number, 'source' => 'Case conference schedule'];
+        }
+        foreach (DB::table('cases')->whereIn('id', $caseIds)->whereNotNull('next_review_at')->whereBetween('next_review_at', [$from, $to])->get(['id', 'case_number', 'next_review_at']) as $row) {
+            $events[] = ['key' => 'review-' . $row->id, 'type' => 'assessment', 'title' => 'Safety review due', 'at' => $iso($row->next_review_at), 'case_id' => $row->id, 'case_number' => $row->case_number, 'source' => 'Intake safety plan'];
+        }
+        foreach (DB::table('case_plans')->join('cases', 'cases.id', '=', 'case_plans.case_id')->whereIn('case_plans.case_id', $caseIds)->where('case_plans.is_current', true)
+            ->whereNotNull('case_plans.review_due_at')->whereBetween('case_plans.review_due_at', [$from, $to])->get(['case_plans.id', 'case_plans.case_id', 'case_plans.review_due_at', 'cases.case_number']) as $row) {
+            $events[] = ['key' => 'plan-' . $row->id, 'type' => 'deadline', 'title' => 'Care plan review due', 'at' => $iso($row->review_due_at), 'case_id' => $row->case_id, 'case_number' => $row->case_number, 'source' => 'Care plan'];
+        }
+        $targets = app(ReferralTracking::class)->targets();
+        foreach (DB::table('referrals')->join('cases', 'cases.id', '=', 'referrals.case_id')->whereIn('referrals.case_id', $caseIds)->whereIn('referrals.status', ['SENT', 'ACCEPTED', 'IN_PROGRESS'])
+            ->get(['referrals.id', 'referrals.case_id', 'referrals.status', 'referrals.service_category', 'referrals.referred_at', 'referrals.accepted_at', 'referrals.created_at', 'cases.case_number']) as $row) {
+            $accepted = in_array($row->status, ['ACCEPTED', 'IN_PROGRESS'], true) && $row->accepted_at;
+            $start = $accepted ? $row->accepted_at : ($row->referred_at ?? $row->created_at);
+            $due = Carbon::parse($start)->addDays($accepted ? $targets['completion_days'] : $targets['response_days']);
+            if ($due->lt($from) || $due->gt($to)) {
+                continue;
+            }
+            $events[] = ['key' => 'ref-' . $row->id, 'type' => 'referral_follow_up', 'title' => ($accepted ? 'Service completion due: ' : 'Referral response due: ') . $row->service_category, 'at' => $due->toIso8601String(), 'case_id' => $row->case_id, 'case_number' => $row->case_number, 'source' => 'Referral tracking'];
+        }
+        usort($events, fn ($a, $b) => strcmp($a['at'], $b['at']));
+
+        return $events;
+    }
+
+    public function providers(Request $r)
+    {
+        $this->authorize('administer-system');
+
+        return Inertia::render('Providers/Index', ['items' => DB::table('service_providers')->orderBy('name')->get()]);
+    }
+
+    public function storeReferral(Request $r)
+    {
+        $this->authorize('referrals.create');
+        $d = $r->validate(['case_id' => 'required|integer', 'service_provider_id' => ['nullable', Rule::exists('service_providers', 'id')->where('active', true)], 'service_category' => 'required|string|max:255', 'reason' => 'nullable|string|max:5000', 'lawful_basis' => 'required|in:consent,legal_obligation,vital_interests,public_task']);
+        $this->caseAccess($r, (int) $d['case_id']);
+        if ($d['lawful_basis'] === 'consent' && !$this->hasSharingConsent((int) $d['case_id'])) {
+            throw ValidationException::withMessages(['lawful_basis' => 'This case has no active consent that allows sharing. Record it in the case (Client & Intake, Consent register) or choose another documented basis.']);
+        }$id = DB::transaction(function () use ($d, $r) {
+            $id = DB::table('referrals')->insertGetId($d + ['sharing_authorized_by' => $r->user()->id, 'sharing_authorized_at' => now(), 'status' => 'DRAFT', 'created_by' => $r->user()->id, 'created_at' => now(), 'updated_at' => now()]);
+            DB::table('referral_events')->insert(['referral_id' => $id, 'from_status' => null, 'to_status' => 'DRAFT', 'actor_id' => $r->user()->id, 'created_at' => now()]);
+
+            return $id;
+        });
+        AuditLog::insert(['user_id' => $r->user()->id, 'event' => 'referral.created', 'auditable_type' => 'referral', 'auditable_id' => $id, 'changes' => json_encode(['lawful_basis' => $d['lawful_basis']]), 'created_at' => now(), 'updated_at' => now()]);
+
+        return back()->with('success', 'Referral draft created.');
+    }
+
+    public function storeTask(Request $r)
+    {
+        $this->authorize('activities.manage');
+        $d = $r->validate(['title' => 'required|string|max:255', 'event_type' => 'nullable|in:' . implode(',', self::EVENT_TYPES), 'case_id' => 'nullable|integer',
+            'due_at' => 'nullable|date', 'location' => 'nullable|string|max:255', 'details' => 'nullable|string|max:2000']);
+        if (!empty($d['case_id'])) {
+            $this->caseAccess($r, (int) $d['case_id']);
+        }
+        $d['due_at'] = !empty($d['due_at']) ? Carbon::parse($d['due_at'], 'Asia/Manila')->utc() : null;
+        $id = DB::table('tasks')->insertGetId($d + ['assigned_to' => $r->user()->id, 'status' => 'open', 'created_at' => now(), 'updated_at' => now()]);
+        $this->notifications->send($r->user()->id, 'task_assigned', 'Activity scheduled', 'An activity was added to your calendar.', '/calendar');
+        AuditLog::insert(['user_id' => $r->user()->id, 'event' => 'task.created', 'auditable_type' => 'task', 'auditable_id' => $id, 'created_at' => now(), 'updated_at' => now()]);
+
+        return back()->with('success', 'Activity added to your calendar.');
+    }
+
+    public function updateTask(Request $r, int $task)
+    {
+        $this->authorize('activities.manage');
+        $record = DB::table('tasks')->where('id', $task)->where('assigned_to', $r->user()->id)->first();
+        abort_unless($record, 403);
+        abort_unless($record->status === 'open', 422, 'Only open activities can be edited.');
+        $d = $r->validate(['title' => 'required|string|max:255', 'event_type' => 'nullable|in:' . implode(',', self::EVENT_TYPES), 'case_id' => 'nullable|integer',
+            'due_at' => 'nullable|date', 'location' => 'nullable|string|max:255', 'details' => 'nullable|string|max:2000']);
+        if (!empty($d['case_id'])) {
+            $this->caseAccess($r, (int) $d['case_id']);
+        }
+        $d['due_at'] = !empty($d['due_at']) ? Carbon::parse($d['due_at'], 'Asia/Manila')->utc() : null;
+        DB::table('tasks')->where('id', $task)->update($d + ['updated_at' => now()]);
+        AuditLog::insert(['user_id' => $r->user()->id, 'event' => 'task.updated', 'auditable_type' => 'task', 'auditable_id' => $task, 'created_at' => now(), 'updated_at' => now()]);
+
+        return back()->with('success', 'Activity updated.');
+    }
+
+    public function storeProvider(Request $r)
+    {
+        $this->authorize('administer-system');
+        $d = $r->validate(['name' => 'required|string|max:255', 'service_type' => 'required|string|max:255', 'contact_person' => 'nullable|string|max:255', 'phone' => 'nullable|string|max:80', 'region' => 'nullable|string|max:120', 'province' => 'nullable|string|max:120', 'municipality' => 'nullable|string|max:120', 'barangay' => 'nullable|string|max:120']);
+        $id = DB::table('service_providers')->insertGetId($d + ['active' => true, 'created_at' => now(), 'updated_at' => now()]);
+        AuditLog::insert(['user_id' => $r->user()->id, 'event' => 'provider.created', 'auditable_type' => 'service_provider', 'auditable_id' => $id, 'created_at' => now(), 'updated_at' => now()]);
+
+        return back()->with('success', 'Service provider added to the directory.');
+    }
+
+    public function transitionTask(Request $r, int $task)
+    {
+        $this->authorize('activities.manage');
+        $d = $r->validate(['status' => 'required|in:open,completed,cancelled']);
+        $record = DB::table('tasks')->where('id', $task)->where('assigned_to', $r->user()->id)->first();
+        abort_unless($record, 403);
+        if ($record->case_id) {
+            $this->caseAccess($r, (int) $record->case_id);
+        }abort_unless($record->status === 'open' && in_array($d['status'], ['completed', 'cancelled'], true), 422, 'Invalid task transition.');
+        DB::table('tasks')->where('id', $task)->update(['status' => $d['status'], 'updated_at' => now()]);
+        AuditLog::insert(['user_id' => $r->user()->id, 'event' => 'task.transitioned', 'auditable_type' => 'task', 'auditable_id' => $task, 'changes' => json_encode(['from' => 'open', 'to' => $d['status']]), 'created_at' => now(), 'updated_at' => now()]);
+
+        return back()->with('success', 'Task status updated.');
+    }
+
+    public function transitionReport(Request $r, int $report)
+    {
+        $d = $r->validate(['status' => 'required|string', 'remarks' => 'nullable|string|max:5000', 'decision_reason' => 'nullable|string|max:5000', 'duplicate_of_report_id' => 'nullable|integer|exists:reports,id', 'referred_out_to' => 'nullable|string|max:255']);
+        $record = DB::table('reports')->find($report);
+        $record && $this->reportAccess($r, $record);
+        abort_unless($record && in_array($d['status'], self::REPORT_TRANSITIONS[$record->status] ?? [], true), 422, 'Invalid report transition.');
+        $permission = match ($d['status']) {
+            'UNDER_VALIDATION','FOR_SCREENING','RETURNED' => 'reports.screen', 'VALIDATED' => 'reports.validate', 'ACCEPTED' => 'reports.accept', default => 'reports.reject'
+        };
+        $this->authorize($permission);
+        $change = ['status' => $d['status'], 'updated_at' => now()];
+        if ($d['status'] === 'UNDER_VALIDATION') {
+            $change += ['screened_at' => now(), 'screened_by' => $r->user()->id, 'screening_remarks' => $d['remarks'] ?? null];
+        }
+        if ($d['status'] === 'VALIDATED') {
+            $change += ['validated_at' => now(), 'validated_by' => $r->user()->id, 'validation_remarks' => $d['remarks'] ?? null];
+        }
+        if (in_array($d['status'], ['ACCEPTED', 'REJECTED', 'DUPLICATE', 'REFERRED_OUT'], true)) {
+            $change += ['decided_at' => now(), 'decided_by' => $r->user()->id, 'decision_reason' => $d['decision_reason'] ?? $d['remarks'] ?? null];
+        }
+        if ($d['status'] === 'DUPLICATE') {
+            $change['duplicate_of_report_id'] = $d['duplicate_of_report_id'] ?? null;
+        }
+        if ($d['status'] === 'REFERRED_OUT') {
+            $change['referred_out_to'] = $d['referred_out_to'] ?? null;
+        }
+        DB::table('reports')->where('id', $report)->update($change);
+        AuditLog::insert(['user_id' => $r->user()->id, 'event' => 'report.transitioned', 'auditable_type' => 'report', 'auditable_id' => $report, 'changes' => json_encode(['from' => $record->status, 'to' => $d['status'], 'remarks' => $d['remarks'] ?? null]), 'created_at' => now(), 'updated_at' => now()]);
+
+        return back()->with('success', 'Report status updated.');
+    }
+
+    public function createCaseFromReport(Request $r, int $report)
+    {
+        $this->authorize('reports.accept');
+        $this->authorize('cases.create');
+        $d = $r->validate(['first_name' => 'required|string|max:80', 'last_name' => 'required|string|max:80', 'birthdate' => 'nullable|date', 'sex' => 'nullable|in:Male,Female', 'region' => 'nullable|string|max:120', 'province' => 'nullable|string|max:120', 'barangay' => 'nullable|string|max:120', 'municipality' => 'nullable|string|max:120', 'category' => 'nullable|string|max:80']);
+        $case = DB::transaction(function () use ($d, $r, $report) {
+            $record = DB::table('reports')->where('id', $report)->lockForUpdate()->first();
+            abort_unless($record, 404);
+            $this->reportAccess($r, $record);
+            abort_unless($record->status === 'ACCEPTED', 422, 'Only an accepted report without a case folder may be converted.');
+            abort_unless(!DB::table('cases')->where('report_id', $report)->exists(), 409, 'A case folder already exists for this report.');
+            $clientId = $record->client_id ?: DB::table('clients')->insertGetId(collect($d)->only(['first_name', 'last_name', 'birthdate', 'sex', 'region', 'province', 'barangay', 'municipality'])->merge(['created_at' => now(), 'updated_at' => now()])->all());
+            $number = $this->references->nextCase();
+            $id = DB::table('cases')->insertGetId(['case_number' => $number, 'client_id' => $clientId, 'report_id' => $report, 'assigned_to' => $r->user()->id, 'status' => 'OPEN', 'stage' => 'intake', 'priority' => $record->priority, 'category' => $d['category'] ?? null, 'opened_at' => now(), 'last_activity_at' => now(), 'created_at' => now(), 'updated_at' => now()]);
+            DB::table('reports')->where('id', $report)->update(['client_id' => $clientId, 'status' => 'CASE_CREATED', 'updated_at' => now()]);
+            DB::table('case_status_history')->insert(['case_id' => $id, 'from_status' => null, 'to_status' => 'OPEN', 'changed_by' => $r->user()->id, 'created_at' => now(), 'updated_at' => now()]);
+            AuditLog::insert(['user_id' => $r->user()->id, 'event' => 'report.case_created', 'auditable_type' => 'report', 'auditable_id' => $report, 'changes' => json_encode(['case_id' => $id]), 'created_at' => now(), 'updated_at' => now()]);
+
+            return $id;
+        });
+
+        return redirect()->route('cases.show', $case)->with('success', 'Accepted report converted into a case folder.');
+    }
+
+    public function transitionReferral(Request $request, int $referral)
+    {
+        $data = $request->validate([
+            'status' => 'required|string|max:40', 'expected_status' => 'nullable|string|max:40',
+            'remarks' => 'nullable|string|max:2000',
+            'outcome' => 'nullable|string|max:5000',
+            'reason' => 'nullable|string|max:2000',
+        ]);
+        $this->authorize($data['status'] === 'COMPLETED' ? 'referrals.close' : 'referrals.respond');
+        DB::transaction(function () use ($request, $referral, $data) {
+            $record = DB::table('referrals')->where('id', $referral)->lockForUpdate()->first();
+            abort_unless($record, 404);
+            $case = DB::table('cases')->where('id', $record->case_id)->whereNull('deleted_at')->lockForUpdate()->first();
+            abort_unless($case, 404);
+            $this->caseAccess($request, $record->case_id);
+            if (isset($data['expected_status']) && $data['expected_status'] !== $record->status) {
+                throw ValidationException::withMessages(['status' => 'This referral changed. Refresh the page and review its current status before continuing.']);
+            }
+            abort_unless(in_array($data['status'], self::REFERRAL_TRANSITIONS[$record->status] ?? [], true), 422, 'Invalid referral transition.');
+            // Checked after the transition itself is known to be allowed.
+            if ($data['status'] === 'COMPLETED' && trim((string) ($data['outcome'] ?? '')) === '') {
+                throw ValidationException::withMessages(['outcome' => 'Record the service the client actually received.']);
+            }
+            if (in_array($data['status'], ['DECLINED', 'RETURNED', 'UNAVAILABLE', 'WITHDRAWN'], true) && trim((string) ($data['reason'] ?? '')) === '') {
+                throw ValidationException::withMessages(['reason' => 'Record why the referral did not proceed.']);
+            }
+            $change = ['status' => $data['status'], 'updated_at' => now()];
+            if ($data['status'] === 'SENT') {
+                $change['referred_at'] = now();
+            }
+            if ($data['status'] === 'ACCEPTED') {
+                $change['accepted_at'] = now();
+            }
+            if ($data['status'] === 'COMPLETED') {
+                $change['completed_at'] = now();
+                $change['outcome'] = $data['outcome'];
+            }
+            if (!empty($data['reason'])) {
+                $change['status_reason'] = $data['reason'];
+            }
+            DB::table('referrals')->where('id', $referral)->update($change);
+            app(NoteReferrals::class)->closeAccessIfFinal($referral, $data['status']);
+            DB::table('referral_events')->insert(['referral_id' => $referral, 'from_status' => $record->status, 'to_status' => $data['status'],
+                'remarks' => $data['remarks'] ?? null, 'outcome' => $data['status'] === 'COMPLETED' ? $data['outcome'] : null,
+                'reason' => $data['reason'] ?? null, 'actor_id' => $request->user()->id, 'created_at' => now()]);
+            AuditLog::insert(['user_id' => $request->user()->id, 'event' => 'referral.transitioned',
+                'auditable_type' => 'referral', 'auditable_id' => $referral,
+                'changes' => json_encode(['from' => $record->status, 'to' => $data['status']]), 'created_at' => now(), 'updated_at' => now()]);
+        });
+
+        return back()->with('success', 'Referral status updated.');
+    }
+}

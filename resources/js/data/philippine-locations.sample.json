@@ -1,0 +1,27 @@
+{
+  "dataset": "Kalinga presentation sample",
+  "version": "2026-09-sample",
+  "notice": "Illustrative hierarchy for local development only. Replace these sample codes and barangay lists with the official PSGC dataset before production use.",
+  "regions": [
+    {
+      "code": "SAMPLE-CAR",
+      "name": "Cordillera Administrative Region (CAR)",
+      "provinces": [
+        {
+          "code": "SAMPLE-CAR-KAL",
+          "name": "Kalinga",
+          "municipalities": [
+            { "code": "SAMPLE-KAL-TABUK", "name": "Tabuk City", "barangays": ["Bulanao Centro", "Bulanao Norte", "Bulanao", "Dagupan Centro", "Laya East"] },
+            { "code": "SAMPLE-KAL-BAL", "name": "Balbalan", "barangays": ["Balbalan Proper", "Balantoy", "Dao-angan", "Salegseg"] },
+            { "code": "SAMPLE-KAL-LUB", "name": "Lubuagan", "barangays": ["Lubuagan Poblacion", "Mabilong", "Magsilay", "Upper Uma"] },
+            { "code": "SAMPLE-KAL-PAS", "name": "Pasil", "barangays": ["Pasil", "Ableg", "Balenciaga", "Cagaluan", "Dangtalan"] },
+            { "code": "SAMPLE-KAL-PIN", "name": "Pinukpuk", "barangays": ["Pinukpuk Junction", "Apatan", "Asibanglan", "Ballayangon", "Limos"] },
+            { "code": "SAMPLE-KAL-RIZ", "name": "Rizal", "barangays": ["Rizal Centro", "Babalag East", "Babalag West", "Liwan East", "Liwan West"] },
+            { "code": "SAMPLE-KAL-TAN", "name": "Tanudan", "barangays": ["Lower Lubo", "Upper Lubo", "Mabaca", "Pangol"] },
+            { "code": "SAMPLE-KAL-TIN", "name": "Tinglayan", "barangays": ["Tinglayan Poblacion", "Buscalan", "Butbut Proper", "Dananao", "Tulgao East"] }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+# Online intake error recovery - P2-B3
+
+Updated: 2026-10-18. KEEP the existing five-step privacy/safety/child/case/response workflow, fields, classifications, validation and authorization. REFACTOR server-error recovery, keyboard focus, progress semantics and shared header/dialog adoption.
+
+The corrected pre-fix browser test used the actual intake-specific confirmation (this form deliberately bypasses generic confirmation). Server rejects an 81-character first name while the worker remains on step5 with no visible error summary. Initial test attempts stopped on a label selector and an inapplicable generic confirmation; these were test setup corrections, not product defect evidence. The final pre-fix failure reached the server response and confirmed the missing alert/focus.
+
+Implementation maps error fields and array errors to existing steps, shows linked error summary, returns to the responsible step with retained form data, and focuses the summary only after the native dialog closes. Shared Modal adds a backward-compatible closed event. Controls have unique IDs and aria-invalid; repeated checkboxes use focusable groups. Progress indicates aria-current and unavailable future steps are disabled. Step headings receive focus after start/back/continue. Shared flat PageHeader replaces only the decorative hero; nested main and obsolete overlay rules removed. No schema, backend validation, role or offline changes.
+
+Frontend20/20 passes; production build/browser verification pending. Required acceptance: real server validation/recovery and actual case creation at360/768/1440, keyboard dialog cancellation/focus, error navigation, local validation and shared-dialog regression. No whole intake module/domain acceptance claim.
+
+
+## Session verified checkpoint - 2026-10-18
+
+Newly verified: P3-O7 encrypted unfinished intake drafts and atomic queue promotion; P3-A3 existing referral lifecycle integration and transaction guards; P1-B1 typed accessible provider directory; P2-B3 online intake validation/keyboard recovery. These are four bounded work packages, not four completed modules. All required module rows remain; no module is declared fully accepted.
+
+Final evidence: full backend289 tests/1898 assertions (79.86s); targeted intake11/43, provider/referral/access12/76; frontend20/20; latest production build33.17s. P3-O7 expanded browser16/16 plus5/5 additional checks passed. Referrals3/3 (1.0m) and providers3/3 (36.0s) passed real creation/lifecycle/filter/reload/axe/overflow at360/768/1440. Initial intake recovery3/3 (41.1s) passed; final8/8 (1.3m) passed including the expanded online error-to-created-case/cancellation/keyboard paths, local safety validation, shell keyboard regressions and encrypted conflict-review shared-dialog regression. These runs overlap; do not add them as a distinct-test count. Latest source changes are covered by build and final browser checks. No schema, live data, role, external disclosure/deployment or remote changes.
+
+Actual limits: committed draft versions are recoverable; uncommitted edits need the visible save/failure state. Offline field/device/PostgreSQL/backup/scanner/domain acceptance remains outstanding. Directory editing/pagination, separate case-granted MDT partner UX, assessment/participation/plans/closure, remaining reports/management/admin and full module acceptance are not complete. B01-B07 remain tracked; no current approval blocker prevents independent casework implementation.
+
+Exact next eligible task: P2-B4 - audit the existing safety/risk records and case safety panel, reproduce a workflow/UI or authorization defect with meaningful tests, then implement typed source-aware recorded-risk history and accessible responsive review using existing fields, rules and permissions. Do not invent risk scores, program rules or deadlines. After P2-B4 continue remaining assessment/participation/plans/monitoring/closure and matrix packages. Reopen offline implementation only for a demonstrated critical defect or required dependency; scheduled field/operational acceptance remains tracked.

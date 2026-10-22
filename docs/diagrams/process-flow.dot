@@ -1,0 +1,46 @@
+// Kalinga CEFMU case-management process flow (swimlanes by actor).
+// Render: dot -Tpng -Gdpi=150 process-flow.dot -o process-flow.png
+digraph flow {
+  graph [rankdir=TB, fontname="Helvetica", compound=true, nodesep=0.3, ranksep=0.35, newrank=true, pad=0.3];
+  node [fontname="Helvetica", fontsize=10, shape=box, style="rounded,filled", fillcolor="white", color="#5b21b6"];
+  edge [color="#5b5670", arrowsize=0.7, fontname="Helvetica"];
+  subgraph cluster_cm { label="Case Manager (C/MSWDO)"; style=filled; fillcolor="#f4f1fa"; color="#d6d0e6"; fontname="Helvetica-Bold"; fontsize=11;
+    start [label="Report received\nor walk-in", shape=oval, fillcolor="#5b21b6", fontcolor="white"];
+    intake [label="1. Intake\nKalinga Intake Sheet\n(online or Field mode)"];
+    risk [label="2. Safety and\nrisk assessment"];
+    assess [label="3. Comprehensive\nassessment and child\nparticipation"];
+    plan [label="4. Intervention plan\n(goals, activities,\nconforme)"];
+    serve [label="5. Services and\nreferrals"];
+    notes [label="6. Progress notes\nand monitoring"];
+    goals [label="Goals met?", shape=diamond, fillcolor="#ffffff"];
+    closure [label="7. Closure summary\nand aftercare plan"];
+    end [label="Case closed\n(aftercare follow-up)", shape=oval, fillcolor="#5b21b6", fontcolor="white"];
+  }
+  subgraph cluster_sup { label="Reviewer (supervisor or Field Office,\nnot the author)"; style=filled; fillcolor="#eef2ff"; color="#c7d2fe"; fontname="Helvetica-Bold"; fontsize=11;
+    review_plan [label="Review and approve\nintervention plan"];
+    review_close [label="Review closure"];
+  }
+  subgraph cluster_cpu { label="CPU / MDT member"; style=filled; fillcolor="#ecfdf5"; color="#a7f3d0"; fontname="Helvetica-Bold"; fontsize=11;
+    respond [label="Accept referral,\nprovide service,\nreport outcome"];
+    conference [label="Case conference"];
+  }
+  subgraph cluster_co { label="Central Office (DSWD-STB)\nnational dashboard, aggregate only"; style=filled; fillcolor="#fff7ed"; color="#fed7aa"; fontname="Helvetica-Bold"; fontsize=11;
+    monitor [label="Aggregate monitoring\nand reports"];
+  }
+  start -> intake -> risk -> assess -> plan;
+  plan -> review_plan [label=" submit", fontsize=8];
+  review_plan -> serve [label=" approved", fontsize=8];
+  review_plan -> plan [label=" returned", fontsize=8, style=dashed];
+  serve -> respond [label=" referral", fontsize=8];
+  respond -> notes [label=" outcome", fontsize=8];
+  serve -> notes;
+  notes -> conference [style=dashed, label=" when needed", fontsize=8];
+  conference -> plan [style=dashed, label=" revise plan", fontsize=8];
+  notes -> goals;
+  goals -> notes [label=" no", fontsize=8];
+  goals -> closure [label=" yes", fontsize=8];
+  closure -> review_close;
+  review_close -> end [label=" approved", fontsize=8];
+  review_close -> notes [label=" returned", fontsize=8, style=dashed];
+  notes -> monitor [style=dotted, label=" counts only", fontsize=8];
+}

@@ -1,0 +1,272 @@
+[
+  {
+    "name": "01 Caseworker Dashboard",
+    "source_board": 1,
+    "file": "01_Individual_Module_Mockups/01_Caseworker_Dashboard.png",
+    "native_crop_px": [
+      461,
+      369
+    ]
+  },
+  {
+    "name": "02 Case Intake",
+    "source_board": 1,
+    "file": "01_Individual_Module_Mockups/02_Case_Intake.png",
+    "native_crop_px": [
+      465,
+      369
+    ]
+  },
+  {
+    "name": "03 My Cases",
+    "source_board": 1,
+    "file": "01_Individual_Module_Mockups/03_My_Cases.png",
+    "native_crop_px": [
+      502,
+      369
+    ]
+  },
+  {
+    "name": "04 Case Workspace",
+    "source_board": 1,
+    "file": "01_Individual_Module_Mockups/04_Case_Workspace.png",
+    "native_crop_px": [
+      463,
+      272
+    ]
+  },
+  {
+    "name": "05 Safety and Risk",
+    "source_board": 1,
+    "file": "01_Individual_Module_Mockups/05_Safety_and_Risk.png",
+    "native_crop_px": [
+      466,
+      272
+    ]
+  },
+  {
+    "name": "06 Comprehensive Assessment",
+    "source_board": 1,
+    "file": "01_Individual_Module_Mockups/06_Comprehensive_Assessment.png",
+    "native_crop_px": [
+      503,
+      272
+    ]
+  },
+  {
+    "name": "07 Child Participation",
+    "source_board": 1,
+    "file": "01_Individual_Module_Mockups/07_Child_Participation.png",
+    "native_crop_px": [
+      352,
+      220
+    ]
+  },
+  {
+    "name": "08 Case Plan",
+    "source_board": 1,
+    "file": "01_Individual_Module_Mockups/08_Case_Plan.png",
+    "native_crop_px": [
+      348,
+      220
+    ]
+  },
+  {
+    "name": "09 Interventions",
+    "source_board": 1,
+    "file": "01_Individual_Module_Mockups/09_Interventions.png",
+    "native_crop_px": [
+      355,
+      220
+    ]
+  },
+  {
+    "name": "10 Monitoring",
+    "source_board": 1,
+    "file": "01_Individual_Module_Mockups/10_Monitoring.png",
+    "native_crop_px": [
+      383,
+      220
+    ]
+  },
+  {
+    "name": "11 Referrals",
+    "source_board": 1,
+    "file": "01_Individual_Module_Mockups/11_Referrals.png",
+    "native_crop_px": [
+      346,
+      178
+    ]
+  },
+  {
+    "name": "12 Documents",
+    "source_board": 1,
+    "file": "01_Individual_Module_Mockups/12_Documents.png",
+    "native_crop_px": [
+      355,
+      178
+    ]
+  },
+  {
+    "name": "13 Report Generator",
+    "source_board": 1,
+    "file": "01_Individual_Module_Mockups/13_Report_Generator.png",
+    "native_crop_px": [
+      359,
+      178
+    ]
+  },
+  {
+    "name": "14 Case Conferences",
+    "source_board": 1,
+    "file": "01_Individual_Module_Mockups/14_Case_Conferences.png",
+    "native_crop_px": [
+      193,
+      178
+    ]
+  },
+  {
+    "name": "15 Closure and Aftercare",
+    "source_board": 1,
+    "file": "01_Individual_Module_Mockups/15_Closure_and_Aftercare.png",
+    "native_crop_px": [
+      188,
+      178
+    ]
+  },
+  {
+    "name": "16 Kalinga Connect CPU Group Chat",
+    "source_board": 2,
+    "file": "01_Individual_Module_Mockups/16_Kalinga_Connect_CPU_Group_Chat.png",
+    "native_crop_px": [
+      441,
+      380
+    ]
+  },
+  {
+    "name": "17 MDT CPU Referral Pathway",
+    "source_board": 2,
+    "file": "01_Individual_Module_Mockups/17_MDT_CPU_Referral_Pathway.png",
+    "native_crop_px": [
+      547,
+      380
+    ]
+  },
+  {
+    "name": "18 Offline Field Workspace",
+    "source_board": 2,
+    "file": "01_Individual_Module_Mockups/18_Offline_Field_Workspace.png",
+    "native_crop_px": [
+      442,
+      380
+    ]
+  },
+  {
+    "name": "19 Supervisory Dashboard",
+    "source_board": 2,
+    "file": "01_Individual_Module_Mockups/19_Supervisory_Dashboard.png",
+    "native_crop_px": [
+      354,
+      255
+    ]
+  },
+  {
+    "name": "20 Management Analytics",
+    "source_board": 2,
+    "file": "01_Individual_Module_Mockups/20_Management_Analytics.png",
+    "native_crop_px": [
+      376,
+      255
+    ]
+  },
+  {
+    "name": "21 Notifications",
+    "source_board": 2,
+    "file": "01_Individual_Module_Mockups/21_Notifications.png",
+    "native_crop_px": [
+      290,
+      255
+    ]
+  },
+  {
+    "name": "22 Calendar",
+    "source_board": 2,
+    "file": "01_Individual_Module_Mockups/22_Calendar.png",
+    "native_crop_px": [
+      413,
+      255
+    ]
+  },
+  {
+    "name": "23 Advanced Search",
+    "source_board": 2,
+    "file": "01_Individual_Module_Mockups/23_Advanced_Search.png",
+    "native_crop_px": [
+      285,
+      215
+    ]
+  },
+  {
+    "name": "24 User Management",
+    "source_board": 2,
+    "file": "01_Individual_Module_Mockups/24_User_Management.png",
+    "native_crop_px": [
+      298,
+      215
+    ]
+  },
+  {
+    "name": "25 Service Provider Directory",
+    "source_board": 2,
+    "file": "01_Individual_Module_Mockups/25_Service_Provider_Directory.png",
+    "native_crop_px": [
+      276,
+      215
+    ]
+  },
+  {
+    "name": "26 System Settings",
+    "source_board": 2,
+    "file": "01_Individual_Module_Mockups/26_System_Settings.png",
+    "native_crop_px": [
+      269,
+      215
+    ]
+  },
+  {
+    "name": "27 Forms and Templates",
+    "source_board": 2,
+    "file": "01_Individual_Module_Mockups/27_Forms_and_Templates.png",
+    "native_crop_px": [
+      303,
+      215
+    ]
+  },
+  {
+    "name": "28 Data Import Export",
+    "source_board": 2,
+    "file": "01_Individual_Module_Mockups/28_Data_Import_Export.png",
+    "native_crop_px": [
+      348,
+      186
+    ]
+  },
+  {
+    "name": "29 Audit Logs",
+    "source_board": 2,
+    "file": "01_Individual_Module_Mockups/29_Audit_Logs.png",
+    "native_crop_px": [
+      354,
+      186
+    ]
+  },
+  {
+    "name": "30 Generated Reports Gallery",
+    "source_board": 2,
+    "file": "01_Individual_Module_Mockups/30_Generated_Reports_Gallery.png",
+    "native_crop_px": [
+      733,
+      186
+    ]
+  }
+]

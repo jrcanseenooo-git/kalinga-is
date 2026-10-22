@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#5b21b6">
+<title>Kalinga - No signal</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f8fafc;color:#1e293b;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:16px}
+.card{width:100%;max-width:34rem;border:1px solid #ddd6fe;border-radius:1rem;background:#fff;padding:1.75rem;box-shadow:0 8px 30px #0f172a12}
+.top{display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap}
+.mark{display:grid;width:2.5rem;height:2.5rem;place-items:center;border-radius:.8rem;background:#6d28d9;color:#fff;font-weight:800}
+.pill{display:inline-flex;align-items:center;gap:.4rem;border-radius:999px;background:#fef3c7;color:#92400e;font-size:.8rem;font-weight:700;padding:.3rem .7rem}
+.pill.on{background:#d1fae5;color:#065f46}
+.dot{width:.5rem;height:.5rem;border-radius:50%;background:#f59e0b}.pill.on .dot{background:#10b981}
+h1{font-size:1.45rem;margin:1.1rem 0 .4rem}
+p{line-height:1.55;color:#475569;margin:.5rem 0}
+ul{margin:.75rem 0 0;padding:0;list-style:none}
+ul li{display:flex;gap:.6rem;align-items:flex-start;padding:.35rem 0;color:#334155;line-height:1.45}
+ul li::before{content:"";flex:0 0 1.1rem;height:1.1rem;margin-top:.15rem;border-radius:50%;background:#ede9fe url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%236d28d9'%3E%3Cpath d='M8.1 13.3 4.8 10l-1.2 1.2 4.5 4.5 8.3-8.3-1.2-1.2z'/%3E%3C/svg%3E") center/80% no-repeat}
+.btn{display:flex;width:100%;min-height:3rem;align-items:center;justify-content:center;border-radius:.8rem;font-weight:700;font-size:1rem;text-decoration:none;border:0;cursor:pointer;margin-top:.75rem}
+.primary{background:#6d28d9;color:#fff}.primary:focus-visible,.secondary:focus-visible{outline:3px solid #a78bfa;outline-offset:2px}
+.secondary{background:#fff;color:#4c1d95;border:1px solid #ddd6fe}
+.note{margin-top:1rem;border-radius:.8rem;background:#f5f3ff;padding:.8rem 1rem;font-size:.9rem;color:#4c1d95}
+.waiting{margin-top:1rem;border-radius:.8rem;background:#fffbeb;border:1px solid #fde68a;padding:.8rem 1rem;font-size:.9rem;color:#92400e;font-weight:600}
+ol{margin:.6rem 0 0;padding-left:1.4rem;color:#334155;line-height:1.6}ol li{padding:.15rem 0}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<main class="card" aria-labelledby="title">
+  <div class="top">
+    <div class="mark" aria-hidden="true">K</div>
+    <span id="status" class="pill" role="status"><span class="dot" aria-hidden="true"></span><span id="status-text">No signal</span></span>
+  </div>
+
+  <!-- Shown while checking, and when Field mode is saved on this device -->
+  <section id="ready">
+    <h1 id="title">No signal - keep working in Field mode</h1>
+    <p>This page needs internet, but Kalinga's Field mode works without signal on this device.</p>
+    <ul>
+      <li>Do a new case intake</li>
+      <li>Continue intakes you saved earlier</li>
+      <li>Add progress notes to cases you downloaded</li>
+    </ul>
+    <p id="waiting" class="waiting" hidden></p>
+    <a id="open-field" class="btn primary" href="/offline-workspace">Open Field mode</a>
+    <button type="button" class="btn secondary" data-retry>Try again</button>
+    <p class="note">Field mode opens with your <strong>field passphrase</strong>, so you do not need to sign in. Everything you save is locked on this device and sent to Kalinga automatically when signal returns.</p>
+  </section>
+
+  <!-- Shown when Field mode was never set up on this device -->
+  <section id="not-ready" hidden>
+    <h1>No signal right now</h1>
+    <p>Field mode is not set up on this device yet, so Kalinga can't open without internet here.</p>
+    <p><strong>Next time you have signal</strong>, set it up once:</p>
+    <ol>
+      <li>Sign in to Kalinga.</li>
+      <li>Open <strong>Field mode</strong> in the menu.</li>
+      <li>Create a field passphrase and download your cases.</li>
+    </ol>
+    <p>After that, intakes and case notes work even in areas with no signal.</p>
+    <button type="button" class="btn primary" data-retry>Try again</button>
+  </section>
+</main>
+<script>
+(function () {
+  var statusEl = document.getElementById('status');
+  var statusText = document.getElementById('status-text');
+  var path = location.pathname;
+
+  // Already on Field mode's address but its saved copy is missing.
+  if (path === '/offline-workspace' || path === '/offline') document.getElementById('open-field').hidden = true;
+
+  // Only a count is kept in browser storage, never case content.
+  try {
+    var n = Number(localStorage.getItem('kalinga_offline_pending') || 0) || 0;
+    if (n > 0) {
+      var w = document.getElementById('waiting');
+      w.textContent = n + (n === 1 ? ' record is' : ' records are') + ' safe on this device and waiting to sync.';
+      w.hidden = false;
+    }
+  } catch (e) { /* Storage may be blocked; the count is optional. */ }
+
+  function showNotReady() {
+    document.getElementById('ready').hidden = true;
+    document.getElementById('not-ready').hidden = false;
+  }
+  if (!('caches' in window)) { showNotReady(); }
+  else {
+    caches.match(new URL('/offline-workspace', location.origin).href).then(function (shell) {
+      var ok = shell && (shell.headers.get('Content-Type') || '').indexOf('text/html') !== -1;
+      if (!ok) showNotReady();
+    }).catch(showNotReady);
+  }
+
+  function retry() { location.reload(); }
+  Array.prototype.forEach.call(document.querySelectorAll('[data-retry]'), function (b) { b.addEventListener('click', retry); });
+
+  // When signal returns, go back to the page the worker wanted.
+  window.addEventListener('online', function () {
+    statusEl.className = 'pill on';
+    statusText.textContent = 'Signal is back - reloading...';
+    setTimeout(retry, 1200);
+  });
+})();
+</script>
+</body>
+</html>

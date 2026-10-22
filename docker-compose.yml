@@ -1,0 +1,23 @@
+services:
+  app:
+    build: .
+    ports: ["8000:8000"]
+    environment:
+      APP_ENV: local
+      APP_KEY: ${APP_KEY}
+      DB_CONNECTION: pgsql
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_DATABASE: kalinga_is
+      DB_USERNAME: kalinga
+      DB_PASSWORD: kalinga_local
+    depends_on: [db]
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: kalinga_is
+      POSTGRES_USER: kalinga
+      POSTGRES_PASSWORD: kalinga_local
+    volumes: [kalinga-data:/var/lib/postgresql]
+volumes:
+  kalinga-data:

@@ -1,0 +1,107 @@
+@import "tailwindcss";
+@config "../../tailwind.config.js";
+
+@theme {
+  --color-brand-50: #f5f0ff;
+  --color-brand-100: #ede4ff;
+  --color-brand-200: #d5bcff;
+  --color-brand-300: #c4a0ee;
+  --color-brand-400: #a87dd9;
+  --color-brand-500: #9f60cc;
+  --color-brand-600: #8d5fcc;
+  --color-brand-700: #7a4db5;
+  --color-brand-800: #5a3a95;
+  --color-brand-900: #2d1a5e;
+  --color-kalinga-blue: #83cbdd;
+  --color-kalinga-yellow: #fffda6;
+  --color-kalinga-lavender: #f4f0fb;
+  --color-kalinga-warm: #fff5c8;
+
+  /* Mockup-aligned surface tokens (Kalinga Flat Master Board). */
+  --color-canvas: #f7f6fb;
+  --color-line: #e7e5f0;
+  --color-ink: #1f1a3d;
+  --shadow-card: 0 1px 2px rgb(31 26 61 / 0.04), 0 1px 3px rgb(31 26 61 / 0.03);
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+@layer base {
+  html { -webkit-text-size-adjust: 100%; }
+  body { @apply antialiased; min-width: 320px; overflow-x: hidden; }
+  input, select, textarea { @apply focus:border-brand-500 focus:ring-brand-500; }
+  button, input, select, textarea { touch-action: manipulation; }
+  :where(a, button, input, select, textarea, [tabindex]):focus-visible {
+    outline: 2px solid #5a3a95;
+    outline-offset: 3px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  /* Prevents accidental iOS zoom and keeps form text legible for field staff. */
+  @media (max-width: 640px) {
+    input, select, textarea { font-size: 16px; }
+  }
+}
+
+/* Shared flat enterprise primitives. Applied by component adoption, never by
+   overriding unrelated module markup or weakening workflow semantics. */
+@layer components {
+  /* Surfaces */
+  .ui-panel { @apply min-w-0 rounded-xl border border-[var(--color-line)] bg-white shadow-[var(--shadow-card)]; }
+  .ui-panel-header { @apply flex flex-wrap items-start justify-between gap-3 border-b border-[var(--color-line)] px-4 py-4 sm:px-5; }
+  .ui-section-title { @apply text-[15px] font-semibold tracking-tight text-[var(--color-ink)]; }
+  .ui-muted { @apply text-sm leading-6 text-slate-600; }
+
+  /* Actions */
+  .ui-button, .ui-button-primary { @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 transition-colors hover:border-slate-400 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50; }
+  .ui-button-primary { @apply border-brand-700 bg-brand-700 text-white shadow-sm hover:border-brand-800 hover:bg-brand-800; }
+  .ui-field { @apply min-h-11 w-full min-w-0 rounded-lg border-slate-300 bg-white text-sm text-slate-900; }
+  .ui-link { @apply inline-flex min-h-11 items-center gap-1 text-sm font-semibold text-brand-700 underline-offset-4 hover:text-brand-800 hover:underline; }
+
+  /* Pills (status, priority, risk) */
+  .ui-pill { @apply inline-flex max-w-full items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold leading-4; }
+
+  /* Tinted KPI tiles */
+  .ui-kpi { @apply relative block min-w-0 rounded-xl border p-4 transition-shadow hover:shadow-md sm:p-5; }
+  .ui-kpi-brand { @apply border-brand-100 bg-[#f8f5ff]; }
+  .ui-kpi-danger { @apply border-rose-100 bg-[#fff5f6]; }
+  .ui-kpi-warning { @apply border-amber-100 bg-[#fffaf0]; }
+  .ui-kpi-info { @apply border-sky-100 bg-[#f2f9fd]; }
+  .ui-kpi-success { @apply border-emerald-100 bg-[#f2fbf6]; }
+
+  /* Underline tabs */
+  .ui-tabs { @apply flex min-w-0 gap-1 overflow-x-auto border-b border-[var(--color-line)]; scrollbar-width: thin; }
+  .ui-tab { @apply relative inline-flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap border-b-2 border-transparent px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:text-brand-800; }
+  .ui-tab-active { @apply border-brand-600 font-semibold text-brand-800; }
+
+  /* Tables */
+  .ui-table { @apply w-full border-collapse text-left text-sm; }
+  .ui-table thead tr { @apply border-b border-[var(--color-line)] bg-[#faf9fd]; }
+  .ui-table th { @apply px-4 py-3 text-xs font-semibold text-slate-600; }
+  .ui-table tbody tr { @apply border-b border-slate-100 last:border-0 hover:bg-[#faf9fd]; }
+  .ui-table td { @apply px-4 py-3 text-slate-700; }
+  /* Below 768px a stacked table becomes one card per row; each cell shows its column name from data-label. */
+  @media (max-width: 767.98px) {
+    .ui-table-stack thead { @apply sr-only; }
+    .ui-table-stack, .ui-table-stack tbody, .ui-table-stack tr, .ui-table-stack td { display: block; width: 100%; }
+    .ui-table-stack tbody tr { @apply px-4 py-3 hover:bg-transparent; }
+    .ui-table-stack td { @apply flex gap-3 px-0 py-1; max-width: none; }
+    .ui-table-stack td[data-label]::before { content: attr(data-label); @apply w-28 shrink-0 text-xs font-semibold text-slate-500; }
+  }
+
+  /* Date badge used in schedules */
+  .ui-date-badge { @apply grid h-12 w-12 shrink-0 place-content-center rounded-lg bg-brand-50 text-center leading-none text-brand-800; }
+}
+
+/* Sidebar: badges, active marker and field mode card */
+@layer components {
+  .nav-badge { @apply grid h-5 min-w-5 place-items-center rounded-full px-1.5 text-[11px] font-bold leading-none; }
+  .nav-item.nav-active::before { content: ''; @apply absolute left-0 top-2 bottom-2 w-1 rounded-r-full bg-brand-700; }
+  .field-card { @apply transition-colors hover:brightness-[.98]; }
+}

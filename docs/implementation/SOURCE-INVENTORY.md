@@ -1,0 +1,777 @@
+# Source inventory - 2026-10-17
+
+Static source inventory. Presence does not imply workflow acceptance. No live data queried.
+
+Continuation delta (2026-10-17): this remains the original baseline snapshot. Added AnalyticsSuppressionTest.php and analytics browser cases in foundation.spec.ts; AnalyticsController and Analytics/Index.vue/Quarterly.vue were enhanced and verified under R03-A. Existing AggregatePrivacyTest and AnalyticsExportTest now assert the master specification's suppressed small totals rather than raw counts. MASTER_PLAN.md, TASK_REGISTER.md, PROGRESS_TRACKER.md, CURRENT_SPRINT.md and BLOCKERS.md were absent and created from existing delivery evidence; ANALYTICS-PRIVACY-REVIEW.md records this session's audit. Also retain prior-session additions: AssignedCaseScopeTest.php, PageHeader.vue, playwright.foundation.config.ts and foundation browser runner/tests. No schema delta. PROGRESS_TRACKER.md records the latest full-suite/build/browser results.
+
+## routes
+
+- routes/auth.php
+  - Route::middleware('guest')->group(function () {
+  - Route::get('register', [RegisteredUserController::class, 'create'])
+  - Route::post('register', [RegisteredUserController::class, 'store']);
+  - Route::get('login', [AuthenticatedSessionController::class, 'create'])
+  - Route::post('login', [AuthenticatedSessionController::class, 'store'])->middleware('throttle:login');
+  - Route::get('auth/google', [GoogleController::class, 'redirect'])->name('auth.google');
+  - Route::get('auth/google/callback', [GoogleController::class, 'callback'])->name('auth.google.callback');
+  - Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])
+  - Route::post('forgot-password', [PasswordResetLinkController::class, 'store'])
+  - Route::get('reset-password/{token}', [NewPasswordController::class, 'create'])
+  - Route::post('reset-password', [NewPasswordController::class, 'store'])
+  - Route::middleware('auth')->group(function () {
+  - Route::get('verify-email', EmailVerificationPromptController::class)
+  - Route::get('verify-email/{id}/{hash}', VerifyEmailController::class)
+  - Route::post('email/verification-notification', [EmailVerificationNotificationController::class, 'store'])
+  - Route::get('confirm-password', [ConfirmablePasswordController::class, 'show'])
+  - Route::post('confirm-password', [ConfirmablePasswordController::class, 'store']);
+  - Route::put('password', [PasswordController::class, 'update'])->name('password.update');
+  - Route::get('two-factor/setup', [TwoFactorController::class, 'setup'])->name('two-factor.setup');
+  - Route::post('two-factor/confirm', [TwoFactorController::class, 'confirm'])->name('two-factor.confirm');
+  - Route::delete('two-factor', [TwoFactorController::class, 'disable'])->name('two-factor.disable');
+  - Route::post('two-factor/reset', [TwoFactorController::class, 'resetAuthenticator'])->name('two-factor.reset');
+  - Route::post('two-factor/email-resend', [TwoFactorController::class, 'resendEmailOtp'])->middleware('throttle:3,2')->name('two-factor.email-resend');
+  - Route::get('two-factor/challenge', [TwoFactorController::class, 'challenge'])->name('two-factor.challenge');
+  - Route::post('two-factor/verify', [TwoFactorController::class, 'verify'])->name('two-factor.verify');
+  - Route::post('logout', [AuthenticatedSessionController::class, 'destroy'])
+- routes/console.php
+- routes/web.php
+  - Route::get('/', fn () => redirect()->route(auth()->check() ? 'dashboard' : 'login'));
+  - Route::get('/dashboard', [CaseworkController::class, 'dashboard'])->middleware(['auth'])->name('dashboard');
+  - Route::get('/public/insights', [AnalyticsController::class, 'public'])->name('insights.public');
+  - Route::get('/public-dashboard', [AnalyticsController::class, 'publicDashboard'])->name('public.dashboard');
+  - Route::post('/public-dashboard/reports', [PublicReportController::class, 'store'])->middleware('throttle:public-report')->name('public.reports.store');
+  - Route::get('/faq', fn () => Inertia::render('Help/Faq'))->name('faq');
+  - Route::middleware('auth')->group(function () {
+  - Route::post('/session/activity', function (\Illuminate\Http\Request $request) {
+  - Route::post('/sync', [OfflineSyncController::class, 'store'])->middleware('throttle:offline-sync')->name('sync.store');
+  - Route::get('/offline-workspace', [OfflineWorkspaceController::class, 'index'])->name('offline.workspace');
+  - Route::get('/offline-workspace/pack', [OfflineWorkspaceController::class, 'pack'])->name('offline.workspace.pack');
+  - Route::get('/offline-workspace/devices', [OfflineDeviceController::class, 'index'])->name('offline.devices.index');
+  - Route::get('/offline-workspace/device-status', [OfflineDeviceController::class, 'status'])->name('offline.devices.status');
+  - Route::post('/offline-workspace/devices/{device}/revoke', [OfflineDeviceController::class, 'revoke'])->middleware('throttle:sensitive-write')->name('offline.devices.revoke');
+  - Route::patch('/offline-workspace/devices/{device}/rename', [OfflineDeviceController::class, 'rename'])->middleware('throttle:sensitive-write')->name('offline.devices.rename');
+  - Route::get('/reports', [OperationsController::class, 'reports'])->name('reports.index');
+  - Route::patch('/reports/{report}/status', [OperationsController::class, 'transitionReport'])->middleware('throttle:sensitive-write')->name('reports.transition');
+  - Route::post('/reports/{report}/case', [OperationsController::class, 'createCaseFromReport'])->middleware('throttle:sensitive-write')->name('reports.case.store');
+  - Route::get('/referrals', [OperationsController::class, 'referrals'])->name('referrals.index');
+  - Route::post('/referrals', [OperationsController::class, 'storeReferral'])->middleware('throttle:sensitive-write')->name('referrals.store');
+  - Route::patch('/referrals/{referral}/status', [OperationsController::class, 'transitionReferral'])->middleware('throttle:sensitive-write')->name('referrals.transition');
+  - Route::get('/tasks', [OperationsController::class, 'tasks'])->name('tasks.index');
+  - Route::get('/calendar', [OperationsController::class, 'calendar'])->name('calendar.index');
+  - Route::post('/tasks', [OperationsController::class, 'storeTask'])->middleware('throttle:sensitive-write')->name('tasks.store');
+  - Route::patch('/tasks/{task}/status', [OperationsController::class, 'transitionTask'])->middleware('throttle:sensitive-write')->name('tasks.transition');
+  - Route::get('/providers', [OperationsController::class, 'providers'])->name('providers.index');
+  - Route::post('/providers', [OperationsController::class, 'storeProvider'])->middleware('throttle:sensitive-write')->name('providers.store');
+  - Route::get('/analytics', [AnalyticsController::class, 'index'])->name('analytics.index');
+  - Route::get('/analytics/export', [AnalyticsController::class, 'export'])->name('analytics.export');
+  - Route::get('/quarterly-monitoring', [AnalyticsController::class, 'quarterly'])->name('analytics.quarterly');
+  - Route::get('/quarterly-monitoring/export', [AnalyticsController::class, 'quarterlyExport'])->name('analytics.quarterly.export');
+  - Route::get('/search', SearchController::class)->name('search');
+  - Route::get('/management-dashboard', [ManagementDashboardController::class, 'index'])->name('management.dashboard');
+  - Route::get('/central-office/{section}', [ManagementDashboardController::class, 'section'])->whereIn('section', ['pipeline', 'geography', 'continuity'])->name('management.section');
+  - Route::get('/management-dashboard/export', [ManagementDashboardController::class, 'export'])->name('management.dashboard.export');
+  - Route::get('/cpu/coordination', [CpuCoordinationController::class, 'index'])->name('cpu.coordination.index');
+  - Route::get('/cpu/coordination/{circle}/messages', [CpuCoordinationController::class, 'messages'])->name('cpu.coordination.messages.index');
+  - Route::post('/cpu/coordination/{circle}/messages', [CpuCoordinationController::class, 'store'])->middleware('throttle:sensitive-write')->name('cpu.coordination.messages.store');
+  - Route::get('/cpu/coordination/{circle}/search', [CpuCoordinationController::class, 'search'])->name('cpu.coordination.search');
+  - Route::post('/cpu/coordination/{circle}/messages/{message}/capture', [CpuCoordinationController::class, 'capture'])->middleware('throttle:sensitive-write')->name('cpu.coordination.messages.capture');
+  - Route::post('/cpu/coordination/circles', [CpuCoordinationController::class, 'createCircle'])->middleware('throttle:sensitive-write')->name('cpu.coordination.circles.store');
+  - Route::post('/cpu/coordination/{circle}/members', [CpuCoordinationController::class, 'addMember'])->middleware('throttle:sensitive-write')->name('cpu.coordination.members.store');
+  - Route::get('/notifications', [NotificationController::class,'index'])->name('notifications.index');
+  - Route::patch('/notifications/read-all', [NotificationController::class,'readAll'])->name('notifications.read-all');
+  - Route::redirect('/offline', '/offline-workspace')->name('offline.index');
+  - Route::patch('/notifications/{notification}/read', [NotificationController::class,'read'])->name('notifications.read');
+  - Route::get('/mdt/collaboration', [MdtCollaborationController::class, 'index'])->name('mdt.collaboration.index');
+  - Route::get('/admin', [AdminController::class, 'index'])->name('admin.index');
+  - Route::get('/admin/overview', [AdminController::class, 'overview'])->name('admin.overview');
+  - Route::get('/admin/lgus', [AdminController::class, 'lgus'])->name('admin.lgus.index');
+  - Route::get('/admin/audit-logs', [AdminController::class, 'audits'])->name('admin.audits');
+  - Route::get('/admin/form-builder', [AdminController::class, 'forms'])->name('admin.forms');
+  - Route::post('/admin/form-fields', [AdminController::class, 'storeFormField'])->middleware('throttle:sensitive-write')->name('admin.forms.store');
+  - Route::delete('/admin/form-fields/{field}', [AdminController::class, 'destroyFormField'])->middleware('throttle:sensitive-write')->name('admin.forms.destroy');
+  - Route::patch('/admin/users/{user}', [AdminController::class, 'updateUser'])->middleware('throttle:sensitive-write')->name('admin.users.update');
+  - Route::delete('/admin/users/{user}', [AdminController::class, 'destroyUser'])->middleware('throttle:sensitive-write')->name('admin.users.destroy');
+  - Route::post('/admin/lgus', [AdminController::class, 'storeLgu'])->middleware('throttle:sensitive-write')->name('admin.lgus.store');
+  - Route::delete('/admin/lgus/{lgu}', [AdminController::class, 'destroyLgu'])->middleware('throttle:sensitive-write')->name('admin.lgus.destroy');
+  - Route::post('/admin/users/{user}/lgu-assignment', [AdminController::class, 'assignLgu'])->middleware('throttle:sensitive-write')->name('admin.users.lgu-assignment.store');
+  - Route::post('/admin/registrations/{user}/approve', [AdminController::class, 'approveRegistration'])->middleware('throttle:sensitive-write')->name('admin.registrations.approve');
+  - Route::post('/admin/registrations/{user}/decline', [AdminController::class, 'declineRegistration'])->middleware('throttle:sensitive-write')->name('admin.registrations.decline');
+  - Route::get('/admin/users/{user}/devices', [OfflineDeviceController::class, 'adminIndex'])->name('admin.users.devices.index');
+  - Route::post('/admin/devices/{device}/revoke', [OfflineDeviceController::class, 'adminRevoke'])->middleware('throttle:sensitive-write')->name('admin.devices.revoke');
+  - Route::get('/cases', [CaseworkController::class, 'cases'])->name('cases.index');
+  - Route::get('/cases/create', [CaseworkController::class, 'create'])->name('cases.create');
+  - Route::get('/cases/duplicates/check', fn () => abort(410, 'Use the authorized Identity Review queue.'))->name('cases.duplicates');
+  - Route::get('/identity-review', [IdentityReviewController::class, 'index'])->name('identity.review.index');
+  - Route::get('/identity-review/{candidate}', [IdentityReviewController::class, 'show'])->name('identity.review.show');
+  - Route::post('/identity-review/historical-identifier', [IdentityReviewController::class, 'historicalIdentifier'])->middleware('throttle:sensitive-write')->name('identity.review.historical-identifier');
+  - Route::patch('/identity-review/{candidate}/decision', [IdentityReviewController::class, 'review'])->middleware('throttle:sensitive-write')->name('identity.review.decision');
+  - Route::post('/identity-review/{candidate}/link', [IdentityReviewController::class, 'link'])->middleware('throttle:sensitive-write')->name('identity.review.link');
+  - Route::post('/identity-review/{candidate}/merge-proposals', [IdentityReviewController::class, 'proposeMerge'])->middleware('throttle:sensitive-write')->name('identity.merge.propose');
+  - Route::patch('/identity-merges/{merge}/approve', [IdentityReviewController::class, 'approveMerge'])->middleware('throttle:sensitive-write')->name('identity.merge.approve');
+  - Route::post('/identity-merges/{merge}/execute', [IdentityReviewController::class, 'executeMerge'])->middleware('throttle:sensitive-write')->name('identity.merge.execute');
+  - Route::patch('/legacy-assessments/{legacy}/reconciliation', [IdentityReviewController::class, 'reconcile'])->middleware('throttle:sensitive-write')->name('legacy-assessments.reconcile');
+  - Route::post('/cases', [CaseworkController::class, 'store'])->middleware('throttle:sensitive-write')->name('cases.store');
+  - Route::get('/cases/{case}', [CaseworkController::class, 'show'])->name('cases.show');
+  - Route::get('/cases/{case}/social-case-management-report', [SocialCaseManagementReportController::class, 'show'])->name('cases.social-report.show');
+  - Route::get('/cases/{case}/social-case-management-report/download', [SocialCaseManagementReportController::class, 'download'])->name('cases.social-report.download');
+  - Route::get('/cases/{case}/plan-workspace', [CasePlanLifecycleController::class, 'workspace'])->name('cases.plans.workspace');
+  - Route::get('/cases/{case}/plans', [CasePlanLifecycleController::class, 'index'])->name('cases.plans.index');
+  - Route::post('/cases/{case}/plans', [CasePlanLifecycleController::class, 'store'])->middleware('throttle:sensitive-write')->name('cases.plans.store');
+  - Route::post('/cases/{case}/plans/{plan}/goals', [CasePlanLifecycleController::class, 'goal'])->middleware('throttle:sensitive-write')->name('cases.plans.goals.store');
+  - Route::post('/cases/{case}/plans/{plan}/interventions', [CasePlanLifecycleController::class, 'intervention'])->middleware('throttle:sensitive-write')->name('cases.plans.interventions.store');
+  - Route::patch('/cases/{case}/plans/{plan}/interventions/{intervention}', [CasePlanLifecycleController::class, 'updateIntervention'])->middleware('throttle:sensitive-write')->name('cases.plans.interventions.update');
+  - Route::patch('/cases/{case}/plans/{plan}/status', [CasePlanLifecycleController::class, 'transition'])->middleware('throttle:sensitive-write')->name('cases.plans.transition');
+  - Route::post('/cases/{case}/plans/{plan}/reviews', [CasePlanLifecycleController::class, 'review'])->middleware('throttle:sensitive-write')->name('cases.plans.reviews.store');
+  - Route::post('/cases/{case}/aftercare', [CasePlanLifecycleController::class, 'aftercare'])->middleware('throttle:sensitive-write')->name('cases.aftercare.store');
+  - Route::post('/cases/{case}/reintegration', [CasePlanLifecycleController::class, 'reintegration'])->middleware('throttle:sensitive-write')->name('cases.reintegration.store');
+  - Route::get('/cases/{case}/closure-readiness', [CasePlanLifecycleController::class, 'closureReadiness'])->name('cases.closure-readiness.show');
+  - Route::post('/cases/{case}/transfers', [CasePlanLifecycleController::class, 'transfer'])->middleware('throttle:sensitive-write')->name('cases.transfers.store');
+  - Route::patch('/cases/{case}/transfers/{transfer}/status', [CasePlanLifecycleController::class, 'transferTransition'])->middleware('throttle:sensitive-write')->name('cases.transfers.transition');
+  - Route::get('/cases/{case}/conferences', [CaseConferenceController::class, 'index'])->name('cases.conferences.index');
+  - Route::get('/cases/{case}/records-governance', [RecordsGovernanceController::class, 'index'])->name('cases.records.governance.index');
+  - Route::patch('/cases/{case}/documents/{document}/governance', [RecordsGovernanceController::class, 'classify'])->middleware('throttle:sensitive-write')->name('cases.documents.governance.update');
+  - Route::post('/cases/{case}/records-holds', [RecordsGovernanceController::class, 'placeHold'])->middleware('throttle:sensitive-write')->name('cases.records.holds.store');
+  - Route::patch('/cases/{case}/records-holds/{hold}/release', [RecordsGovernanceController::class, 'releaseHold'])->middleware('throttle:sensitive-write')->name('cases.records.holds.release');
+  - Route::post('/cases/{case}/record-governance/{governance}/dispositions', [RecordsGovernanceController::class, 'disposition'])->middleware('throttle:sensitive-write')->name('cases.records.dispositions.store');
+  - Route::patch('/cases/{case}/record-governance/{governance}/dispositions/review', [RecordsGovernanceController::class, 'reviewDisposition'])->middleware('throttle:sensitive-write')->name('cases.records.dispositions.review');
+  - Route::post('/cases/{case}/records-disclosures', [RecordsGovernanceController::class, 'disclose'])->middleware('throttle:sensitive-write')->name('cases.records.disclosures.store');
+  - Route::post('/cases/{case}/conferences', [CaseConferenceController::class, 'store'])->middleware('throttle:sensitive-write')->name('cases.conferences.store');
+  - Route::get('/cases/{case}/conferences/{conference}', [CaseConferenceController::class, 'show'])->name('cases.conferences.show');
+  - Route::patch('/cases/{case}/conferences/{conference}', [CaseConferenceController::class, 'update'])->middleware('throttle:sensitive-write')->name('cases.conferences.update');
+  - Route::post('/cases/{case}/conferences/{conference}/participants', [CaseConferenceController::class, 'participants'])->middleware('throttle:sensitive-write')->name('cases.conferences.participants.store');
+  - Route::post('/cases/{case}/conferences/{conference}/decisions', [CaseConferenceController::class, 'decision'])->middleware('throttle:sensitive-write')->name('cases.conferences.decisions.store');
+  - Route::post('/cases/{case}/conferences/{conference}/actions', [CaseConferenceController::class, 'action'])->middleware('throttle:sensitive-write')->name('cases.conferences.actions.store');
+  - Route::patch('/cases/{case}/conferences/{conference}/status', [CaseConferenceController::class, 'transition'])->middleware('throttle:sensitive-write')->name('cases.conferences.transition');
+  - Route::post('/cases/{case}/conferences/{conference}/reschedule', [CaseConferenceController::class, 'reschedule'])->middleware('throttle:sensitive-write')->name('cases.conferences.reschedule');
+  - Route::post('/cases/{case}/conferences/{conference}/addendum', [CaseConferenceController::class, 'addendum'])->middleware('throttle:sensitive-write')->name('cases.conferences.addendum');
+  - Route::patch('/cases/{case}', [CaseworkController::class, 'update'])->middleware('throttle:sensitive-write')->name('cases.update');
+  - Route::delete('/cases/{case}', [CaseworkController::class, 'destroy'])->middleware('throttle:sensitive-write')->name('cases.destroy');
+  - Route::post('/cases/{case}/notes', [CaseworkController::class, 'note'])->middleware('throttle:sensitive-write')->name('cases.notes.store');
+  - Route::post('/cases/{case}/notes/{note}/addendum', [CaseworkController::class, 'noteAddendum'])->middleware('throttle:sensitive-write')->name('cases.notes.addendum');
+  - Route::patch('/cases/{case}/status', [CaseworkController::class, 'transition'])->middleware('throttle:sensitive-write')->name('cases.transition');
+  - Route::patch('/cases/{case}/assignment', [CaseworkController::class, 'assign'])->middleware('throttle:sensitive-write')->name('cases.assign');
+  - Route::get('/cases/{case}/mdt', [MdtCollaborationController::class, 'caseData'])->name('cases.mdt.show');
+  - Route::get('/cases/{case}/mdt/workspace', [MdtCollaborationController::class, 'workspace'])->name('cases.mdt.workspace');
+  - Route::post('/cases/{case}/mdt/access', [MdtCollaborationController::class, 'storeAccess'])->middleware('throttle:sensitive-write')->name('cases.mdt.access.store');
+  - Route::patch('/cases/{case}/mdt/access/{access}/acknowledge', [MdtCollaborationController::class, 'acknowledge'])->middleware('throttle:sensitive-write')->name('cases.mdt.access.acknowledge');
+  - Route::delete('/cases/{case}/mdt/access/{access}', [MdtCollaborationController::class, 'revoke'])->middleware('throttle:sensitive-write')->name('cases.mdt.access.revoke');
+  - Route::post('/cases/{case}/mdt/actions', [MdtCollaborationController::class, 'storeAction'])->middleware('throttle:sensitive-write')->name('cases.mdt.actions.store');
+  - Route::patch('/cases/{case}/mdt/actions/{action}', [MdtCollaborationController::class, 'respondAction'])->middleware('throttle:sensitive-write')->name('cases.mdt.actions.respond');
+  - Route::get('/cases/{case}/mdt/discussion', [MdtCollaborationController::class, 'discussion'])->name('cases.mdt.discussion.index');
+  - Route::post('/cases/{case}/mdt/discussion', [MdtCollaborationController::class, 'postDiscussion'])->middleware('throttle:sensitive-write')->name('cases.mdt.discussion.store');
+  - Route::post('/cases/{case}/mdt/notes', [MdtCollaborationController::class, 'storeNote'])->middleware('throttle:sensitive-write')->name('cases.mdt.notes.store');
+  - Route::patch('/cases/{case}/mdt/notes/{note}/finalize', [MdtCollaborationController::class, 'finalizeNote'])->middleware('throttle:sensitive-write')->name('cases.mdt.notes.finalize');
+  - Route::post('/cases/{case}/mdt/notes/{note}/addendum', [MdtCollaborationController::class, 'addendum'])->middleware('throttle:sensitive-write')->name('cases.mdt.notes.addendum');
+  - Route::post('/cases/{case}/mdt/attachments', [MdtCollaborationController::class, 'uploadAttachment'])->middleware('throttle:file-upload')->name('cases.mdt.attachments.store');
+  - Route::get('/cases/{case}/mdt/attachments/{attachment}', [MdtCollaborationController::class, 'downloadAttachment'])->name('cases.mdt.attachments.download');
+  - Route::post('/cases/{case}/documents', [CaseArtifactController::class, 'upload'])->middleware('throttle:file-upload')->name('cases.documents.upload');
+  - Route::get('/cases/{case}/documents/{document}', [CaseArtifactController::class, 'download'])->name('cases.documents.download');
+  - Route::post('/cases/{case}/monitoring', [CaseArtifactController::class, 'monitoring'])->middleware('throttle:sensitive-write')->name('cases.monitoring.store');
+  - Route::post('/cases/{case}/assessment', [PlanningController::class, 'assessment'])->middleware('throttle:sensitive-write')->name('cases.assessment.store');
+  - Route::post('/cases/{case}/risk-assessments', [PlanningController::class, 'riskAssessment'])->middleware('throttle:sensitive-write')->name('cases.risk-assessments.store');
+  - Route::post('/cases/{case}/comprehensive-assessments', [PlanningController::class, 'comprehensiveAssessment'])->middleware('throttle:sensitive-write')->name('cases.comprehensive-assessments.store');
+  - Route::get('/cases/{case}/comprehensive-assessments', [PlanningController::class, 'indexComprehensiveAssessments'])->name('cases.comprehensive-assessments.index');
+  - Route::get('/cases/{case}/comprehensive-assessments/{assessment}', [PlanningController::class, 'showComprehensiveAssessment'])->name('cases.comprehensive-assessments.show');
+  - Route::put('/cases/{case}/comprehensive-assessments/{assessment}/sections', [PlanningController::class, 'saveAssessmentSection'])->middleware('throttle:sensitive-write')->name('cases.comprehensive-assessments.sections.save');
+  - Route::patch('/cases/{case}/comprehensive-assessments/{assessment}/status', [PlanningController::class, 'transitionComprehensiveAssessment'])->middleware('throttle:sensitive-write')->name('cases.comprehensive-assessments.transition');
+  - Route::post('/cases/{case}/child-participation', [ChildParticipationController::class, 'store'])->middleware('throttle:sensitive-write')->name('cases.child-participation.store');
+  - Route::get('/cases/{case}/child-participation', [ChildParticipationController::class, 'index'])->name('cases.child-participation.index');
+  - Route::get('/cases/{case}/child-participation/{record}', [ChildParticipationController::class, 'show'])->name('cases.child-participation.show');
+  - Route::put('/cases/{case}/child-participation/{record}/sections', [ChildParticipationController::class, 'saveSection'])->middleware('throttle:sensitive-write')->name('cases.child-participation.sections.save');
+  - Route::patch('/cases/{case}/child-participation/{record}/status', [ChildParticipationController::class, 'transition'])->middleware('throttle:sensitive-write')->name('cases.child-participation.transition');
+  - Route::post('/cases/{case}/plan', [PlanningController::class, 'plan'])->middleware('throttle:sensitive-write')->name('cases.plan.store');
+  - Route::post('/cases/{case}/consents', [PlanningController::class, 'consent'])->middleware('throttle:sensitive-write')->name('cases.consents.store');
+  - Route::patch('/cases/{case}/consents/{consent}/withdraw', [PlanningController::class, 'withdrawConsent'])->middleware('throttle:sensitive-write')->name('cases.consents.withdraw');
+  - Route::post('/cases/{case}/relationships', [PlanningController::class, 'relationship'])->middleware('throttle:sensitive-write')->name('cases.relationships.store');
+  - Route::post('/cases/{case}/closure', [PlanningController::class, 'closure'])->middleware('throttle:sensitive-write')->name('cases.closure.store');
+  - Route::patch('/cases/{case}/closure-review', [PlanningController::class, 'reviewClosure'])->middleware('throttle:sensitive-write')->name('cases.closure.review');
+  - Route::get('/help', fn () => Inertia::render('Help/Guide'))->name('help.guide');
+  - Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
+  - Route::patch('/profile', [ProfileController::class, 'update'])->middleware('throttle:sensitive-write')->name('profile.update');
+  - Route::delete('/profile', [ProfileController::class, 'destroy'])->middleware('throttle:sensitive-write')->name('profile.destroy');
+
+## app/Models
+
+- app/Models/User.php
+
+## app/Services
+
+- app/Services/CaseAccessScope.php
+- app/Services/CaseLifecyclePolicy.php
+- app/Services/FileScanService.php
+- app/Services/GoogleOAuthConfiguration.php
+- app/Services/IdentityIntegrity.php
+- app/Services/LguAssignmentScope.php
+- app/Services/OperationalNotification.php
+- app/Services/RecordsGovernance.php
+- app/Services/ReferenceNumberService.php
+- app/Services/RolePermissions.php
+
+## app/Http/Controllers
+
+- app/Http/Controllers/AdminController.php
+- app/Http/Controllers/AnalyticsController.php
+- app/Http/Controllers/Auth/AuthenticatedSessionController.php
+- app/Http/Controllers/Auth/ConfirmablePasswordController.php
+- app/Http/Controllers/Auth/EmailVerificationNotificationController.php
+- app/Http/Controllers/Auth/EmailVerificationPromptController.php
+- app/Http/Controllers/Auth/GoogleController.php
+- app/Http/Controllers/Auth/NewPasswordController.php
+- app/Http/Controllers/Auth/PasswordController.php
+- app/Http/Controllers/Auth/PasswordResetLinkController.php
+- app/Http/Controllers/Auth/RegisteredUserController.php
+- app/Http/Controllers/Auth/TwoFactorController.php
+- app/Http/Controllers/Auth/VerifyEmailController.php
+- app/Http/Controllers/CaseArtifactController.php
+- app/Http/Controllers/CaseConferenceController.php
+- app/Http/Controllers/CasePlanLifecycleController.php
+- app/Http/Controllers/CaseworkController.php
+- app/Http/Controllers/ChildParticipationController.php
+- app/Http/Controllers/Controller.php
+- app/Http/Controllers/CpuCoordinationController.php
+- app/Http/Controllers/IdentityReviewController.php
+- app/Http/Controllers/ManagementDashboardController.php
+- app/Http/Controllers/MdtCollaborationController.php
+- app/Http/Controllers/NotificationController.php
+- app/Http/Controllers/OfflineDeviceController.php
+- app/Http/Controllers/OfflineSyncController.php
+- app/Http/Controllers/OfflineWorkspaceController.php
+- app/Http/Controllers/OperationsController.php
+- app/Http/Controllers/PlanningController.php
+- app/Http/Controllers/ProfileController.php
+- app/Http/Controllers/PublicReportController.php
+- app/Http/Controllers/RecordsGovernanceController.php
+- app/Http/Controllers/SearchController.php
+- app/Http/Controllers/SocialCaseManagementReportController.php
+
+## app/Http/Middleware
+
+- app/Http/Middleware/EnforceMidnightIdleLogout.php
+- app/Http/Middleware/EnsureActiveUser.php
+- app/Http/Middleware/EnsureTwoFactorVerified.php
+- app/Http/Middleware/HandleInertiaRequests.php
+- app/Http/Middleware/HandleTrustedCors.php
+- app/Http/Middleware/SecurityHeaders.php
+
+## database/migrations
+
+- database/migrations/0001_01_01_000000_create_users_table.php
+  - Schema::create('users', function (Blueprint $table) {
+  - $table->string('email')->unique();
+  - Schema::create('password_reset_tokens', function (Blueprint $table) {
+  - Schema::create('sessions', function (Blueprint $table) {
+  - $table->foreignId('user_id')->nullable()->index();
+- database/migrations/0001_01_01_000001_create_cache_table.php
+  - Schema::create('cache', function (Blueprint $table) {
+  - Schema::create('cache_locks', function (Blueprint $table) {
+- database/migrations/0001_01_01_000002_create_jobs_table.php
+  - Schema::create('jobs', function (Blueprint $table) {
+  - Schema::create('job_batches', function (Blueprint $table) {
+  - Schema::create('failed_jobs', function (Blueprint $table) {
+  - $table->string('uuid')->unique();
+- database/migrations/2026_09_21_000100_create_casework_schema.php
+  - Schema::create('clients', function (Blueprint $table) { $table->id(); $table->string('first_name'); $table->string('last_name'); $table->date('birthdate')->nullable(); $table->string('sex', 24)->nullable(); $table->string('phone')->nullable(); $table->string('barangay')->nullable(); $table->string('municipality')->nullable(); $table->string('province')->nullable(); $table->json('identifiers')->nullable(); $table->timestamps(); $table->softDeletes(); $table->index(['last_name', 'first_name']); });
+  - Schema::create('reports', function (Blueprint $table) { $table->id(); $table->string('reference_no')->unique(); $table->foreignId('client_id')->nullable()->constrained()->nullOnDelete(); $table->string('status')->default('NEW')->index(); $table->string('source')->nullable(); $table->text('narrative'); $table->string('priority')->default('normal'); $table->timestamp('submitted_at')->nullable(); $table->foreignId('created_by')->constrained('users'); $table->timestamps(); $table->softDeletes(); });
+  - Schema::create('cases', function (Blueprint $table) { $table->id(); $table->string('case_number')->unique(); $table->foreignId('client_id')->constrained(); $table->foreignId('report_id')->nullable()->constrained()->nullOnDelete(); $table->foreignId('assigned_to')->nullable()->constrained('users')->nullOnDelete(); $table->string('status')->default('OPEN')->index(); $table->string('stage')->default('intake'); $table->string('priority')->default('normal'); $table->string('category')->nullable(); $table->timestamp('opened_at'); $table->timestamp('last_activity_at')->nullable(); $table->timestamp('retention_review_at')->nullable(); $table->timestamps(); $table->softDeletes(); $table->index(['assigned_to', 'status']); });
+  - Schema::create('case_notes', function (Blueprint $table) { $table->id(); $table->foreignId('case_id')->constrained()->cascadeOnDelete(); $table->text('body'); $table->string('visibility')->default('CASE_NOTES'); $table->foreignId('created_by')->constrained('users'); $table->timestamps(); });
+  - Schema::create('case_plans', function (Blueprint $table) { $table->id(); $table->foreignId('case_id')->constrained()->cascadeOnDelete(); $table->text('summary')->nullable(); $table->date('review_due_at')->nullable(); $table->string('status')->default('active'); $table->timestamps(); });
+  - Schema::create('interventions', function (Blueprint $table) { $table->id(); $table->foreignId('case_plan_id')->constrained()->cascadeOnDelete(); $table->string('need'); $table->string('goal'); $table->string('service_category'); $table->date('target_date')->nullable(); $table->string('progress')->default('not_started'); $table->text('outcome')->nullable(); $table->timestamps(); });
+  - Schema::create('service_providers', function (Blueprint $table) { $table->id(); $table->string('name'); $table->string('service_type'); $table->string('contact_person')->nullable(); $table->string('phone')->nullable(); $table->string('municipality')->nullable(); $table->boolean('active')->default(true); $table->timestamps(); });
+  - Schema::create('referrals', function (Blueprint $table) { $table->id(); $table->foreignId('case_id')->constrained()->cascadeOnDelete(); $table->foreignId('service_provider_id')->nullable()->constrained()->nullOnDelete(); $table->string('status')->default('DRAFT')->index(); $table->string('service_category'); $table->text('reason')->nullable(); $table->timestamp('referred_at')->nullable(); $table->timestamp('accepted_at')->nullable(); $table->timestamp('completed_at')->nullable(); $table->foreignId('created_by')->constrained('users'); $table->timestamps(); });
+  - Schema::create('monitoring_visits', function (Blueprint $table) { $table->id(); $table->foreignId('case_id')->constrained()->cascadeOnDelete(); $table->date('visited_at'); $table->string('location')->nullable(); $table->text('observations'); $table->text('risks')->nullable(); $table->text('next_steps')->nullable(); $table->decimal('latitude',10,7)->nullable(); $table->decimal('longitude',10,7)->nullable(); $table->foreignId('created_by')->constrained('users'); $table->timestamps(); });
+  - Schema::create('tasks', function (Blueprint $table) { $table->id(); $table->foreignId('case_id')->nullable()->constrained()->nullOnDelete(); $table->foreignId('assigned_to')->constrained('users'); $table->string('title'); $table->timestamp('due_at')->nullable(); $table->string('status')->default('open')->index(); $table->timestamps(); });
+  - Schema::create('documents', function (Blueprint $table) { $table->id(); $table->foreignId('case_id')->constrained()->cascadeOnDelete(); $table->string('name'); $table->string('disk')->default('private'); $table->string('path'); $table->string('mime_type'); $table->unsignedInteger('version')->default(1); $table->foreignId('uploaded_by')->constrained('users'); $table->timestamps(); $table->softDeletes(); });
+  - Schema::create('audit_logs', function (Blueprint $table) { $table->id(); $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete(); $table->string('event'); $table->string('auditable_type'); $table->unsignedBigInteger('auditable_id')->nullable(); $table->json('changes')->nullable(); $table->string('outcome')->default('success'); $table->string('ip_address',45)->nullable(); $table->timestamps(); $table->index(['auditable_type','auditable_id']); });
+  - Schema::create('offline_sync_items', function (Blueprint $table) { $table->id(); $table->uuid('offline_id')->unique(); $table->foreignId('user_id')->constrained()->cascadeOnDelete(); $table->string('resource'); $table->json('payload'); $table->string('status')->default('queued'); $table->text('conflict_reason')->nullable(); $table->timestamps(); });
+- database/migrations/2026_09_22_000200_add_governance_and_case_history.php
+  - Schema::create('roles', function (Blueprint $table) { $table->id(); $table->string('code')->unique(); $table->string('name'); $table->text('description')->nullable(); $table->timestamps(); });
+  - Schema::create('permissions', function (Blueprint $table) { $table->id(); $table->string('code')->unique(); $table->string('name'); $table->string('module'); $table->timestamps(); });
+  - Schema::create('permission_role', function (Blueprint $table) { $table->foreignId('role_id')->constrained()->cascadeOnDelete(); $table->foreignId('permission_id')->constrained()->cascadeOnDelete(); $table->primary(['role_id','permission_id']); });
+  - Schema::create('case_status_history', function (Blueprint $table) { $table->id(); $table->foreignId('case_id')->constrained()->cascadeOnDelete(); $table->string('from_status')->nullable(); $table->string('to_status'); $table->text('reason')->nullable(); $table->foreignId('changed_by')->constrained('users'); $table->timestamps(); });
+  - Schema::create('relationships', function (Blueprint $table) { $table->id(); $table->foreignId('client_id')->constrained()->cascadeOnDelete(); $table->foreignId('related_client_id')->nullable()->constrained('clients')->nullOnDelete(); $table->string('name')->nullable(); $table->string('relationship_type'); $table->string('phone')->nullable(); $table->boolean('is_guardian')->default(false); $table->timestamps(); });
+  - Schema::create('consents', function (Blueprint $table) { $table->id(); $table->foreignId('case_id')->constrained()->cascadeOnDelete(); $table->string('lawful_basis'); $table->json('purposes'); $table->boolean('sharing_allowed')->default(false); $table->timestamp('granted_at'); $table->timestamp('withdrawn_at')->nullable(); $table->foreignId('recorded_by')->constrained('users'); $table->timestamps(); });
+  - Schema::create('assessments', function (Blueprint $table) { $table->id(); $table->foreignId('case_id')->constrained()->cascadeOnDelete(); $table->string('status')->default('draft'); $table->json('responses')->nullable(); $table->text('summary')->nullable(); $table->foreignId('completed_by')->nullable()->constrained('users')->nullOnDelete(); $table->timestamp('completed_at')->nullable(); $table->unsignedInteger('version')->default(1); $table->timestamps(); });
+  - Schema::create('notifications', function (Blueprint $table) { $table->id(); $table->foreignId('user_id')->constrained()->cascadeOnDelete(); $table->string('type'); $table->string('title'); $table->text('body'); $table->string('action_url')->nullable(); $table->timestamp('read_at')->nullable(); $table->timestamps(); });
+  - Schema::create('reference_data', function (Blueprint $table) { $table->id(); $table->string('set_name'); $table->string('code'); $table->string('label'); $table->text('definition')->nullable(); $table->text('source')->nullable(); $table->boolean('active')->default(true); $table->timestamps(); $table->unique(['set_name','code']); });
+  - Schema::create('form_fields', function (Blueprint $table) { $table->id(); $table->string('form'); $table->string('key'); $table->string('label'); $table->string('type'); $table->boolean('required')->default(false); $table->json('options')->nullable(); $table->unsignedInteger('sort_order')->default(0); $table->timestamps(); $table->unique(['form','key']); });
+- database/migrations/2026_09_22_000300_add_offline_version_to_cases.php
+- database/migrations/2026_09_22_000400_make_new_users_read_only_by_default.php
+- database/migrations/2026_09_22_000500_add_case_closure_record.php
+- database/migrations/2026_09_22_000600_add_location_hierarchy_to_casework.php
+- database/migrations/2026_09_24_000700_expand_report_intake_fields.php
+- database/migrations/2026_09_24_000800_expand_case_intake_fields.php
+- database/migrations/2026_09_24_000900_general_intake_sheet_fields.php
+- database/migrations/2026_09_24_001000_expand_family_member_fields.php
+- database/migrations/2026_09_25_001100_add_legacy_workflow_timestamps.php
+  - $table->foreignId('screened_by')->nullable()->after('screened_at')->constrained('users')->nullOnDelete();
+  - $table->foreignId('validated_by')->nullable()->after('validated_at')->constrained('users')->nullOnDelete();
+  - $table->foreignId('decided_by')->nullable()->after('decided_at')->constrained('users')->nullOnDelete();
+  - $table->foreignId('duplicate_of_report_id')->nullable()->after('decision_reason')->constrained('reports')->nullOnDelete();
+  - $table->dropConstrainedForeignId('duplicate_of_report_id');
+  - $table->dropConstrainedForeignId('decided_by');
+  - $table->dropConstrainedForeignId('validated_by');
+  - $table->dropConstrainedForeignId('screened_by');
+- database/migrations/2026_09_28_000100_create_reference_sequences_table.php
+  - Schema::create('reference_sequences', function (Blueprint $table) {
+  - $table->unique(['prefix', 'year']);
+- database/migrations/2026_09_29_000200_add_child_protection_intake_fields.php
+- database/migrations/2026_09_29_000300_add_cefmu_case_context_fields.php
+- database/migrations/2026_09_29_000400_add_intake_privacy_records_to_cases.php
+- database/migrations/2026_09_29_000500_add_cefmu_classifications_to_cases.php
+- database/migrations/2026_09_29_000600_add_public_report_endorsement_fields.php
+  - $table->foreignId('created_by')->nullable()->change();
+- database/migrations/2026_09_29_000700_harden_case_management_security.php
+  - $table->foreignId('closure_reviewed_by')->nullable()->after('closure_summary')->constrained('users')->nullOnDelete();
+  - $table->unique('report_id');
+  - $table->foreignId('sharing_authorized_by')->nullable()->after('lawful_basis')->constrained('users')->nullOnDelete();
+  - Schema::create('offline_devices', function (Blueprint $table) {
+  - $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+  - $table->unique(['user_id', 'device_id']);
+  - $table->dropUnique(['report_id']);
+- database/migrations/2026_09_29_000800_align_role_catalogue_with_legacy_baseline.php
+- database/migrations/2026_09_29_000900_add_repeatable_safety_risk_assessments.php
+  - Schema::create('risk_assessments', function (Blueprint $table) {
+  - $table->foreignId('case_id')->constrained()->cascadeOnDelete();
+  - $table->foreignId('assessed_by')->constrained('users');
+  - $table->foreignId('finalized_by')->nullable()->constrained('users')->nullOnDelete();
+  - Schema::create('risk_assessment_factors', function (Blueprint $table) {
+  - $table->foreignId('risk_assessment_id')->constrained()->cascadeOnDelete();
+  - $table->unique(['risk_assessment_id', 'domain', 'is_protective_factor']);
+- database/migrations/2026_09_29_001000_add_comprehensive_case_assessments.php
+  - Schema::create('case_assessments', function(Blueprint $t){$t->id();$t->foreignId('case_id')->constrained()->cascadeOnDelete();$t->foreignId('previous_assessment_id')->nullable()->constrained('case_assessments')->nullOnDelete();$t->unsignedInteger('version');$t->date('assessment_date');$t->string('status',30)->default('draft');$t->foreignId('authored_by')->constrained('users');$t->foreignId('reviewed_by')->nullable()->constrained('users')->nullOnDelete();$t->timestamp('reviewed_at')->nullable();$t->foreignId('finalized_by')->nullable()->constrained('users')->nullOnDelete();$t->timestamp('finalized_at')->nullable();$t->boolean('is_current')->default(true);$t->timestamps();$t->unique(['case_id','version']);$t->index(['case_id','status']);});
+  - Schema::create('case_assessment_sections', function(Blueprint $t){$t->id();$t->foreignId('case_assessment_id')->constrained()->cascadeOnDelete();$t->string('section_key',80);$t->string('completion_state',30)->default('partially_completed');$t->string('source_type',50)->nullable();$t->text('facts')->nullable();$t->text('reported_information')->nullable();$t->text('observations')->nullable();$t->text('analysis')->nullable();$t->text('conflicting_information')->nullable();$t->boolean('restricted')->default(false);$t->timestamps();$t->unique(['case_assessment_id','section_key']);});
+- database/migrations/2026_09_29_001100_add_assessment_revision_metadata.php
+  - return new class extends Migration { public function up(): void {Schema::table('case_assessments',function(Blueprint $t){$t->text('review_comments')->nullable();$t->foreignId('returned_by')->nullable()->constrained('users')->nullOnDelete();$t->timestamp('returned_at')->nullable();$t->string('amendment_reason',500)->nullable();});} public function down(): void {Schema::table('case_assessments',fn(Blueprint $t)=>$t->dropColumn(['review_comments','returned_by','returned_at','amendment_reason']));} };
+- database/migrations/2026_09_29_001200_complete_comprehensive_assessment_versioning.php
+  - Schema::create('case_assessment_workflow_events', function (Blueprint $table) {
+  - $table->foreignId('case_assessment_id')->constrained('case_assessments')->cascadeOnDelete();
+  - $table->foreignId('actor_id')->constrained('users');
+- database/migrations/2026_09_29_001300_add_child_participation_records.php
+  - Schema::create('child_participation_records', function (Blueprint $table) {
+  - $table->foreignId('case_id')->constrained()->cascadeOnDelete();
+  - $table->foreignId('previous_record_id')->nullable()->constrained('child_participation_records')->nullOnDelete();
+  - $table->foreignId('authored_by')->constrained('users');
+  - $table->foreignId('reviewed_by')->nullable()->constrained('users')->nullOnDelete();
+  - $table->foreignId('returned_by')->nullable()->constrained('users')->nullOnDelete();
+  - $table->foreignId('finalized_by')->nullable()->constrained('users')->nullOnDelete();
+  - Schema::create('child_participation_workflow_events', function (Blueprint $table) {
+  - $table->foreignId('child_participation_record_id')->constrained()->cascadeOnDelete();
+  - $table->foreignId('actor_id')->constrained('users');
+- database/migrations/2026_09_30_000100_add_mdt_collaboration_tables.php
+  - Schema::create('mdt_case_access', function (Blueprint $table) {
+  - $table->foreignId('case_id')->constrained()->cascadeOnDelete();
+  - $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+  - $table->foreignId('assigned_by')->constrained('users');
+  - $table->foreignId('revoked_by')->nullable()->constrained('users');
+  - Schema::create('mdt_actions', function (Blueprint $table) {
+  - $table->foreignId('case_id')->constrained()->cascadeOnDelete();
+  - $table->foreignId('mdt_access_id')->constrained('mdt_case_access')->cascadeOnDelete();
+  - $table->foreignId('created_by')->constrained('users');
+  - Schema::create('mdt_case_notes', function (Blueprint $table) {
+  - $table->foreignId('case_id')->constrained()->cascadeOnDelete();
+  - $table->foreignId('mdt_access_id')->constrained('mdt_case_access')->cascadeOnDelete();
+  - $table->foreignId('previous_note_id')->nullable()->constrained('mdt_case_notes');
+  - $table->foreignId('created_by')->constrained('users');
+  - Schema::create('mdt_discussions', function (Blueprint $table) {
+  - $table->foreignId('case_id')->constrained()->cascadeOnDelete();
+  - $table->foreignId('mdt_access_id')->nullable()->constrained('mdt_case_access')->nullOnDelete();
+  - $table->foreignId('parent_id')->nullable()->constrained('mdt_discussions')->nullOnDelete();
+  - $table->foreignId('author_id')->constrained('users');
+  - Schema::create('mdt_discussion_reads', function (Blueprint $table) {
+  - $table->foreignId('discussion_id')->constrained('mdt_discussions')->cascadeOnDelete();
+  - $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+  - $table->unique(['discussion_id', 'user_id']);
+- database/migrations/2026_09_30_000200_complete_mdt_lifecycle_and_attachments.php
+  - Schema::create('mdt_attachments', function (Blueprint $table) {
+  - $table->foreignId('case_id')->constrained()->cascadeOnDelete();
+  - $table->foreignId('mdt_access_id')->constrained('mdt_case_access')->cascadeOnDelete();
+  - $table->foreignId('mdt_action_id')->nullable()->constrained('mdt_actions')->nullOnDelete();
+  - $table->foreignId('mdt_note_id')->nullable()->constrained('mdt_case_notes')->nullOnDelete();
+  - $table->foreignId('uploaded_by')->constrained('users');
+- database/migrations/2026_09_30_000300_add_case_conference_tables.php
+  - Schema::create('case_conferences', function (Blueprint $table) {
+  - $table->id(); $table->foreignId('case_id')->constrained()->cascadeOnDelete();
+  - $table->string('child_participation_status', 60)->nullable(); $table->foreignId('child_participation_record_id')->nullable()->constrained('child_participation_records')->nullOnDelete();
+  - $table->foreignId('risk_assessment_id')->nullable()->constrained('risk_assessments')->nullOnDelete();
+  - $table->foreignId('created_by')->constrained('users'); $table->foreignId('reviewed_by')->nullable()->constrained('users')->nullOnDelete();
+  - $table->foreignId('finalized_by')->nullable()->constrained('users')->nullOnDelete(); $table->timestamp('finalized_at')->nullable();
+  - $table->foreignId('returned_by')->nullable()->constrained('users')->nullOnDelete(); $table->timestamp('returned_at')->nullable(); $table->text('review_comments')->nullable();
+  - $table->foreignId('previous_conference_id')->nullable()->constrained('case_conferences')->nullOnDelete(); $table->string('record_type',30)->default('conference'); $table->text('addendum_reason')->nullable();
+  - Schema::create('case_conference_participants', function (Blueprint $table) {
+  - $table->id(); $table->foreignId('case_conference_id')->constrained()->cascadeOnDelete(); $table->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();
+  - Schema::create('case_conference_decisions', function (Blueprint $table) {
+  - $table->id(); $table->foreignId('case_conference_id')->constrained()->cascadeOnDelete(); $table->string('decision_type',20); $table->text('statement'); $table->string('status',40)->default('recorded'); $table->timestamps();
+  - Schema::create('case_conference_actions', function (Blueprint $table) {
+  - $table->id(); $table->foreignId('case_conference_id')->constrained()->cascadeOnDelete(); $table->text('action'); $table->string('category',100)->nullable();
+  - $table->foreignId('responsible_user_id')->nullable()->constrained('users')->nullOnDelete(); $table->string('responsible_office',180)->nullable();
+  - Schema::create('case_conference_history', function (Blueprint $table) {
+  - $table->id(); $table->foreignId('case_conference_id')->constrained()->cascadeOnDelete(); $table->string('event',80); $table->foreignId('actor_id')->nullable()->constrained('users')->nullOnDelete(); $table->text('comments')->nullable(); $table->timestamp('prior_scheduled_at')->nullable(); $table->timestamp('new_scheduled_at')->nullable(); $table->timestamps();
+- database/migrations/2026_09_30_000400_add_plan_continuity_lifecycle.php
+  - $table->foreignId('previous_plan_id')->nullable()->after('case_id')->constrained('case_plans')->nullOnDelete();
+  - $table->foreignId('authored_by')->nullable()->after('plan_date')->constrained('users')->nullOnDelete();
+  - $table->foreignId('reviewed_by')->nullable()->after('authored_by')->constrained('users')->nullOnDelete();
+  - $table->foreignId('returned_by')->nullable()->after('reviewed_at')->constrained('users')->nullOnDelete();
+  - $table->foreignId('comprehensive_assessment_id')->nullable()->after('overall_objective')->constrained('case_assessments')->nullOnDelete();
+  - $table->foreignId('risk_assessment_id')->nullable()->after('comprehensive_assessment_id')->constrained('risk_assessments')->nullOnDelete();
+  - $table->foreignId('child_participation_record_id')->nullable()->after('risk_assessment_id')->constrained('child_participation_records')->nullOnDelete();
+  - Schema::create('case_plan_goals', function (Blueprint $table) {
+  - $table->id(); $table->foreignId('case_plan_id')->constrained()->cascadeOnDelete();
+  - $table->foreignId('case_plan_goal_id')->nullable()->after('case_plan_id')->constrained('case_plan_goals')->nullOnDelete();
+  - $table->text('activity')->nullable()->after('service_category'); $table->foreignId('responsible_user_id')->nullable()->after('activity')->constrained('users')->nullOnDelete();
+  - $table->string('responsible_office', 180)->nullable()->after('responsible_user_id'); $table->foreignId('service_provider_id')->nullable()->after('responsible_office')->constrained('service_providers')->nullOnDelete();
+  - Schema::create('case_plan_reviews', function (Blueprint $table) {
+  - $table->id(); $table->foreignId('case_plan_id')->constrained()->cascadeOnDelete(); $table->foreignId('reviewed_by')->constrained('users');
+  - Schema::create('case_plan_history', function (Blueprint $table) {
+  - $table->id(); $table->foreignId('case_plan_id')->constrained()->cascadeOnDelete(); $table->string('event', 80); $table->foreignId('actor_id')->nullable()->constrained('users')->nullOnDelete();
+  - Schema::create('case_reintegrations', function (Blueprint $table) {
+  - $table->id(); $table->foreignId('case_id')->constrained()->cascadeOnDelete(); $table->foreignId('case_plan_id')->nullable()->constrained()->nullOnDelete();
+  - $table->foreignId('child_participation_record_id')->nullable()->constrained('child_participation_records')->nullOnDelete(); $table->foreignId('risk_assessment_id')->nullable()->constrained('risk_assessments')->nullOnDelete();
+  - $table->foreignId('created_by')->constrained('users'); $table->timestamps(); $table->index(['case_id', 'status']);
+  - Schema::create('case_aftercare_plans', function (Blueprint $table) {
+  - $table->id(); $table->foreignId('case_id')->constrained()->cascadeOnDelete(); $table->foreignId('case_plan_id')->nullable()->constrained()->nullOnDelete();
+  - $table->boolean('required')->default(false); $table->text('basis')->nullable(); $table->foreignId('responsible_user_id')->nullable()->constrained('users')->nullOnDelete();
+  - $table->text('continuity_notes')->nullable(); $table->foreignId('created_by')->constrained('users'); $table->timestamps(); $table->index(['case_id', 'status']);
+  - Schema::create('case_transfers', function (Blueprint $table) {
+  - $table->id(); $table->foreignId('case_id')->constrained()->cascadeOnDelete(); $table->string('status', 40)->default('draft');
+  - $table->string('originating_office', 180); $table->string('receiving_office', 180); $table->foreignId('originating_worker_id')->nullable()->constrained('users')->nullOnDelete(); $table->foreignId('receiving_worker_id')->nullable()->constrained('users')->nullOnDelete();
+  - $table->text('continuity_notes')->nullable(); $table->text('clarification_comments')->nullable(); $table->foreignId('created_by')->constrained('users'); $table->timestamps(); $table->index(['case_id', 'status']);
+  - Schema::create('case_transfer_history', function (Blueprint $table) {
+  - $table->id(); $table->foreignId('case_transfer_id')->constrained('case_transfers')->cascadeOnDelete(); $table->string('event', 80); $table->foreignId('actor_id')->nullable()->constrained('users')->nullOnDelete(); $table->text('comments')->nullable(); $table->timestamps();
+- database/migrations/2026_09_30_000401_seed_plan_lifecycle_permissions.php
+- database/migrations/2026_09_30_000402_add_case_lifecycle_policy_settings.php
+  - Schema::create('case_lifecycle_policies', function (Blueprint $table) {
+  - $table->unique(['scope','key']);
+- database/migrations/2026_10_01_000100_add_records_governance_lifecycle.php
+  - Schema::create('record_classifications', function (Blueprint $table) {
+  - $table->id(); $table->string('code')->unique(); $table->string('label');
+  - Schema::create('retention_rules', function (Blueprint $table) {
+  - $table->id(); $table->string('code')->unique(); $table->string('label');
+  - $table->string('record_type', 64); $table->foreignId('record_classification_id')->nullable()->constrained('record_classifications')->nullOnDelete();
+  - $table->boolean('policy_validated')->default(false); $table->timestamp('approved_at')->nullable(); $table->foreignId('approved_by')->nullable()->constrained('users')->nullOnDelete(); $table->timestamps();
+  - Schema::create('record_governance', function (Blueprint $table) {
+  - $table->id(); $table->foreignId('case_id')->constrained()->cascadeOnDelete();
+  - $table->foreignId('record_classification_id')->nullable()->constrained('record_classifications')->nullOnDelete();
+  - $table->foreignId('retention_rule_id')->nullable()->constrained('retention_rules')->nullOnDelete();
+  - $table->foreignId('classified_by')->nullable()->constrained('users')->nullOnDelete(); $table->timestamp('classified_at')->nullable(); $table->timestamps();
+  - $table->unique(['record_type','record_id']); $table->index(['case_id','lifecycle_state']);
+  - $table->uuid('lineage_id')->nullable()->after('id'); $table->foreignId('previous_document_id')->nullable()->after('version')->constrained('documents')->nullOnDelete();
+  - Schema::create('legal_holds', function (Blueprint $table) {
+  - $table->id(); $table->foreignId('case_id')->constrained()->cascadeOnDelete(); $table->string('scope', 24); $table->string('reason_code', 120); $table->string('authority', 255);
+  - $table->foreignId('placed_by')->constrained('users'); $table->timestamp('placed_at'); $table->timestamp('review_at')->nullable();
+  - $table->foreignId('released_by')->nullable()->constrained('users')->nullOnDelete(); $table->timestamp('released_at')->nullable(); $table->string('release_reason', 1000)->nullable(); $table->timestamps();
+  - Schema::create('legal_hold_records', function (Blueprint $table) {
+  - $table->id(); $table->foreignId('legal_hold_id')->constrained('legal_holds')->cascadeOnDelete(); $table->string('record_type', 64); $table->unsignedBigInteger('record_id'); $table->timestamps(); $table->unique(['legal_hold_id','record_type','record_id']);
+  - Schema::create('record_dispositions', function (Blueprint $table) {
+  - $table->id(); $table->foreignId('record_governance_id')->constrained('record_governance')->cascadeOnDelete(); $table->string('status', 40)->default('retention_review');
+  - $table->string('proposal_reason', 1000)->nullable(); $table->foreignId('proposed_by')->nullable()->constrained('users')->nullOnDelete(); $table->timestamp('proposed_at')->nullable();
+  - $table->foreignId('reviewed_by')->nullable()->constrained('users')->nullOnDelete(); $table->timestamp('reviewed_at')->nullable(); $table->foreignId('approved_by')->nullable()->constrained('users')->nullOnDelete(); $table->timestamp('approved_at')->nullable();
+  - $table->timestamp('executed_at')->nullable(); $table->foreignId('executed_by')->nullable()->constrained('users')->nullOnDelete(); $table->timestamps();
+  - Schema::create('record_disposition_history', function (Blueprint $table) {
+  - $table->id(); $table->foreignId('record_disposition_id')->constrained('record_dispositions')->cascadeOnDelete(); $table->string('event', 48); $table->foreignId('actor_id')->nullable()->constrained('users')->nullOnDelete(); $table->string('reason_code', 120)->nullable(); $table->timestamps();
+  - Schema::create('record_disclosures', function (Blueprint $table) {
+  - $table->id(); $table->foreignId('case_id')->constrained()->cascadeOnDelete(); $table->string('recipient_organization', 255); $table->string('recipient_name', 255)->nullable();
+  - $table->string('purpose', 500); $table->string('lawful_authority', 255); $table->string('delivery_method', 100); $table->foreignId('authorized_by')->constrained('users'); $table->timestamp('authorized_at'); $table->timestamp('acknowledged_at')->nullable(); $table->timestamps();
+  - Schema::create('record_disclosure_items', function (Blueprint $table) {
+  - $table->id(); $table->foreignId('record_disclosure_id')->constrained('record_disclosures')->cascadeOnDelete(); $table->string('record_type', 64); $table->unsignedBigInteger('record_id'); $table->string('category', 120); $table->timestamps();
+- database/migrations/2026_10_02_000100_add_identity_integrity_and_assessment_reconciliation.php
+  - $table->foreignId('canonical_client_id')->nullable()->constrained('clients')->nullOnDelete();
+  - Schema::create('client_identifiers', function (Blueprint $table) {
+  - $table->id(); $table->foreignId('client_id')->constrained()->cascadeOnDelete();
+  - $table->foreignId('recorded_by')->nullable()->constrained('users')->nullOnDelete();
+  - Schema::create('households', function (Blueprint $table) {
+  - $table->string('source_type', 80)->nullable(); $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
+  - Schema::create('household_memberships', function (Blueprint $table) {
+  - $table->id(); $table->foreignId('household_id')->constrained()->cascadeOnDelete(); $table->foreignId('client_id')->constrained()->cascadeOnDelete();
+  - $table->foreignId('recorded_by')->nullable()->constrained('users')->nullOnDelete(); $table->timestamps();
+  - Schema::create('identity_duplicate_candidates', function (Blueprint $table) {
+  - $table->id(); $table->foreignId('client_a_id')->constrained('clients')->cascadeOnDelete(); $table->foreignId('client_b_id')->constrained('clients')->cascadeOnDelete();
+  - $table->string('candidate_key', 80)->unique(); $table->string('status', 40)->default('potential_duplicate')->index();
+  - $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete(); $table->timestamp('reviewed_at')->nullable(); $table->foreignId('reviewed_by')->nullable()->constrained('users')->nullOnDelete();
+  - Schema::create('identity_review_decisions', function (Blueprint $table) {
+  - $table->id(); $table->foreignId('candidate_id')->constrained('identity_duplicate_candidates')->cascadeOnDelete();
+  - $table->string('decision', 40); $table->text('rationale')->nullable(); $table->foreignId('reviewed_by')->constrained('users'); $table->timestamp('reviewed_at'); $table->timestamps();
+  - Schema::create('client_identity_links', function (Blueprint $table) {
+  - $table->id(); $table->foreignId('left_client_id')->constrained('clients')->cascadeOnDelete(); $table->foreignId('right_client_id')->constrained('clients')->cascadeOnDelete();
+  - $table->foreignId('created_by')->constrained('users'); $table->timestamps(); $table->unique(['left_client_id','right_client_id','link_type']);
+  - Schema::create('client_identity_merges', function (Blueprint $table) {
+  - $table->id(); $table->foreignId('candidate_id')->nullable()->constrained('identity_duplicate_candidates')->nullOnDelete();
+  - $table->foreignId('source_client_id')->constrained('clients'); $table->foreignId('survivor_client_id')->constrained('clients');
+  - $table->foreignId('proposed_by')->constrained('users'); $table->timestamp('proposed_at');
+  - $table->foreignId('approved_by')->nullable()->constrained('users')->nullOnDelete(); $table->timestamp('approved_at')->nullable();
+  - $table->foreignId('executed_by')->nullable()->constrained('users')->nullOnDelete(); $table->timestamp('executed_at')->nullable();
+  - $table->unique(['source_client_id','status']); $table->index(['survivor_client_id','status']);
+  - Schema::create('client_identity_merge_field_decisions', function (Blueprint $table) {
+  - $table->id(); $table->foreignId('merge_id')->constrained('client_identity_merges')->cascadeOnDelete();
+  - $table->timestamps(); $table->unique(['merge_id','field_name']);
+  - Schema::create('client_identity_merge_affected_records', function (Blueprint $table) {
+  - $table->id(); $table->foreignId('merge_id')->constrained('client_identity_merges')->cascadeOnDelete();
+  - $table->timestamps(); $table->unique(['merge_id','record_type','record_id']);
+  - Schema::create('legacy_assessment_reconciliations', function (Blueprint $table) {
+  - $table->id(); $table->foreignId('legacy_assessment_id')->unique()->constrained('assessments')->cascadeOnDelete();
+  - $table->foreignId('case_id')->constrained()->cascadeOnDelete(); $table->foreignId('proposed_case_assessment_id')->nullable()->constrained('case_assessments')->nullOnDelete();
+  - $table->string('migration_version', 40)->nullable(); $table->foreignId('reviewed_by')->nullable()->constrained('users')->nullOnDelete(); $table->timestamp('migrated_at')->nullable();
+- database/migrations/2026_10_02_000101_add_identity_merge_identifier_conflicts.php
+  - Schema::create('client_identity_merge_identifier_conflicts', function (Blueprint $table) {
+  - $table->foreignId('merge_id')->constrained('client_identity_merges')->cascadeOnDelete();
+  - $table->foreignId('source_identifier_id')->constrained('client_identifiers')->cascadeOnDelete();
+  - $table->foreignId('survivor_identifier_id')->nullable()->constrained('client_identifiers')->nullOnDelete();
+  - $table->unique(['merge_id', 'source_identifier_id', 'survivor_identifier_id'], 'identity_merge_identifier_conflict_unique');
+- database/migrations/2026_10_02_000102_add_identity_candidate_generation_indexes.php
+- database/migrations/2026_10_02_100000_add_google_id_to_users.php
+  - $table->string('google_id')->nullable()->unique()->after('email');
+- database/migrations/2026_10_02_120000_add_registration_fields_to_users.php
+  - $table->foreignId('reviewed_by')->nullable()->after('reviewed_at');
+- database/migrations/2026_10_02_150000_restructure_roles_and_add_cpu_discipline.php
+- database/migrations/2026_10_03_000100_add_lgu_scope_and_cpu_coordination.php
+  - Schema::create('lgu_units', function (Blueprint $table) {
+  - $table->string('psgc_code', 20)->unique();
+  - Schema::create('user_lgu_assignments', function (Blueprint $table) {
+  - $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+  - $table->foreignId('lgu_id')->constrained('lgu_units')->restrictOnDelete();
+  - $table->foreignId('assigned_by')->nullable()->constrained('users')->nullOnDelete();
+  - $table->foreignId('lgu_id')->nullable()->after('client_id')->constrained('lgu_units')->nullOnDelete();
+  - Schema::create('lgu_coordination_circles', function (Blueprint $table) {
+  - $table->foreignId('lgu_id')->constrained('lgu_units')->cascadeOnDelete();
+  - $table->unique('lgu_id');
+  - Schema::create('lgu_coordination_members', function (Blueprint $table) {
+  - $table->foreignId('circle_id')->constrained('lgu_coordination_circles')->cascadeOnDelete();
+  - $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+  - $table->foreignId('configured_by')->nullable()->constrained('users')->nullOnDelete();
+  - $table->unique(['circle_id', 'user_id']);
+  - Schema::create('lgu_coordination_messages', function (Blueprint $table) {
+  - $table->foreignId('circle_id')->constrained('lgu_coordination_circles')->cascadeOnDelete();
+  - $table->foreignId('author_id')->constrained('users')->restrictOnDelete();
+  - $table->foreignId('parent_id')->nullable()->constrained('lgu_coordination_messages')->nullOnDelete();
+  - $table->foreignId('case_id')->nullable()->constrained('cases')->nullOnDelete();
+  - Schema::create('lgu_coordination_message_mentions', function (Blueprint $table) {
+  - $table->foreignId('message_id')->constrained('lgu_coordination_messages')->cascadeOnDelete();
+  - $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+  - $table->unique(['message_id', 'user_id']);
+  - Schema::create('lgu_coordination_message_reads', function (Blueprint $table) {
+  - $table->foreignId('message_id')->constrained('lgu_coordination_messages')->cascadeOnDelete();
+  - $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+  - $table->unique(['message_id', 'user_id']);
+  - Schema::table('cases', fn (Blueprint $table) => $table->dropConstrainedForeignId('lgu_id'));
+- database/migrations/2026_10_04_000100_add_mdt_attachment_quarantine_and_mfa.php
+- database/migrations/2026_10_04_000200_add_performance_indexes.php
+- database/migrations/2026_10_04_000300_add_email_otp_to_users.php
+- database/migrations/2026_10_06_000100_remove_viewer_role.php
+- database/migrations/2026_10_06_000200_remodel_progress_notes.php
+  - $table->foreignId('previous_note_id')->nullable()->after('source_id')->constrained('case_notes')->nullOnDelete();
+  - $table->foreignId('finalized_by')->nullable()->after('finalized_at')->constrained('users')->nullOnDelete();
+  - $table->dropConstrainedForeignId('previous_note_id');
+  - $table->dropConstrainedForeignId('finalized_by');
+- database/migrations/2026_10_07_000100_add_device_name_to_offline_devices.php
+- database/migrations/2026_10_08_000100_add_lgu_reconciliation_queue.php
+  - Schema::create('lgu_reconciliation_queue', function (Blueprint $table) {
+  - $table->foreignId('proposed_lgu_id')->nullable()->constrained('lgu_units')->nullOnDelete();
+  - $table->foreignId('reviewed_by')->nullable()->constrained('users')->nullOnDelete();
+  - $table->unique(['record_type', 'record_id']);
+- database/migrations/2026_10_08_000200_add_lgu_id_to_reports.php
+  - public function up(): void { Schema::table('reports', fn (Blueprint $table) => $table->foreignId('lgu_id')->nullable()->after('client_id')->constrained('lgu_units')->nullOnDelete()->index()); }
+  - public function down(): void { Schema::table('reports', fn (Blueprint $table) => $table->dropConstrainedForeignId('lgu_id')); }
+
+## resources/js/Pages
+
+- resources/js/Pages/Admin/Audits.vue
+- resources/js/Pages/Admin/Forms.vue
+- resources/js/Pages/Admin/Index.vue
+- resources/js/Pages/Admin/Lgus.vue
+- resources/js/Pages/Admin/Overview.vue
+- resources/js/Pages/Analytics/Index.vue
+- resources/js/Pages/Analytics/Quarterly.vue
+- resources/js/Pages/Auth/ConfirmPassword.vue
+- resources/js/Pages/Auth/ForgotPassword.vue
+- resources/js/Pages/Auth/Login.vue
+- resources/js/Pages/Auth/Register.vue
+- resources/js/Pages/Auth/ResetPassword.vue
+- resources/js/Pages/Auth/VerifyEmail.vue
+- resources/js/Pages/Calendar/Index.vue
+- resources/js/Pages/Cases/Create.vue
+- resources/js/Pages/Cases/Index.vue
+- resources/js/Pages/Cases/RecordsGovernance.vue
+- resources/js/Pages/Cases/Show.vue
+- resources/js/Pages/Conferences/Index.vue
+- resources/js/Pages/Cpu/Coordination.vue
+- resources/js/Pages/Dashboard.vue
+- resources/js/Pages/Help/Faq.vue
+- resources/js/Pages/Help/Guide.vue
+- resources/js/Pages/Identity/ReviewQueue.vue
+- resources/js/Pages/Management/Overview.vue
+- resources/js/Pages/Management/Section.vue
+- resources/js/Pages/Mdt/CaseWorkspace.vue
+- resources/js/Pages/Mdt/Workspace.vue
+- resources/js/Pages/Notifications/Index.vue
+- resources/js/Pages/Offline/Workspace.vue
+- resources/js/Pages/Plans/Workspace.vue
+- resources/js/Pages/Profile/Edit.vue
+- resources/js/Pages/Profile/Partials/DeleteUserForm.vue
+- resources/js/Pages/Profile/Partials/TwoFactorManageForm.vue
+- resources/js/Pages/Profile/Partials/UpdatePasswordForm.vue
+- resources/js/Pages/Profile/Partials/UpdateProfileInformationForm.vue
+- resources/js/Pages/Providers/Index.vue
+- resources/js/Pages/PublicDashboard.vue
+- resources/js/Pages/Referrals/Index.vue
+- resources/js/Pages/Reports/Index.vue
+- resources/js/Pages/Reports/SocialCaseManagement.vue
+- resources/js/Pages/Tasks/Index.vue
+- resources/js/Pages/TwoFactor/Challenge.vue
+- resources/js/Pages/TwoFactor/RecoveryCodes.vue
+- resources/js/Pages/TwoFactor/Setup.vue
+- resources/js/Pages/Welcome.vue
+
+## resources/js/Components
+
+- resources/js/Components/AppIcon.vue
+- resources/js/Components/ApplicationLogo.vue
+- resources/js/Components/BarangayWorkloadPanel.vue
+- resources/js/Components/Checkbox.vue
+- resources/js/Components/DangerButton.vue
+- resources/js/Components/Dropdown.vue
+- resources/js/Components/DropdownLink.vue
+- resources/js/Components/GeographicHeatmap.vue
+- resources/js/Components/InputError.vue
+- resources/js/Components/InputLabel.vue
+- resources/js/Components/LocationSelects.vue
+- resources/js/Components/MidnightSessionGuard.vue
+- resources/js/Components/Modal.vue
+- resources/js/Components/NavLink.vue
+- resources/js/Components/PrimaryButton.vue
+- resources/js/Components/ResponsiveNavLink.vue
+- resources/js/Components/SecondaryButton.vue
+- resources/js/Components/SectionNav.vue
+- resources/js/Components/SubmissionConfirmation.vue
+- resources/js/Components/TextInput.vue
+
+## tests/Feature
+
+- tests/Feature/AggregatePrivacyTest.php
+- tests/Feature/AnalyticsExportTest.php
+- tests/Feature/Auth/AccountEnumerationTest.php
+- tests/Feature/Auth/AuthenticationTest.php
+- tests/Feature/Auth/EmailVerificationTest.php
+- tests/Feature/Auth/GoogleLoginTest.php
+- tests/Feature/Auth/PasswordConfirmationTest.php
+- tests/Feature/Auth/PasswordResetTest.php
+- tests/Feature/Auth/PasswordUpdateTest.php
+- tests/Feature/Auth/RegistrationTest.php
+- tests/Feature/Auth/TwoFactorOtpRegressionTest.php
+- tests/Feature/Auth/TwoFactorTest.php
+- tests/Feature/CalendarOpenActivitiesTest.php
+- tests/Feature/CaseArtifactTest.php
+- tests/Feature/CaseAssignmentTest.php
+- tests/Feature/CaseClosureWorkflowTest.php
+- tests/Feature/CaseConferenceTest.php
+- tests/Feature/CaseMaintenanceTest.php
+- tests/Feature/CasePlanLifecycleTest.php
+- tests/Feature/CaseworkFlowTest.php
+- tests/Feature/ChildParticipationWorkflowTest.php
+- tests/Feature/ComprehensiveAssessmentWorkflowTest.php
+- tests/Feature/ConsentWorkflowTest.php
+- tests/Feature/DeadlineAlertCommandTest.php
+- tests/Feature/ExampleTest.php
+- tests/Feature/FileScanServiceTest.php
+- tests/Feature/IdentityIntegrityTest.php
+- tests/Feature/JurisdictionAndAccountAccessTest.php
+- tests/Feature/LegacyCsvValidatorTest.php
+- tests/Feature/LguScopeCpuCoordinationTest.php
+- tests/Feature/ManagementAnalyticsPrivacyTest.php
+- tests/Feature/MdtCollaborationAccessTest.php
+- tests/Feature/MidnightIdleLogoutTest.php
+- tests/Feature/NotificationInboxTest.php
+- tests/Feature/OfflineDeviceManagementTest.php
+- tests/Feature/OfflineIntakeSyncTest.php
+- tests/Feature/OfflineSyncConflictTest.php
+- tests/Feature/OfflineWorkspaceAccessTest.php
+- tests/Feature/OperationsAccessTest.php
+- tests/Feature/PlanningWorkflowTest.php
+- tests/Feature/ProfileTest.php
+- tests/Feature/ProgressNoteWorkflowTest.php
+- tests/Feature/ProviderDirectoryTest.php
+- tests/Feature/PublicDashboardTest.php
+- tests/Feature/PublicReportSubmissionTest.php
+- tests/Feature/QuarterlyMonitoringTest.php
+- tests/Feature/RecordsGovernanceTest.php
+- tests/Feature/ReferenceNumberServiceTest.php
+- tests/Feature/ReferralWorkflowTest.php
+- tests/Feature/RelationshipWorkflowTest.php
+- tests/Feature/ReportIntakeWorkflowTest.php
+- tests/Feature/ReportQueueAccessTest.php
+- tests/Feature/RiskAssessmentWorkflowTest.php
+- tests/Feature/RoleAuthorizationTest.php
+- tests/Feature/SearchTest.php
+- tests/Feature/SecurityHeadersTest.php
+- tests/Feature/TaskWorkflowTest.php
+
+## tests/e2e
+
+- tests/e2e/global-setup.ts
+- tests/e2e/helpers.ts
+- tests/e2e/offline.spec.ts
+- tests/e2e/responsive-matrix.spec.ts
+- tests/e2e/role-flows.spec.ts
+- tests/e2e/smoke.spec.ts
+
+## docs
+
+- docs/00-project-plan/2026-09-28-remediation-register.md
+- docs/00-project-plan/2026-09-28-system-reassessment.md
+- docs/00-project-plan/CURRENT-CORE-WORKFLOW-GAP-AUDIT-2026-10-06.md
+- docs/00-project-plan/implementation-plan.md
+- docs/00-project-plan/PRIORITY-3-READINESS-GAP-MATRIX.md
+- docs/01-current-system/AUTOMATION-AND-OPERATIONS.md
+- docs/01-current-system/current-system-inventory.md
+- docs/01-current-system/INVENTORY.md
+- docs/02-requirements/module-migration-matrix.md
+- docs/03-architecture/ARCHITECTURE.md
+- docs/03-architecture/case-conference.md
+- docs/03-architecture/child-participation.md
+- docs/03-architecture/comprehensive-assessment.md
+- docs/03-architecture/IDENTITY-INTEGRITY-AND-LEGACY-ASSESSMENT-RECONCILIATION.md
+- docs/03-architecture/LGU-SCOPE-CPU-COORDINATION-AND-REPORTING.md
+- docs/03-architecture/mdt-collaboration.md
+- docs/03-architecture/plan-continuity.md
+- docs/03-architecture/privacy-access-model.md
+- docs/03-architecture/privacy-data-flow.md
+- docs/03-architecture/PROGRESS-NOTES-AND-CASEWORK-COMPATIBILITY.md
+- docs/03-architecture/RECORDS-LIFECYCLE-AND-DOCUMENT-GOVERNANCE.md
+- docs/03-architecture/ROLE-AWARE-WORKSPACE-SEPARATION.md
+- docs/03-architecture/role-migration-matrix.md
+- docs/03-architecture/safety-risk-assessment.md
+- docs/03-architecture/SECURITY-AND-OFFLINE.md
+- docs/04-database/DATA-DICTIONARY.md
+- docs/04-database/DATA-MODEL.md
+- docs/04-database/ERD.md
+- docs/04-database/LOCATION-DATASET.md
+- docs/05-governance/AUDIT-RETENTION-POLICY.md
+- docs/05-governance/INCIDENT-RESPONSE-PLAN.md
+- docs/05-governance/plan-continuity-permissions.md
+- docs/05-governance/PRIVACY-IMPACT-ASSESSMENT.md
+- docs/05-governance/RELEASE-EVIDENCE-PACKAGE.md
+- docs/05-user-manual/CASEWORK.md
+- docs/06-user-guide/QUICK-START.md
+- docs/07-installation/LOCAL-SETUP.md
+- docs/07-installation/RENDER-DEPLOYMENT.md
+- docs/08-admin-guide/OPERATIONS.md
+- docs/09-testing-uat/PRESENTATION-CHECKLIST.md
+- docs/09-testing-uat/UAT-CORE.md
+- docs/10-migration-history/2026-09-22.md
+- docs/LEGACY-FEATURE-MIGRATION-INVENTORY.md
+
+## Continuation source delta - 2026-10-17
+
+Added Services/MdtGrantScope.php, Services/WorkerTasks.php, Components/MetricCard.vue, Components/CaseActionQueue.vue, types/casework.ts, Feature/CoordinationEligibilityTest.php, Feature/DraftCaseReportTest.php, Feature/WorkerActionQueueTest.php and isolated foundation browser fixtures. Updated casework/operations/CPU/MDT/report controllers and their corresponding screens, shared SectionNav and foundation/offline browser tests. Progress checkpoints identify per-package tests and limitations. No application schema/data or role-grant changes.
+
+
+Further continuation delta: Cpu/Coordination.vue now handles JSON composer/capture and paged history; Components/Modal.vue layers scrolled content above backdrop; HandleInertiaRequests excludes notifications from cacheable field shell; app.ts/public/sw.js use shell v10; Offline/secureStore.ts closes transaction connections and supports deletion; Offline/Workspace.vue immediately locks on confirmed revocation and handles failed field saves. Tests cover these with synthetic fixtures only. No schema changes.
+
+
+## 2026-10-18 offline integrity/recovery implementation
+
+Added resources/js/Offline/syncQueue.ts, workspaceOwner.ts and fieldApp.ts; tests/frontend/offlineSync.test.mjs, tests/e2e/offline-sync.spec.ts and tests/Feature/OfflineSyncIntegrityTest.php; docs/implementation/OFFLINE-SYNC-INTEGRITY.md. Enhanced secureStore.ts, offlineTypes.ts, Offline/Workspace.vue, app.ts, public/sw.js, OfflineSyncController.php, offline browser tests and relevant test configuration. Philippine date rollover fixture corrected in DeadlineAlertCommandTest.php. No schema or live database modifications; no remote/commit/deployment.
+
+## 2026-10-18 P3-O7 and functional/UI continuation
+
+Added Offline/intakeDraft.ts, Casework/intakeErrors.ts, Components/Referrals/ReferralStatusForm.vue; e2e intake-drafts, referral-workflow, provider-directory and intake-navigation specs; Feature/ReferralLifecycleIntegrationTest.php. Updated encrypted store/workspace and v14 field shell, typed Referrals/Providers pages, Cases/Create, shared Modal closed event and OperationsController referral transaction/validation. Guarded foundation fixture adds only a synthetic inactive provider. Frontend test runner includes actual draft/error helpers. QA records: INTAKE-DRAFT-RECOVERY.md, REFERRAL-LIFECYCLE.md, PROVIDER-DIRECTORY.md, ONLINE-INTAKE-RECOVERY.md. No schema/live-data/role changes, no remote/deployment.
+
+P3-O7-A final guard: Offline/Workspace intake fieldset freezes during atomic promotion; held-digest regression added to intake-drafts.spec.ts. Final build25.18s and10 selected browser checks pass. No database/storage-format change.

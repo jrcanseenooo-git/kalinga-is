@@ -1,0 +1,2 @@
+export type SyncStatus = 'draft' | 'pending' | 'syncing' | 'synced' | 'failed' | 'conflict';
+export type OfflineOperation = { local_id: string; entity_type: string; operation: 'create'|'update'; payload: Record<string, unknown>; base_version?: number; original_base_version?: number; review_confirmed_at?: string; sync_status: SyncStatus; retry_count: number; created_offline_at: string; error_message?: string };

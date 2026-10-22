@@ -1,0 +1,13 @@
+# Database failure privacy QA
+
+## P5-L1 database failure privacy dependency - 2026-10-19
+
+Primary installed framework source reviewed: QueryException formats bound SQL values into its message; Handler reports that message and exception context by default. A captured PSR logger regression reproduced the synthetic private marker in the raw logged SQL message. Debug JSON/HTML failure responses also exposed synthetic markers. The initial Log::spy expectation used the wrong dynamic logger method; it was replaced with a real captured PSR logger to prove the message leak, not merely a mock call mismatch. No real client data was used.
+
+Implemented under verification: PDO/QueryException report callback emits only fixed diagnostic text, validated SQLSTATE and a whitelisted operation. No SQL, bindings, connection details, request body or Throwable object goes to the logger; logging failure cannot fall back to raw exception serialization. Generic private/no-store failure responses apply even with debug enabled. Existing authorization, security headers and HTTP500 semantics are retained. This is a necessary privacy dependency of sensitive record writes, not an unrelated feature. Global backend/privacy checks are pending; no legal-compliance claim.
+
+P5-L1 targeted privacy/closure18/87 passes (16.33s). New failure handlers keep only fixed text, validated SQLSTATE and whitelisted operation, stop default raw exception logging, and return generic private/no-store JSON or text even under APP_DEBUG=true. Source search finds no controller/service getMessage() response/log bypass. An additional logger-unavailable regression is included in the full run now active. Source does not suppress database failures as successes: HTTP500 and transaction rollback remain unchanged.
+
+UI-13-B1 expanded history/lifecycle27/190 passes (18.79s), including preservation of incomplete legacy metadata, rollback after history capture/reopening and drift reconciliation with unknown authorship. An unmatched legacy projection cannot borrow old approval; authorized re-recording preserves the surviving text before creating an unreviewed authored revision. First full365/2487 (99.30s) passed before the final drift/privacy additions. Real close/reopen browser1/1 (36.0s) passes against the additive schema. Final full-suite result is pending; no live database migration/backfill/rollout occurred.
+
+Verified bounded P5-L1 checkpoint: six privacy tests pass within full backend379/2585 (104.22s), including logger-unavailable fallback prevention and debug JSON/text privacy. Generic HTTP500 remains a failure; no query text/bindings/Throwable/request body is logged. No real client data used.
