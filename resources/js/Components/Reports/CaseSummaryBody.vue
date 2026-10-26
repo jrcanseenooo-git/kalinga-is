@@ -5,20 +5,20 @@ import ReportSection from '@/Components/Reports/ReportSection.vue';
 import ReportSignatures from '@/Components/Reports/ReportSignatures.vue';
 import type { ReportProps } from '@/types/reports';
 import { NOTE_TYPES } from '@/utils/caseOptions';
+import { incidenceRows } from '@/data/cefmu';
 import { ageOn, classificationText, counted, human, initialsOf, longDate, peso, shortDate } from '@/utils/reportFormat';
 
 /**
  * Case Summary Report (type "summary") and Social Case Study Report (type
  * "study"). Same structure as before; flat styling and formal wording.
  */
-const props = defineProps<{ report: ReportProps; reveal: boolean }>();
+const props = defineProps<{ report: ReportProps; reveal: boolean; clientName: string }>();
 const r = computed(() => props.report);
 const study = computed(() => r.value.type === 'study');
 const n = (summaryNo: number, studyNo: number) => study.value ? studyNo : summaryNo;
 
 const client = computed(() => r.value.client);
-const fullName = computed(() => [client.value.first_name, client.value.middle_name, client.value.last_name, client.value.suffix].filter(Boolean).join(' '));
-const clientName = computed(() => props.reveal ? fullName.value : initialsOf(client.value.first_name, client.value.last_name));
+const clientName = computed(() => props.clientName);
 const age = computed(() => ageOn(client.value.birthdate));
 const classification = computed(() => classificationText(r.value.caseInfo.classifications ?? []));
 const noteLabel = (type: string | null) => NOTE_TYPES.find(item => item.value === type)?.label ?? human(type);
@@ -65,7 +65,8 @@ const assessmentBlocks = computed(() => (r.value.assessment?.sections ?? []).fil
         <tr><th>Case number</th><td>{{ r.caseInfo.number }}</td></tr>
         <tr><th>Date of intake</th><td>{{ longDate(r.caseInfo.intake_at) }}</td></tr>
         <tr><th>Case category</th><td>CEFMU{{ classification ? ` - ${classification}` : '' }}</td></tr>
-        <tr><th>Form of union</th><td>{{ human(r.caseInfo.union_type) }}</td></tr>
+        <tr><th>Marriage or union</th><td>{{ incidenceRows(r.caseInfo)[0][1] }}</td></tr>
+        <tr><th>Married or cohabiting</th><td>{{ incidenceRows(r.caseInfo)[1][1] }}</td></tr>
         <tr><th>Case status</th><td>{{ human(r.caseInfo.status) }}<span v-if="r.caseInfo.stage && human(r.caseInfo.stage) !== human(r.caseInfo.status)"> ({{ human(r.caseInfo.stage).toLowerCase() }} stage)</span></td></tr>
         <tr><th>Source of referral</th><td>{{ r.caseInfo.referred_by || human(r.caseInfo.mode_of_admission) }}</td></tr>
         <tr><th>Referral date</th><td>{{ longDate(r.caseInfo.referral_date) }}</td></tr>

@@ -1,5 +1,6 @@
-const CACHE = 'kalinga-field-shell-v15';
-const SHELL = ['/manifest.webmanifest', '/offline.html', '/icons/kalinga.svg', '/build/manifest.json'];
+const CACHE = 'kalinga-field-shell-v16';
+// The PSGC location list is needed by the intake address fields with no signal.
+const SHELL = ['/manifest.webmanifest', '/offline.html', '/icons/kalinga.svg', '/build/manifest.json', '/data/psgc-2q-2026.json'];
 const WORKSPACE = '/offline-workspace';
 const WORKSPACE_URL = new URL(WORKSPACE, self.location.origin).href;
 const WORKSPACE_PATHS = new Set([WORKSPACE, '/offline']);

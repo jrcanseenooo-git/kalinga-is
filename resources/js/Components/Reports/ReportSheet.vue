@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
-import { ArrowLeft, Eye, EyeOff, Printer } from '@lucide/vue';
+import { ArrowLeft, Printer } from '@lucide/vue';
 import { computed } from 'vue';
 import { longDate } from '@/utils/reportFormat';
 import type { ReportOffice } from '@/types/reports';
+import { NAME_MODES, type NameMode } from '@/utils/clientName';
 
 /**
  * Flat, print-ready frame shared by every Kalinga case report: toolbar,
@@ -14,9 +15,10 @@ import type { ReportOffice } from '@/types/reports';
 const props = defineProps<{
   title: string; subtitle?: string; reportNo: string; generatedAt: string; caseId: number;
   office: ReportOffice; preparedBy: { name: string; position: string | null };
-  extraMeta?: { label: string; value: string }[];
+  extraMeta?: { label: string; value: string }[]; hasAlias?: boolean;
 }>();
-const reveal = defineModel<boolean>('reveal', { default: false });
+/** Masked by default; full name also shows contact numbers and other names. */
+const nameMode = defineModel<NameMode>('nameMode', { default: 'masked' });
 const area = computed(() => [props.office.short || props.office.name, props.office.lgu].filter(Boolean).join(' - ') || 'Not set in LGU profile');
 const printNow = () => window.print();
 </script>
@@ -27,10 +29,14 @@ const printNow = () => window.print();
       <Link :href="route('cases.show', caseId)" class="rpt-btn"><ArrowLeft class="h-4 w-4" aria-hidden="true"/>Back to case</Link>
       <div class="rpt-actions">
         <slot name="tools" />
-        <button type="button" class="rpt-btn" :aria-pressed="reveal" @click="reveal = !reveal"><component :is="reveal ? EyeOff : Eye" class="h-4 w-4" aria-hidden="true"/>{{ reveal ? 'Hide full name' : 'Show full name' }}</button>
+        <div class="rpt-names" role="group" aria-label="Name shown on this form">
+          <span class="rpt-names-label">Name on form</span>
+          <button v-for="mode in NAME_MODES" :key="mode.value" type="button" class="rpt-btn" :aria-pressed="nameMode === mode.value"
+            :disabled="mode.value === 'alias' && !hasAlias" :title="mode.value === 'alias' && !hasAlias ? 'No alias or nickname recorded in the intake' : undefined" @click="nameMode = mode.value">{{ mode.label }}</button>
+        </div>
         <button type="button" class="rpt-btn rpt-btn-primary" @click="printNow"><Printer class="h-4 w-4" aria-hidden="true"/>Print / Save as PDF</button>
       </div>
-      <p class="rpt-note">Prepared from the case record as of {{ longDate(generatedAt) }}. You may correct wording on this page before printing; corrections made here are not saved to the case record. Names appear as initials and contact numbers are masked unless you choose to show them.</p>
+      <p class="rpt-note">Prepared from the case record as of {{ longDate(generatedAt) }}. You may correct wording on this page before printing; corrections made here are not saved to the case record. The child's name is masked (for example J**S***D**UZ) unless you choose the alias or the full name; contact numbers and other names show only with the full name.</p>
     </div>
 
     <article class="rpt-sheet" :aria-label="title">
@@ -69,6 +75,7 @@ const printNow = () => window.print();
 .rpt-btn{display:inline-flex;min-height:2.75rem;align-items:center;gap:.4rem;border:1px solid var(--rpt-line);border-radius:.5rem;background:#fff;padding:0 .9rem;font-size:.85rem;font-weight:600;color:#334155}
 .rpt-btn:hover{background:#faf9fd}.rpt-btn:focus-visible{outline:2px solid var(--rpt-brand);outline-offset:2px}
 .rpt-btn-primary{border-color:var(--rpt-brand);background:var(--rpt-brand);color:#fff}.rpt-btn-primary:hover{background:#4c1d95}
+.rpt-names{display:flex;flex-wrap:wrap;align-items:center;gap:.25rem}.rpt-names-label{font-size:.75rem;font-weight:700;color:#475569;margin-right:.15rem}.rpt-names .rpt-btn[aria-pressed=true]{border-color:var(--rpt-brand);background:#f4f1fa;color:var(--rpt-brand)}.rpt-names .rpt-btn:disabled{opacity:.45;cursor:not-allowed}
 .rpt-note{flex-basis:100%;font-size:.78rem;color:#475569}
 .rpt-sheet{max-width:1100px;margin:0 auto;background:#fff;border:1px solid var(--rpt-line);padding:1.25rem;font-size:.86rem;line-height:1.45}
 .rpt-head{display:grid;grid-template-columns:1fr 1.3fr 1fr;gap:.9rem;align-items:stretch;padding-bottom:.75rem;border-bottom:2px solid var(--rpt-brand)}

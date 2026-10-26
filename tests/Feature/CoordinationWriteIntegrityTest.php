@@ -66,7 +66,7 @@ class CoordinationWriteIntegrityTest extends TestCase
         SyntheticTrigger::create('CREATE TRIGGER synthetic_revoke_sender AFTER INSERT ON lgu_coordination_messages BEGIN UPDATE lgu_coordination_members SET left_at = CURRENT_TIMESTAMP WHERE circle_id = NEW.circle_id AND user_id = NEW.author_id; END');
         $this->actingAs($worker)->postJson(route('cpu.coordination.messages.store', $circle), ['body' => 'Synthetic post-revocation message.'])->assertForbidden();
         $this->assertDatabaseCount('lgu_coordination_messages', 1);
-        $this->assertDatabaseCount('audit_logs', 0);
+        $this->assertNoDataChangeAudited();
     }
 
     public function test_case_archived_during_capture_prevents_formal_note_commit(): void
@@ -75,7 +75,7 @@ class CoordinationWriteIntegrityTest extends TestCase
         SyntheticTrigger::create('CREATE TRIGGER synthetic_archive_during_capture AFTER INSERT ON case_notes BEGIN UPDATE cases SET deleted_at = CURRENT_TIMESTAMP WHERE id = NEW.case_id; END');
         $this->actingAs($worker)->postJson(route('cpu.coordination.messages.capture', [$circle, $source]), ['case_id' => $case, 'record_type' => 'progress_note', 'professional_summary' => 'Synthetic captured summary while access changes.', 'confirmed' => true])->assertForbidden();
         $this->assertDatabaseCount('case_notes', 0);
-        $this->assertDatabaseCount('audit_logs', 0);
+        $this->assertNoDataChangeAudited();
     }
 
     public function test_mdt_grant_revoked_during_capture_rolls_back_note_case_version_and_audit(): void
@@ -85,7 +85,7 @@ class CoordinationWriteIntegrityTest extends TestCase
         SyntheticTrigger::create('CREATE TRIGGER synthetic_capture_grant_revocation AFTER INSERT ON mdt_case_notes BEGIN UPDATE mdt_case_access SET revoked_at = CURRENT_TIMESTAMP WHERE id = NEW.mdt_access_id; END');
         $this->actingAs($member)->postJson(route('cpu.coordination.messages.capture', [$circle, $source]), ['case_id' => $case, 'record_type' => 'mdt_note', 'professional_summary' => 'Synthetic MDT summary after grant revocation.', 'confirmed' => true])->assertForbidden();
         $this->assertDatabaseCount('mdt_case_notes', 0);
-        $this->assertDatabaseCount('audit_logs', 0);
+        $this->assertNoDataChangeAudited();
         $this->assertSame($version, DB::table('cases')->where('id', $case)->value('offline_version'));
     }
 
@@ -97,7 +97,7 @@ class CoordinationWriteIntegrityTest extends TestCase
         $this->assertDatabaseCount('lgu_coordination_messages', 1);
         $this->assertDatabaseCount('notifications', 0);
         $this->assertDatabaseCount('lgu_coordination_message_mentions', 0);
-        $this->assertDatabaseCount('audit_logs', 0);
+        $this->assertNoDataChangeAudited();
     }
 
     public function test_capture_permission_removed_during_note_creation_prevents_commit(): void
@@ -106,6 +106,6 @@ class CoordinationWriteIntegrityTest extends TestCase
         SyntheticTrigger::create('CREATE TRIGGER synthetic_capture_account_revocation AFTER INSERT ON case_notes BEGIN UPDATE users SET active = 0 WHERE id = NEW.created_by; END');
         $this->actingAs($worker)->postJson(route('cpu.coordination.messages.capture', [$circle, $source]), ['case_id' => $case, 'record_type' => 'progress_note', 'professional_summary' => 'Synthetic summary after account removal.', 'confirmed' => true])->assertForbidden();
         $this->assertDatabaseCount('case_notes', 0);
-        $this->assertDatabaseCount('audit_logs', 0);
+        $this->assertNoDataChangeAudited();
     }
 }

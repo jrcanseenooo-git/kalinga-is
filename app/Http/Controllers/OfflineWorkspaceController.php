@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\CaseAccessScope;
+use App\Services\OptionSets;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -15,7 +16,7 @@ class OfflineWorkspaceController extends Controller
     {
         $this->authorize('offline.use');
 
-        return Inertia::render('Offline/Workspace');
+        return Inertia::render('Offline/Workspace', ['intakeOptions' => ['riskFactors' => OptionSets::options(OptionSets::RISK_FACTORS), 'riskRule' => OptionSets::riskRule()]]);
     }
 
     public function pack(Request $request)

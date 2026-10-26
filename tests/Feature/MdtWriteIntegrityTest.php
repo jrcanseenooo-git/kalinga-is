@@ -76,7 +76,7 @@ class MdtWriteIntegrityTest extends TestCase
         SyntheticTrigger::create('CREATE TRIGGER synthetic_mdt_grant_revoked AFTER INSERT ON mdt_case_notes BEGIN UPDATE mdt_case_access SET revoked_at = CURRENT_TIMESTAMP WHERE id = NEW.mdt_access_id; END');
         $this->actingAs($member)->postJson(route('cases.mdt.notes.store', $case), ['category' => 'Synthetic rejected note'])->assertForbidden();
         $this->assertDatabaseCount('mdt_case_notes', 1);
-        $this->assertDatabaseCount('audit_logs', 0);
+        $this->assertNoDataChangeAudited();
         $this->assertSame($version, DB::table('cases')->where('id', $case)->value('offline_version'));
     }
 
@@ -87,7 +87,7 @@ class MdtWriteIntegrityTest extends TestCase
         $this->actingAs($owner)->postJson(route('cases.mdt.actions.store', $case), ['mdt_access_id' => $grant, 'title' => 'Synthetic proposed action after recipient expiry'])->assertUnprocessable();
         $this->assertDatabaseCount('mdt_actions', 1);
         $this->assertDatabaseCount('notifications', 0);
-        $this->assertDatabaseCount('audit_logs', 0);
+        $this->assertNoDataChangeAudited();
         $this->assertDatabaseHas('mdt_case_access', ['id' => $grant, 'status' => 'assigned']);
     }
 
@@ -97,7 +97,7 @@ class MdtWriteIntegrityTest extends TestCase
         SyntheticTrigger::create("CREATE TRIGGER synthetic_mdt_parent_archive AFTER UPDATE ON mdt_case_access WHEN NEW.status = 'received' BEGIN UPDATE cases SET deleted_at = CURRENT_TIMESTAMP WHERE id = NEW.case_id; END");
         $this->actingAs($member)->patchJson(route('cases.mdt.access.acknowledge', [$case, $grant]))->assertForbidden();
         $this->assertDatabaseHas('mdt_case_access', ['id' => $grant, 'status' => 'assigned']);
-        $this->assertDatabaseCount('audit_logs', 0);
+        $this->assertNoDataChangeAudited();
     }
 
     public function test_authorized_terminal_completion_commits_but_does_not_restore_read_access(): void

@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import OptionSelect from '@/Components/UI/OptionSelect.vue';
-import { REFERRAL_SOURCES, VISIT_LOCATIONS } from '@/utils/caseOptions';
-import { intakeGuidance } from '@/utils/intakeGuidance';
+import { VISIT_LOCATIONS } from '@/utils/caseOptions';
+import IntakeForm from '@/Components/Intake/IntakeForm.vue';
+import { DEFAULT_INTAKE_OPTIONS, INTAKE_STEPS, emptyIntake as newIntake, intakePayload, validateIntakeStep, type IntakeData, type IntakeOptions } from '@/Casework/intake';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import Modal from '@/Components/Modal.vue';
 import { Head, usePage } from '@inertiajs/vue3';
@@ -17,6 +18,9 @@ import type { IntakeDraft } from '@/Offline/intakeDraft';
 import { loadIntakeDrafts, saveIntakeDraft, promoteIntakeDraft, addOperation, configured, deviceId, loadPack, loadQueue, lock, savePack, updateOperation, removeOperation, recordSyncResult, setPassphrase, unlock, clearSecureWorkspace, workspaceOwnerId } from '@/Offline/secureStore';
 import { formatPh, parseStored } from '@/utils/philippineTime';
 
+const props = defineProps<{ intakeOptions?: IntakeOptions }>();
+/** Risk factor options come with the page; a device that has never loaded them uses the defaults. */
+const intakeOptions = computed<IntakeOptions>(() => props.intakeOptions?.riskFactors?.length ? props.intakeOptions : DEFAULT_INTAKE_OPTIONS);
 type OfflineCase = { id:number; case_number:string; status:string; priority:string; category?:string; offline_version:number; first_name:string; last_name:string; region?:string; province?:string; municipality?:string; barangay?:string };
 type OfflinePack = { generated_at:string; expires_at?:string; user_id:number; cases:OfflineCase[] };
 type DeviceRecord = { id:number; device_id:string; device_name:string|null; last_seen_at:string; pack_expires_at:string|null; revoked_at:string|null; created_at:string };
@@ -50,9 +54,11 @@ const deferredSync = ref(false);
 const lastSyncedAt = ref<string | null>(null);
 function readLastSync() { try { lastSyncedAt.value = localStorage.getItem('kalinga_offline_last_sync'); } catch { lastSyncedAt.value = null; } }
 
-const emptyIntake = () => ({ first_name:'', middle_name:'', last_name:'', suffix:'', birthdate:'', sex:'', civil_status:'', religion:'', ip_category:'', education_attainment:'', phone:'', disability_evidence:'', safe_contact_method:'', safe_contact_notes:'', primary_caregiver_name:'', primary_caregiver_relationship:'', primary_caregiver_contact:'', region:'', province:'', municipality:'', barangay:'', category:'CEFMU', case_type:'', cefmu_classifications:[] as string[], union_type:'', partner_age_band:'', education_status_at_intake:'', pregnancy_parenting_status:'', circumstance:'', mode_of_admission:'', referred_by:'', referral_date:'', problem_presented:'', initial_assessment:'', plan_recommendations:'', intake_remarks:'', immediate_safety_concern:false, initial_risk_level:'', risk_indicators:[] as string[], immediate_actions:'', safety_plan:'', privacy_notice_acknowledged:false, privacy_notice_method:'', priority:'normal' });
+const emptyIntake = (): IntakeData => newIntake();
+const intakeStep = ref(1);
+/** The step stored with the current draft; moving to another step saves it again. */
+let draftStep = 1;
 const intake = ref(emptyIntake());
-const guidance = computed(() => intakeGuidance(intake.value));
 const savedDrafts = ref<IntakeDraft[]>([]);
 const activeDraftId = ref<string | null>(null);
 const draftRevision = ref(0);
@@ -66,7 +72,11 @@ let draftWriteBlocked = false;
 let draftEdit = 0;
 function replaceIntake(payload: Record<string, unknown>) {
   suppressDraftWatch = true;
-  intake.value = { ...emptyIntake(), ...payload } as ReturnType<typeof emptyIntake>;
+  const { __step: savedStep, ...answers } = payload;
+  intake.value = { ...emptyIntake(), ...answers } as IntakeData;
+  // A recovered draft opens on the step where the worker stopped.
+  intakeStep.value = Math.min(INTAKE_STEPS.length, Math.max(1, Number(savedStep) || 1));
+  draftStep = intakeStep.value;
   suppressDraftWatch = false;
 }
 function clearIntakeMemory() {
@@ -87,11 +97,13 @@ function selectDraft(draft: IntakeDraft) {
 }
 function scheduleDraftSave() {
   if (suppressDraftWatch || !isUnlocked.value || !canCollectIntake.value) return;
+  // An untouched form is not worth a draft.
+  if (!activeDraftId.value && !intakeHasContent.value) return;
   activeDraftId.value ??= crypto.randomUUID();
   const id = activeDraftId.value;
   const session = draftSession;
   const edit = ++draftEdit;
-  const snapshot = JSON.parse(JSON.stringify(intake.value));
+  const snapshot = { ...JSON.parse(JSON.stringify(intake.value)), __step: intakeStep.value };
   draftDirty.value = true; draftStatus.value = 'Saving encrypted draft...';
   draftWrites = draftWrites.then(async () => {
     if (session !== draftSession || draftWriteBlocked) return;
@@ -117,6 +129,7 @@ function protectUnsavedDraft(event: BeforeUnloadEvent) {
   if (draftDirty.value) { event.preventDefault(); event.returnValue = ''; }
 }
 watch(intake, scheduleDraftSave, { deep: true, flush: 'sync' });
+watch(intakeStep, step => { if (step === draftStep) return; draftStep = step; if (intakeHasContent.value) scheduleDraftSave(); });
 
 const selectedCase = computed(() => pack.value?.cases.find((item) => item.id === selectedCaseId.value));
 const pendingCount = computed(() => operations.value.filter((item) => item.sync_status !== 'synced').length);
@@ -129,7 +142,7 @@ const canCollectOffline = computed(() => Boolean(pack.value) && !packExpired.val
  */
 const canCollectIntake = computed(() => isUnlocked.value && !revocationDetected.value);
 watch(canCollectIntake, available => { if (!available) clearIntakeMemory(); });
-const intakeHasContent = computed(() => Boolean(intake.value.first_name || intake.value.last_name || intake.value.problem_presented || intake.value.birthdate));
+const intakeHasContent = computed(() => Boolean(intake.value.first_name || intake.value.last_name || intake.value.birthdate || intake.value.privacy_notice_acknowledged));
 /** True while a worker is in the middle of an intake: sync waits so nothing interrupts them. */
 const intakeInProgress = computed(() => draftDirty.value || fieldSaving.value || (intakeHasContent.value && Boolean(activeDraftId.value)));
 const offlineIntakes = computed(() => operations.value.filter(item => item.entity_type === 'case_intake').map(item => ({ id: item.local_id, name: `${String(item.payload.first_name ?? '')} ${String(item.payload.last_name ?? '')}`.trim() || 'Unnamed intake', place: [item.payload.barangay, item.payload.municipality].filter(Boolean).join(', '), risk: String(item.payload.initial_risk_level ?? ''), savedAt: item.created_offline_at, status: item.sync_status, error: item.error_message })).sort((a, b) => b.savedAt.localeCompare(a.savedAt)));
@@ -247,7 +260,17 @@ async function saveActivity() {
   if (!online.value) notify('Update saved securely on this device. It will be sent when you are back online.');
 }
 
-async function saveIntake() { if (fieldSaving.value) return; if (!canCollectIntake.value) { error.value = 'Unlock the offline workspace before collecting a new intake.'; return; } const draft = JSON.parse(JSON.stringify(intake.value)) as ReturnType<typeof emptyIntake>; const validPhone = !draft.phone || /^(?:\+63|0)9\d{9}$/.test(draft.phone); const validBirthdate = draft.birthdate && new Date(`${draft.birthdate}T00:00:00`) <= new Date(); if (!draft.privacy_notice_acknowledged || !draft.privacy_notice_method || !draft.first_name.trim() || !draft.last_name.trim() || !validBirthdate || !draft.sex || !draft.cefmu_classifications.length || !draft.initial_risk_level) { error.value = 'Complete the privacy notice record, child’s name, valid date of birth, sex, CEFMU classification, and initial risk level before saving.'; return; } if (!validPhone) { error.value = 'Use a Philippine mobile number: 09XXXXXXXXX or +639XXXXXXXXX.'; return; } if (['high','critical'].includes(draft.initial_risk_level) && !draft.immediate_actions.trim()) { error.value = 'For high or critical risk, record the immediate protection action taken before saving.'; return; } error.value = ''; const payload = Object.fromEntries(Object.entries(draft).map(([key, value]) => [key, typeof value === 'string' ? value.trim() : value])); fieldSaving.value = true;
+async function saveIntake() {
+  if (fieldSaving.value) return;
+  if (!canCollectIntake.value) { error.value = 'Unlock the offline workspace before collecting a new intake.'; return; }
+  const draft = JSON.parse(JSON.stringify(intake.value)) as IntakeData;
+  for (let check = 1; check <= INTAKE_STEPS.length; check++) {
+    const problems = validateIntakeStep(check, draft, intakeOptions.value);
+    if (Object.keys(problems).length) { intakeStep.value = check; error.value = `Step ${check} (${INTAKE_STEPS[check - 1]}): ${Object.values(problems)[0]}`; return; }
+  }
+  error.value = '';
+  const payload = intakePayload(draft);
+  fieldSaving.value = true;
   try {
     await draftWrites;
     if (draftDirty.value || !activeDraftId.value || JSON.stringify(draft) !== JSON.stringify(intake.value)) throw new Error('Draft changed or is not yet saved.');
@@ -395,7 +418,6 @@ if (workspaceChannel) workspaceChannel.onmessage = event => {
   reviewTarget.value = null; message.value = 'Workspace locked in another tab. Unlock again only if authorized.';
   if (event.data === 'revoked') { revocationDetected.value = true; isConfigured.value = false; }
 };
-function autoGrow(event: Event) { const textarea = event.target as HTMLTextAreaElement; textarea.style.height = 'auto'; textarea.style.height = `${textarea.scrollHeight}px`; }
 
 let expiryInterval: ReturnType<typeof setInterval> | null = null;
 let statusInterval: ReturnType<typeof setInterval> | null = null;
@@ -514,18 +536,12 @@ watch(intakeInProgress, busy => { if (!busy && deferredSync.value) void autoSync
               <button v-for="draft in savedDrafts" :key="draft.id" type="button" class="min-h-11 rounded-lg border px-3" :disabled="draftDirty || fieldSaving || draft.id === activeDraftId" @click="selectDraft(draft)">Recover draft saved {{ formatPh(draft.updated_at, 'dateTimeShort') }}</button>
             </div>
           </div>
-          <fieldset :disabled="fieldSaving" :aria-busy="fieldSaving" aria-label="Offline intake fields" class="min-w-0">
-          <p class="mt-4 rounded-xl bg-brand-50 px-4 py-3 text-sm text-brand-800">Fields marked <strong>*</strong> are needed to create the case. The rest may be completed or updated when safe to do so.</p>
-          <section class="mt-4 rounded-xl border border-violet-200 bg-violet-50 p-4 text-sm text-slate-700"><h3 class="font-extrabold text-slate-900">Privacy Notice</h3><p class="mt-2 italic leading-6">The Department of Social Welfare and Development collects and processes personal and, when necessary, sensitive personal information for CEFMU case intake, case management, service/referral documentation, monitoring, reporting, validation, accountability, and other purposes authorized by law or official program mandate.</p><p class="mt-2">Only authorized personnel may access this information according to official duties. It is protected and retained only as allowed by applicable records, legal, and program requirements.</p><label class="mt-3 flex items-start gap-2 font-semibold"><input v-model="intake.privacy_notice_acknowledged" type="checkbox" /> I acknowledge that I have read and understood the privacy notice, and that the data subject has been informed before data collection or at the next practical opportunity in an emergency.</label><select v-model="intake.privacy_notice_method" class="mt-3 rounded-xl border-slate-300 text-sm"><option value="">How was the privacy notice provided? *</option><option value="explained_verbally">Explained verbally</option><option value="written_or_digital_notice">Written or digital notice shown / given</option><option value="trusted_adult_or_guardian">Made available through trusted adult or guardian</option><option value="deferred_emergency_next_practicable">Emergency: deferred until next practical opportunity</option></select></section>
-          <div class="mt-5 space-y-6">
-            <fieldset class="grid gap-3 sm:grid-cols-4"><legend class="mb-3 text-sm font-extrabold text-slate-800">I. Child and safe contact</legend><input v-model="intake.first_name" required placeholder="First name * (e.g., Maria)" class="rounded-xl border-slate-300 text-sm" /><input v-model="intake.middle_name" placeholder="Middle name (e.g., Santos)" class="rounded-xl border-slate-300 text-sm" /><input v-model="intake.last_name" required placeholder="Last name * (e.g., Dela Cruz)" class="rounded-xl border-slate-300 text-sm" /><select v-model="intake.suffix" class="rounded-xl border-slate-300 text-sm"><option value="">No suffix</option><option>Jr.</option><option>Sr.</option><option>II</option><option>III</option><option>IV</option><option>V</option></select><input v-model="intake.birthdate" required type="date" :max="new Date().toISOString().slice(0,10)" class="rounded-xl border-slate-300 text-sm" /><select v-model="intake.sex" required class="rounded-xl border-slate-300 text-sm"><option value="">Sex *</option><option>Female</option><option>Male</option></select><input v-model="intake.phone" inputmode="tel" maxlength="13" placeholder="PH mobile: 09XXXXXXXXX" class="rounded-xl border-slate-300 text-sm" /><select v-model="intake.disability_evidence" class="rounded-xl border-slate-300 text-sm"><option value="">Disability type / support need - not recorded</option><option value="no_support_need_declared">No disability support need declared</option><option value="deaf_hard_of_hearing">Deaf / hard of hearing</option><option value="intellectual_disability">Intellectual disability</option><option value="learning_disability">Learning disability</option><option value="mental_disability">Mental disability</option><option value="physical_disability">Physical disability</option><option value="psychosocial_disability">Psychosocial disability</option><option value="speech_language_impairment">Speech and language impairment</option><option value="visual_disability">Visual disability</option><option value="cancer">Cancer</option><option value="rare_disease">Rare disease</option></select></fieldset>
-            <fieldset class="grid gap-3 border-t pt-5 sm:grid-cols-2"><legend class="mb-3 text-sm font-extrabold text-slate-800">II. Current address</legend><input v-model="intake.region" placeholder="Region" class="rounded-xl border-slate-300 text-sm" /><input v-model="intake.province" placeholder="Province" class="rounded-xl border-slate-300 text-sm" /><input v-model="intake.municipality" placeholder="Municipality / city" class="rounded-xl border-slate-300 text-sm" /><input v-model="intake.barangay" placeholder="Barangay" class="rounded-xl border-slate-300 text-sm" /></fieldset>
-            <fieldset class="grid gap-3 border-t pt-5 sm:grid-cols-3"><legend class="mb-3 text-sm font-extrabold text-slate-800">III. Case details</legend><div class="sm:col-span-3"><p class="mb-2 text-sm font-bold text-slate-700">CEFMU classification *</p><div class="grid gap-2 sm:grid-cols-2"><label class="flex items-start gap-2 rounded-xl border border-slate-200 p-3 text-sm"><input v-model="intake.cefmu_classifications" type="checkbox" value="early_union" /> <span><b>Early union</b><br><small>Union or cohabitation involving a child.</small></span></label><label class="flex items-start gap-2 rounded-xl border border-slate-200 p-3 text-sm"><input v-model="intake.cefmu_classifications" type="checkbox" value="forced_marriage" /> <span><b>Forced marriage</b><br><small>Marriage or union without free and full consent.</small></span></label></div></div><select v-model="intake.mode_of_admission" class="rounded-xl border-slate-300 text-sm"><option value="">Mode of admission</option><option>Walk-in</option><option>Referral</option><option>Outreach</option></select><select v-model="intake.priority" class="rounded-xl border-slate-300 text-sm"><option value="low">Low priority</option><option value="normal">Normal priority</option><option value="high">High priority</option><option value="urgent">Urgent priority</option></select><OptionSelect v-model="intake.referred_by" :options="REFERRAL_SOURCES" /><input v-model="intake.referral_date" type="date" class="rounded-xl border-slate-300 text-sm" /></fieldset>
-            <fieldset class="grid gap-3 border-t pt-5"><legend class="mb-3 text-sm font-extrabold text-slate-800">IV. Safety triage &amp; immediate response</legend><p class="text-sm text-slate-500">Record risk and the action taken now. Do not conduct or record a detailed disclosure interview in this field form.</p><select v-model="intake.initial_risk_level" required class="rounded-xl border-slate-300 text-sm"><option value="">Initial risk level *</option><option value="low">Low - no immediate safety concern</option><option value="moderate">Moderate - timely follow-up needed</option><option value="high">High - urgent protective response</option><option value="critical">Critical - immediate danger / emergency response</option></select><div class="grid gap-2 sm:grid-cols-2"><label v-for="item in ['Planned or impending union','Pressure to enter a union after pregnancy','Force, coercion, or controlling behaviour','Age or power imbalance','Family or community pressure','Economic hardship or dependence','School interruption or dropout','Health, SRH, or psychosocial support need']" :key="item" class="flex items-center gap-2 rounded-lg border border-slate-200 p-3 text-sm text-slate-700"><input v-model="intake.risk_indicators" :value="item" type="checkbox" class="rounded border-slate-300 text-brand-700" />{{ item }}</label></div><label class="flex items-center gap-2 text-sm font-semibold text-rose-800"><input v-model="intake.immediate_safety_concern" type="checkbox" class="rounded border-slate-300 text-brand-700" /> Immediate safety concern identified</label><textarea v-model="intake.immediate_actions" rows="3" placeholder="Immediate action taken: safe transport, health referral, LSWDO / focal-person coordination, or other urgent response" class="rounded-xl border-slate-300 text-sm" @input="autoGrow" /><textarea v-model="intake.problem_presented" rows="3" placeholder="Brief factual presenting concern: what was observed or reported, when, and where" class="rounded-xl border-slate-300 text-sm" @input="autoGrow" /><textarea v-model="intake.initial_assessment" rows="3" placeholder="Immediate risks, strengths, and needs identified" class="rounded-xl border-slate-300 text-sm" @input="autoGrow" /><textarea v-model="intake.safety_plan" rows="3" placeholder="Safety plan: who will do what next and how the child will be kept safe" class="rounded-xl border-slate-300 text-sm" @input="autoGrow" /></fieldset>
+          <p v-if="error" class="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900">{{ error }}</p>
+          <div class="mt-4">
+            <IntakeForm v-model:step="intakeStep" :data="intake" :options="intakeOptions" :busy="fieldSaving" submit-label="Save intake on this device" @submit="saveIntake">
+              <template #status><p class="text-center text-xs text-slate-600" aria-live="polite">{{ draftDirty ? 'Saving draft...' : intakeHasContent ? 'Draft is safe on this device.' : 'Your draft saves itself as you type.' }}</p></template>
+            </IntakeForm>
           </div>
-          </fieldset>
-          <aside v-if="guidance.length" class="mt-5 rounded-xl border border-violet-200 bg-violet-50/60 p-4 text-sm" aria-labelledby="field-guidance-title"><h3 id="field-guidance-title" class="font-bold text-violet-900">Kalinga suggests</h3><ul class="mt-2 space-y-1.5"><li v-for="hint in guidance" :key="hint.title" class="rounded-md bg-white px-3 py-2" :class="hint.tone === 'urgent' ? 'border-l-4 border-rose-500' : hint.tone === 'action' ? 'border-l-4 border-amber-500' : 'border-l-4 border-violet-300'"><b>{{ hint.title }}.</b> {{ hint.text }}</li></ul><p class="mt-2 text-xs text-slate-500">Works offline. You decide what applies.</p></aside>
-<div class="intake-savebar"><p class="text-xs text-slate-600">{{ draftDirty ? 'Saving draft...' : intakeHasContent ? 'Draft is safe on this device.' : 'Your draft saves itself as you type.' }}</p><button type="button" :disabled="fieldSaving" class="rounded-xl bg-brand-700 px-5 py-3 text-sm font-bold text-white disabled:opacity-50" @click="saveIntake">Save encrypted CEFMU Intake Sheet</button></div>
         </section>
 
         <section id="field-saved" class="mt-6 scroll-mt-24 ui-panel overflow-hidden" aria-labelledby="offline-intakes-title">
@@ -659,8 +675,7 @@ fieldset { min-width: 0; }
 .field-stat{border:1px solid var(--color-line);border-radius:.9rem;background:#fff;padding:.9rem 1rem}
 .jump{display:inline-flex;min-height:2.5rem;align-items:center;border-radius:999px;background:#f5f3ff;padding:0 .9rem;font-size:.8rem;font-weight:600;color:#5b21b6}
 .field-toast{position:fixed;left:50%;bottom:5.5rem;z-index:70;max-width:calc(100% - 2rem);transform:translateX(-50%);border-radius:.8rem;background:#1e1b3a;padding:.75rem 1rem;font-size:.85rem;color:#fff;box-shadow:0 10px 30px rgb(15 23 42/.3)}
-.intake-savebar{position:sticky;bottom:4.5rem;z-index:5;margin-top:1.5rem;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.75rem;border:1px solid #e4e0f3;border-radius:.9rem;background:rgb(255 255 255/.96);padding:.6rem .8rem;box-shadow:0 6px 18px rgb(30 20 60/.1)}
-@media(min-width:1024px){.intake-savebar{bottom:1rem}.field-toast{bottom:1.5rem}}
+@media(min-width:1024px){.field-toast{bottom:1.5rem}}
 .status-chip{border-radius:999px;padding:.25rem .6rem;font-size:.75rem;font-weight:700}.st-synced{background:#ecfdf5;color:#047857}.st-pending,.st-syncing{background:#fffbeb;color:#b45309}.st-failed{background:#fff1f2;color:#be123c}.st-conflict{background:#f5f3ff;color:#6d28d9}
 </style>
 

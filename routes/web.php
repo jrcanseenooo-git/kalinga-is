@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AnalyticsController;
+use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\CaseArtifactController;
 use App\Http\Controllers\CaseClosureRecordController;
 use App\Http\Controllers\CaseConferenceController;
@@ -12,6 +13,7 @@ use App\Http\Controllers\ChildParticipationController;
 use App\Http\Controllers\CoordinationDirectMessageController;
 use App\Http\Controllers\CpuCoordinationController;
 use App\Http\Controllers\IdentityReviewController;
+use App\Http\Controllers\IntakeDraftController;
 use App\Http\Controllers\LguProfileController;
 use App\Http\Controllers\ManagementDashboardController;
 use App\Http\Controllers\MdtCollaborationController;
@@ -101,7 +103,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/admin', [AdminController::class, 'index'])->name('admin.index');
     Route::get('/admin/overview', [AdminController::class, 'overview'])->name('admin.overview');
     Route::get('/admin/lgus', [AdminController::class, 'lgus'])->name('admin.lgus.index');
-    Route::get('/admin/audit-logs', [AdminController::class, 'audits'])->name('admin.audits');
+    Route::get('/admin/audit-logs', [AuditLogController::class, 'index'])->name('admin.audits');
+    Route::get('/admin/audit-logs/export', [AuditLogController::class, 'export'])->middleware('throttle:sensitive-write')->name('admin.audits.export');
     Route::get('/admin/form-builder', [AdminController::class, 'forms'])->name('admin.forms');
     Route::post('/admin/form-fields', [AdminController::class, 'storeFormField'])->middleware('throttle:sensitive-write')->name('admin.forms.store');
     Route::delete('/admin/form-fields/{field}', [AdminController::class, 'destroyFormField'])->middleware('throttle:sensitive-write')->name('admin.forms.destroy');
@@ -128,6 +131,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/identity-merges/{merge}/execute', [IdentityReviewController::class, 'executeMerge'])->middleware('throttle:sensitive-write')->name('identity.merge.execute');
     Route::patch('/legacy-assessments/{legacy}/reconciliation', [IdentityReviewController::class, 'reconcile'])->middleware('throttle:sensitive-write')->name('legacy-assessments.reconcile');
     Route::post('/cases', [CaseworkController::class, 'store'])->middleware('throttle:sensitive-write')->name('cases.store');
+    Route::put('/intake/drafts/{draft}', [IntakeDraftController::class, 'update'])->middleware('throttle:intake-autosave')->name('intake.drafts.update');
+    Route::delete('/intake/drafts/{draft}', [IntakeDraftController::class, 'destroy'])->middleware('throttle:sensitive-write')->name('intake.drafts.destroy');
     Route::get('/cases/{case}', [CaseworkController::class, 'show'])->name('cases.show');
     Route::get('/cases/{case}/reports/{type}', [CaseReportController::class, 'show'])->whereIn('type', array_keys(CaseReports::TYPES))->name('cases.reports.show');
     Route::get('/cases/{case}/social-case-management-report', [SocialCaseManagementReportController::class, 'show'])->name('cases.social-report.show');

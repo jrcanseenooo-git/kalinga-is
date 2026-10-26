@@ -1,3 +1,4 @@
+import { classificationLabels } from '@/data/cefmu';
 /**
  * Formatting shared by the printable case reports. Dates are Philippine time,
  * written the way government documents write them ("October 22, 2026").
@@ -35,8 +36,7 @@ export const initialsOf = (...parts: (string | null | undefined)[]) => parts.fil
 /** Shows a phone number only when full details are revealed. */
 export const maskContact = (value: string | null | undefined, reveal: boolean) => !value ? 'Not recorded' : reveal ? value : `*******${value.replace(/\D/g, '').slice(-3)}`;
 
-export const CLASSIFICATION_LABELS: Record<string, string> = { early_union: 'Early union', forced_marriage: 'Forced marriage' };
-export const classificationText = (items: string[]) => items.map(item => CLASSIFICATION_LABELS[item] ?? human(item)).join(', ');
+export const classificationText = (items: string[]) => classificationLabels(items).join(', ');
 
 /** Care-plan domains, as labelled in the plan workspace. */
 export const DOMAIN_LABELS: Record<string, string> = {

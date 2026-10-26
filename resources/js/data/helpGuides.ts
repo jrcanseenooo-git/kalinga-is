@@ -29,18 +29,18 @@ export const HELP_ARTICLES: HelpArticle[] = [
     keywords: 'login sign in two factor otp code navigation sidebar menu profile position',
   },
   {
-    id: 'intake', category: 'Case work', title: 'Record a new CEFMU case (intake)', permission: 'cases.create',
-    summary: 'The five-step intake: privacy notice, safety triage, child and family, case details, review.',
+    id: 'intake', category: 'Case work', title: 'Record a new CEFMU case (Kalinga Intake)', permission: 'cases.create',
+    summary: 'Four steps: privacy notice and consent form, child and safe contact, case details (CEFMU incidence), safety triage.',
     steps: [
-      'Open Case intake and choose Start CEFMU intake.',
-      'Record how the privacy notice was given. In an emergency, choose the deferred option and give the notice at the next practical time.',
-      'Set the initial risk level. For high or critical risk, write the immediate protection action you took.',
-      'Enter the child\'s details, caregiver and family composition. Most answers are dropdowns; use "Other (specify)" only when nothing fits.',
-      'Choose the CEFMU classification (early union, forced marriage or both) and the form of union, then review and submit.',
+      'Open Case intake and choose Start new intake. A paused intake is listed under Saved intakes; choose Continue to pick it up.',
+      'Step 1: record how the privacy notice was given. You can take a photo of the signed consent or assent form.',
+      'Step 2: enter the child\'s details, an alias or nickname if any, the present and permanent address, safe contact, the primary caregiver and the family composition. Tick "Same address as the child" where it applies.',
+      'Step 3: choose the CEFMU classification (early marriage, early union, forced marriage, forced union), the marriage or union type, whether the child is married or living with a partner now or before, the partner\'s age, how long, and where the child lives now.',
+      'Step 4: tick the risks you observed. Kalinga suggests a risk level from their points; if you choose a lower level, write why. Then create the case folder; the case opens next.',
     ],
-    tips: ['No signal? Use Field mode: the same intake works offline and is sent when you reconnect.', 'Barangay settlement or mediation is not a CEFMU response; refer through the protection pathway.'],
+    tips: ['Answers save automatically after step 1. Choose "Save and continue later" if the child is not ready; saved intakes are deleted after 30 days without changes.', 'Forms show the masked name (for example J**S***D**UZ) unless you choose the alias or the full name.', 'No signal? Use Field mode: the same intake works offline and is sent when you reconnect.', 'Barangay settlement or mediation is not a CEFMU response; refer through the protection pathway.'],
     link: { label: 'Open Case intake', route: 'cases.create' },
-    keywords: 'new case register intake create child privacy notice risk family composition classification early union forced marriage',
+    keywords: 'new case register intake create child privacy notice consent assent photo alias nickname address risk points family composition classification early marriage early union forced marriage forced union cohabitation saved intake resume',
   },
   {
     id: 'case-page', category: 'Case work', title: 'Find your way around a case', permission: 'cases.view',
@@ -172,7 +172,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     steps: [
       'Open Field mode and unlock with your offline passphrase.',
       'Fill in a new intake. It saves itself as you type, encrypted on the device.',
-      'Choose Save encrypted CEFMU Intake Sheet. It appears under "Intakes saved in field mode" as Waiting to sync.',
+      'At step 4 choose Save intake on this device. It appears under "Intakes saved in field mode" as Waiting to sync.',
       'For an existing case, choose it under Update a case and save a note or visit.',
       'When signal returns, Kalinga syncs by itself. If you are in the middle of an intake, it waits until you save, then tells you how many records were sent.',
     ],
@@ -211,6 +211,19 @@ export const HELP_ARTICLES: HelpArticle[] = [
       'Use Quarterly reports for the period summary and download CSV when allowed.',
     ],
     keywords: 'analytics charts dashboard insights suppressed quarterly csv export',
+  },
+  {
+    id: 'audit-logs', category: 'Privacy & security', title: 'Review the system audit logs', permission: 'audits.view',
+    summary: 'Who did what and when, in 14 log types, with filters, search and export.',
+    steps: [
+      'Open Administration, then Audit logs. Each entry has a Log ID (for example AUD-000125), time, user, role, log type, module, action, record ID, description, old and new value, IP address and status.',
+      'Use Filters for the date range, user, role, log type, module, action, status or record ID (a case number or a Log ID). Search looks in the description, user, record and IP address.',
+      'The cards at the top show entries today, failed or denied actions, security alerts and system errors in the last 7 days; choose a card to filter.',
+      'Export Excel or CSV downloads exactly what the filters show. Every export is itself recorded in the log.',
+    ],
+    tips: ['The log is read-only for everyone, including administrators.', 'Passwords, sign-in codes, tokens and case narratives are never recorded.'],
+    link: { label: 'Open the audit logs', route: 'admin.audits' },
+    keywords: 'audit log logs trail security access denied failed login export excel csv who did what record id',
   },
 ];
 

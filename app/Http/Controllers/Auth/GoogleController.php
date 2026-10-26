@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\GoogleOAuthConfiguration;
+use App\Support\AuditLog;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -42,6 +43,8 @@ class GoogleController extends Controller
             ?? User::where('email', $googleUser->getEmail())->first();
 
         if (!$user || !$user->active) {
+            AuditLog::safely('auth.google_rejected', 'user', $user?->id, ['known_account' => (bool) $user], $user?->id, 'failure');
+
             return redirect()->route('login')
                 ->withErrors(['email' => 'Authentication failed. Please check your credentials or contact your administrator.']);
         }

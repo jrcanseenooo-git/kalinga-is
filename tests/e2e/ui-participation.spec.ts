@@ -15,8 +15,8 @@ test('child participation supports another distinct occasion after an existing r
  const countBefore=await panel.getByRole('navigation',{name:'Participation records',exact:true}).getByRole('button').count();
  await expect(panel.getByRole('button',{name:'New decision or occasion',exact:true})).toBeVisible();
  await panel.getByRole('button',{name:'New decision or occasion',exact:true}).click();
- await panel.getByLabel(/Decision or participation occasion/).selectOption('__other__');await panel.getByLabel('Specify other',{exact:true}).fill('Synthetic separate education decision');
- await panel.getByLabel('Occasion type',{exact:true}).selectOption('education');
+ await panel.getByLabel(/Decision or participation activity/).selectOption('__other__');await panel.getByLabel('Specify other',{exact:true}).fill('Synthetic separate education decision');
+ await panel.getByLabel('Activity type',{exact:true}).selectOption('education');
  await panel.getByLabel('Participation status',{exact:true}).selectOption('child_declined');
  await panel.getByLabel(/Neutral reason for participation status/).fill('Synthetic neutral record of the child declining this occasion.');
  await panel.getByRole('button',{name:'Create participation draft',exact:true}).click();
@@ -32,7 +32,7 @@ test('child participation supports another distinct occasion after an existing r
 
 test('child participation saves distinct sources and supports independent return review and finalization',async({page,browser})=>{
  const panel=await openParticipation(page,'SYN-UI-2026-0006');const caseUrl=page.url();
- await panel.getByLabel(/Decision or participation occasion/).selectOption('__other__');await panel.getByLabel('Specify other',{exact:true}).fill('Synthetic formal participation review');
+ await panel.getByLabel(/Decision or participation activity/).selectOption('__other__');await panel.getByLabel('Specify other',{exact:true}).fill('Synthetic formal participation review');
  await panel.getByRole('button',{name:'Create participation draft',exact:true}).click();await page.getByRole('dialog').locator('#generic-submit-confirm').click();
  await expect(panel.getByRole('status').filter({hasText:'Child participation draft created.'})).toBeVisible();
  await panel.getByLabel('Preferred language',{exact:true}).fill('English');
@@ -102,9 +102,9 @@ test('child participation correction and addendum stay attached to their selecte
  await records.getByRole('button',{name:/^Synthetic finalized participation source/}).click();
  const source=(await(await sourceResponse).json()).record;
  await panel.getByRole('button',{name:'Correct or supplement this occasion',exact:true}).click();
- await expect(panel.getByLabel(/Decision or participation occasion/)).toHaveValue('Synthetic finalized participation source');
- await expect(panel.getByLabel(/Decision or participation occasion/)).toHaveJSProperty('readOnly',true);
- await expect(panel.getByLabel('Occasion type',{exact:true})).toBeDisabled();
+ await expect(panel.getByLabel(/Decision or participation activity/)).toHaveValue('Synthetic finalized participation source');
+ await expect(panel.getByLabel(/Decision or participation activity/)).toHaveJSProperty('readOnly',true);
+ await expect(panel.getByLabel('Activity type',{exact:true})).toBeDisabled();
  await panel.getByLabel(/Reason for correction or addendum/).fill('Synthetic same-occasion correction.');
  // Changing the record being viewed must not change the correction source.
  await records.getByRole('button',{name:/^Synthetic education participation occasion/}).click();

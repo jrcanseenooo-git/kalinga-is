@@ -73,7 +73,12 @@ class CaseReports
             'notedBy' => $profile?->head_name ? ['name' => $profile->head_name, 'position' => $profile->head_position, 'designation' => $profile->head_designation] : null,
             'caseInfo' => $this->caseInfo($case),
             'client' => $this->client($client),
-            'family' => DB::table('relationships')->where('client_id', $case->client_id)->orderBy('id')->get(['name', 'relationship_type', 'sex', 'birthdate', 'education', 'occupation']),
+            'family' => DB::table('relationships')->where('client_id', $case->client_id)->orderBy('id')
+                ->get(['name', 'relationship_type', 'sex', 'civil_status', 'birthdate', 'education', 'occupation', 'same_address_as_client', 'house_no_street', 'barangay', 'municipality', 'province'])
+                ->map(fn ($member) => ['name' => $member->name, 'relationship_type' => $member->relationship_type, 'sex' => $member->sex, 'civil_status' => $member->civil_status,
+                    'birthdate' => $member->birthdate, 'education' => $member->education, 'occupation' => $member->occupation,
+                    'area' => $member->same_address_as_client ? 'Same as the child' : (implode(', ', array_filter([$member->barangay, $member->municipality, $member->province])) ?: null),
+                    'street' => $member->same_address_as_client ? null : $member->house_no_street]),
         ];
 
         return $data + match ($type) {
@@ -90,6 +95,8 @@ class CaseReports
             'number' => $case->case_number, 'status' => $case->status, 'stage' => $case->stage, 'priority' => $case->priority,
             'opened_at' => $case->opened_at, 'intake_at' => $case->intake_completed_at ?? $case->opened_at, 'closed_at' => $case->closed_at ?? null,
             'classifications' => json_decode($case->cefmu_classifications ?? '[]', true) ?: [], 'union_type' => $case->union_type, 'partner_age_band' => $case->partner_age_band,
+            'union_forms' => json_decode($case->union_forms ?? '[]', true) ?: [], 'union_status' => $case->union_status ?? null, 'partner_current_age' => $case->partner_current_age ?? null,
+            'union_duration_months' => $case->union_duration_months ?? null, 'current_residence' => $case->current_residence ?? null,
             'education_status' => $case->education_status_at_intake, 'mode_of_admission' => $case->mode_of_admission, 'referred_by' => $case->referred_by, 'referral_date' => $case->referral_date,
             'problem_presented' => $case->problem_presented, 'cefmu_context' => $case->cefmu_context, 'initial_assessment' => $case->initial_assessment,
             'initial_risk_level' => $case->initial_risk_level, 'current_risk_level' => $case->current_risk_level ?? null, 'immediate_actions' => $case->immediate_actions,
@@ -102,7 +109,7 @@ class CaseReports
         $address = fn (?string $street, ?string $barangay, ?string $municipality, ?string $province) => implode(', ', array_filter([$street, $barangay, $municipality, $province]));
 
         return [
-            'first_name' => $client->first_name, 'middle_name' => $client->middle_name ?? null, 'last_name' => $client->last_name, 'suffix' => $client->suffix ?? null,
+            'first_name' => $client->first_name, 'middle_name' => $client->middle_name ?? null, 'last_name' => $client->last_name, 'suffix' => $client->suffix ?? null, 'alias' => $client->alias ?? null,
             'birthdate' => $client->birthdate, 'sex' => $client->sex, 'civil_status' => $client->civil_status ?? null, 'religion' => $client->religion ?? null,
             'ip_category' => $client->ip_category ?? null, 'education' => $client->education_attainment ?? null,
             'address' => $address($client->house_no_street ?? null, $client->barangay, $client->municipality, $client->province),
@@ -110,6 +117,7 @@ class CaseReports
             'contact' => $client->phone ?? null, 'safe_contact_method' => $client->safe_contact_method ?? null,
             'caregiver' => $client->primary_caregiver_name ?? null, 'caregiver_relationship' => $client->primary_caregiver_relationship ?? null,
             'caregiver_contact' => $client->primary_caregiver_contact ?? null,
+            'caregiver_address' => ($client->caregiver_same_address ?? null) ? 'Same as the child' : ($address($client->caregiver_house_no_street ?? null, $client->caregiver_barangay ?? null, $client->caregiver_municipality ?? null, $client->caregiver_province ?? null) ?: null),
         ];
     }
 

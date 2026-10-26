@@ -121,6 +121,13 @@ abstract class TestCase extends BaseTestCase
         $this->assertSame($exists, $found, ($exists ? 'Missing' : 'Unexpected') . ' audit row ' . json_encode($attributes + ['changes' => $changes]));
     }
 
+    /** No audit row records a data change (refusals and errors are audited separately). */
+    protected function assertNoDataChangeAudited(): void
+    {
+        $rows = DB::table('audit_logs')->whereNotIn('log_type', ['access_permission', 'security', 'system_error'])->pluck('event')->all();
+        $this->assertSame([], $rows, 'Unexpected audit rows for a refused or rolled back change.');
+    }
+
     /** No audit row anywhere contains this text (narratives must never reach the audit trail). */
     protected function assertAuditNeverContains(string $text): void
     {

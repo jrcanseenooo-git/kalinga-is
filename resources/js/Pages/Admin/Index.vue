@@ -2,7 +2,7 @@
 import { formatPh } from '@/utils/philippineTime';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue'
 import SectionNav from '@/Components/SectionNav.vue'
-import { Head, router, useForm, usePage } from '@inertiajs/vue3'
+import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3'
 import axios from 'axios'
 import { Check, ChevronLeft, ChevronRight, Clock, MapPin, Monitor, Search, Shield, ShieldAlert, ShieldCheck, ShieldX, Smartphone, UserCheck, UserPlus, UserX, Users, X } from '@lucide/vue'
 import { computed, onMounted, ref, watch, type Component } from 'vue'
@@ -527,9 +527,10 @@ const fmtDateTime = (d: string) => formatPh(d, 'dateTimeShort')
 
       <!-- TAB: ACTIVITY -->
       <div v-if="activeTab === 'audit'" class="mt-4">
+        <p class="mb-3 text-sm text-slate-600">Latest 100 entries. For filters, search and export, open the <Link :href="route('admin.audits')" class="ui-link">system audit logs</Link>.</p>
         <div class="relative mb-3">
           <Search class="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-          <input v-model="auditFilter" type="search" placeholder="Filter activity…" class="w-full rounded-xl border-0 bg-white py-2.5 pl-10 pr-4 text-sm shadow-sm ring-1 ring-slate-200/60 transition placeholder:text-slate-400 focus:ring-2 focus:ring-brand-500" />
+          <input v-model="auditFilter" type="search" placeholder="Filter activity..." class="w-full rounded-xl border-0 bg-white py-2.5 pl-10 pr-4 text-sm shadow-sm ring-1 ring-slate-200/60 transition placeholder:text-slate-400 focus:ring-2 focus:ring-brand-500" />
         </div>
 
         <!-- Desktop: Table layout -->

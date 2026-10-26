@@ -96,7 +96,8 @@ test('expired pack locks case details but keeps new intake available', async ({ 
     await expect(page.getByText(/current authorized pack/i)).toBeVisible();
     // Case updates are locked; a new intake (no case data needed) stays available for GIDA work.
     await expect(page.getByRole('button', { name: 'Save encrypted update on this device' })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Save encrypted CEFMU Intake Sheet' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Continue', exact: true })).toBeVisible();
+    await expect(page.getByRole('checkbox', { name: /I gave the privacy notice/ })).toBeVisible();
 });
 
 test('confirmed device revocation clears encrypted storage and locks the workspace', async ({ page }) => {

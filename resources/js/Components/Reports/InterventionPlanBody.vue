@@ -3,7 +3,7 @@ import { computed } from 'vue';
 import ReportSection from '@/Components/Reports/ReportSection.vue';
 import ReportSignatures from '@/Components/Reports/ReportSignatures.vue';
 import type { PlanGoal, ReportProps } from '@/types/reports';
-import { DOMAIN_LABELS, human, initialsOf, longDate, shortDate } from '@/utils/reportFormat';
+import { DOMAIN_LABELS, human, longDate, shortDate } from '@/utils/reportFormat';
 
 /**
  * Intervention Plan (intervention plan and contract): the current plan, or the
@@ -11,10 +11,10 @@ import { DOMAIN_LABELS, human, initialsOf, longDate, shortDate } from '@/utils/r
  * responsible persons and timeframe. Goals in health domains print the area
  * only. The conforme lines are signed by hand.
  */
-const props = defineProps<{ report: ReportProps; reveal: boolean }>();
+const props = defineProps<{ report: ReportProps; reveal: boolean; clientName: string }>();
 const r = computed(() => props.report);
 const plan = computed(() => r.value.plan as null | { version: number; date: string | null; status: string; current: boolean; objective: string | null; summary: string | null; review_due_at: string | null; author: string | null; author_position: string | null; goals: PlanGoal[]; review: { review_date: string; overall_progress: string | null; recommendation: string | null; next_review_at: string | null } | null });
-const name = computed(() => props.reveal ? [r.value.client.first_name, r.value.client.last_name].filter(Boolean).join(' ') : initialsOf(r.value.client.first_name, r.value.client.last_name));
+const name = computed(() => props.clientName);
 const statusLabel = computed(() => !plan.value ? '' : plan.value.current ? `${human(plan.value.status)} (current plan)` : `${human(plan.value.status)} - not yet approved`);
 const timeframe = (start: string | null, end: string | null) => start && end ? `${shortDate(start)} - ${shortDate(end)}` : end ? `By ${shortDate(end)}` : start ? `From ${shortDate(start)}` : '-';
 const preparer = computed(() => plan.value?.author ? { name: plan.value.author, position: plan.value.author_position } : r.value.preparedBy);

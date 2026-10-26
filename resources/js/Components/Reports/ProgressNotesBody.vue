@@ -4,7 +4,7 @@ import ReportSection from '@/Components/Reports/ReportSection.vue';
 import ReportSignatures from '@/Components/Reports/ReportSignatures.vue';
 import type { ReportProps } from '@/types/reports';
 import { NOTE_TYPES } from '@/utils/caseOptions';
-import { counted, dateTime, human, initialsOf, longDate } from '@/utils/reportFormat';
+import { counted, dateTime, human, longDate } from '@/utils/reportFormat';
 
 /**
  * Progress Notes report: finalized case-team notes in date order, with any
@@ -12,11 +12,11 @@ import { counted, dateTime, human, initialsOf, longDate } from '@/utils/reportFo
  * note format (purpose, observations and assessment, action or resolution,
  * next steps).
  */
-const props = defineProps<{ report: ReportProps; reveal: boolean }>();
+const props = defineProps<{ report: ReportProps; reveal: boolean; clientName: string }>();
 const r = computed(() => props.report);
 const notes = computed(() => r.value.progressNotes ?? []);
 const noteLabel = (type: string | null) => NOTE_TYPES.find(item => item.value === type)?.label ?? human(type);
-const name = computed(() => props.reveal ? [r.value.client.first_name, r.value.client.last_name].filter(Boolean).join(' ') : initialsOf(r.value.client.first_name, r.value.client.last_name));
+const name = computed(() => props.clientName);
 const period = computed(() => {
   const p = r.value.period;
   if (p?.from && p?.to) return `${longDate(p.from)} to ${longDate(p.to)}`;

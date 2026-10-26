@@ -30,7 +30,7 @@ test.describe('controlled field shell', () => {
         const result = await page.evaluate(async () => {
             const version = JSON.parse(document.getElementById('app')!.dataset.page!).version;
             const response = await fetch('/offline-workspace', { headers: { 'X-Inertia': 'true', 'X-Inertia-Version': version } });
-            const cache = await caches.open('kalinga-field-shell-v15');
+            const cache = await caches.open('kalinga-field-shell-v16');
             const shell = (await cache.match(new URL('/offline-workspace', location.origin).href))!;
             return { status: response.status, inertia: response.headers.get('X-Inertia'), type: shell.headers.get('Content-Type'), text: await shell.text() };
         });
@@ -271,7 +271,10 @@ for (const width of [360, 768, 1440]) test(`encrypted queue recovery controls ar
 test('a different signed-in worker cannot unlock the previous account pack or queue', async ({ page }) => {
     await provision(page);
     await saveNote(page, 'Synthetic original owner recoverable note');
-    await page.getByPlaceholder('First name * (e.g., Maria)', { exact: true }).fill('SyntheticOwnerDraft');
+    await page.getByRole('checkbox', { name: /I gave the privacy notice/ }).check();
+    await page.getByRole('combobox', { name: /^How was the privacy notice given/ }).selectOption('explained_verbally');
+    await page.getByRole('button', { name: 'Continue', exact: true }).click();
+    await page.getByRole('textbox', { name: 'First name *', exact: true }).fill('SyntheticOwnerDraft');
     await expect(page.getByText('Draft encrypted and saved on this device. Not yet queued.', { exact: true })).toBeVisible();
     const signOut = async () => {
         await page.getByRole('button', { name: 'Log out', exact: true }).click();
@@ -292,7 +295,7 @@ test('a different signed-in worker cannot unlock the previous account pack or qu
     await page.getByLabel('Offline passphrase').fill('synthetic-sync-passphrase');
     await page.getByRole('button', { name: 'Unlock workspace', exact: true }).click();
     await expect(queue(page)).toContainText('pending');
-    await expect(page.getByPlaceholder('First name * (e.g., Maria)', { exact: true })).toHaveValue('SyntheticOwnerDraft');
+    await expect(page.getByRole('textbox', { name: 'First name *', exact: true })).toHaveValue('SyntheticOwnerDraft');
 });
 
 test('conflict retry requires a refreshed authorized pack and explicit review', async ({ page }) => {

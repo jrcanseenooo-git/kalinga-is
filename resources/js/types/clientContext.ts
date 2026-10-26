@@ -23,6 +23,12 @@ export interface ClientContext {
     cefmu_classifications?: string | string[] | null;
     union_type?: string | null;
     partner_age_band?: string | null;
+    union_forms?: string | string[] | null;
+    union_status?: string | null;
+    partner_current_age?: number | null;
+    union_duration_months?: number | null;
+    current_residence?: string | null;
+    alias?: string | null;
     education_status_at_intake?: string | null;
     pregnancy_parenting_status?: string | null;
     mode_of_admission?: string | null;

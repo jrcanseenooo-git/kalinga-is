@@ -244,10 +244,10 @@ for(const width of [360,390,768,1024,1440,1920]) test(`case workspace overview a
 
 for(const width of [360,390,768,1024,1440,1920]) test(`intake steps retain entered work and fit ${width}px`,async({page})=>{
  await page.setViewportSize({width,height:1080}); await login(page); await page.goto('/cases/create');
- await expect(page.getByRole('region',{name:'Choose an intake workspace',exact:true}).getByRole('link',{name:'Open encrypted field workspace',exact:true})).toHaveAttribute('href',/\/offline-workspace$/);
+ await expect(page.locator('main').getByRole('link',{name:'field mode',exact:true})).toHaveAttribute('href',/\/offline-workspace$/);
  await page.evaluate(()=>document.fonts.ready);
  await page.screenshot({path:`docs/implementation/evidence/ui-04/start-viewport-${width}.png`,animations:'disabled'});
- await page.getByRole('button',{name:'Start CEFMU intake',exact:true}).click();
+ await page.getByRole('button',{name:'Start new intake',exact:true}).click();
  const steps=page.getByRole('navigation',{name:'CEFMU intake steps',exact:true}).getByRole('button');
  expect(Math.abs((await steps.first().boundingBox())!.y-(await steps.last().boundingBox())!.y)).toBeLessThanOrEqual(1);
  const capture=async(step:string)=>{
@@ -258,26 +258,26 @@ for(const width of [360,390,768,1024,1440,1920]) test(`intake steps retain enter
   await page.screenshot({path:`docs/implementation/evidence/ui-04/${step}-viewport-${width}.png`,animations:'disabled'});
  };
  await capture('privacy');
- await page.getByRole('checkbox',{name:/I provided the privacy notice/}).check();
- await page.getByRole('combobox',{name:/^How was the privacy notice provided/}).selectOption('explained_verbally');
+ await page.getByRole('checkbox',{name:/I gave the privacy notice/}).check();
+ await page.getByRole('combobox',{name:/^How was the privacy notice given/}).selectOption('explained_verbally');
  const next=()=>page.getByRole('button',{name:'Continue',exact:true}).click();
- await next();
- await page.getByRole('combobox',{name:'Initial risk level *',exact:true}).selectOption('low');
- await capture('safety');
  await next();
  await page.getByRole('textbox',{name:'First name *',exact:true}).fill('SyntheticInterface');
  await page.getByRole('textbox',{name:'Last name *',exact:true}).fill('IntakeReview');
- await page.getByLabel('Date of birth *',{exact:true}).fill('2014-02-16');
+ await page.getByLabel('Date of birth *').fill('2014-02-16');
  await page.getByRole('combobox',{name:'Sex *',exact:true}).selectOption('Female');
+ await page.getByRole('button',{name:'Add family member',exact:true}).click();
+ await page.getByRole('textbox',{name:'Name',exact:true}).last().fill('Synthetic Relative');
+ await page.getByRole('checkbox',{name:/^Same address as the child/}).last().uncheck();
  await capture('child-contact');
- await next(); await page.getByRole('checkbox',{name:/Early union/}).check(); await capture('classification'); await next();
- await page.getByRole('textbox',{name:'What is the presenting concern? *',exact:true}).fill('Synthetic interface review concern.');
- await capture('response');
+ await next(); await page.getByRole('checkbox',{name:/^Early marriage/}).check(); await page.getByRole('radio',{name:/^Yes, now/}).check(); await capture('case-details'); await next();
+ await page.getByRole('checkbox',{name:/^Planned or impending union/}).check();
+ await capture('safety');
  await page.getByRole('button',{name:'Back',exact:true}).click();
  await page.getByRole('button',{name:'Back',exact:true}).click();
  await expect(page.getByRole('textbox',{name:'First name *',exact:true})).toHaveValue('SyntheticInterface');
  await next(); await next();
- await expect(page.getByRole('textbox',{name:'What is the presenting concern? *',exact:true})).toHaveValue('Synthetic interface review concern.');
+ await expect(page.getByRole('checkbox',{name:/^Planned or impending union/})).toBeChecked();
 });
 
 for(const width of [360,390,768,1024,1440,1920]) test(`case registry shared filters and pages at ${width}px`,async({page})=>{

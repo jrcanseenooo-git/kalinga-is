@@ -27,13 +27,14 @@ for (const width of [360, 1280]) {
             await page.getByRole('list', { name: 'Print a case report' }).getByRole('link', { name: label, exact: true }).click();
             await expect(page.getByRole('heading', { level: 1, name: heading })).toBeVisible();
             await expect(page.getByText('CONFIDENTIAL.', { exact: true })).toBeVisible();
-            // Initials by default; the full name appears only on request.
+            // Masked name by default; the full name appears only on request.
             await expect(page.getByText('Demo Aglibut')).toHaveCount(0);
             await expectNoHorizontalOverflow(page);
             const scan = await new AxeBuilder({ page }).analyze();
             expect(scan.violations.filter(item => ['serious', 'critical'].includes(item.impact ?? ''))).toEqual([]);
         }
-        await page.getByRole('button', { name: 'Show full name' }).click();
+        await expect(page.getByRole('group', { name: 'Name shown on this form' }).getByRole('button', { name: 'Masked', exact: true })).toHaveAttribute('aria-pressed', 'true');
+        await page.getByRole('group', { name: 'Name shown on this form' }).getByRole('button', { name: 'Full name', exact: true }).click();
         await expect(page.getByText(/Demo Aglibut/).first()).toBeVisible();
     });
 }

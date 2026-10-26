@@ -5,18 +5,19 @@ import ReportSection from '@/Components/Reports/ReportSection.vue';
 import ReportSignatures from '@/Components/Reports/ReportSignatures.vue';
 import type { ReportProps } from '@/types/reports';
 import { ageOn, classificationText, human, initialsOf, longDate, maskContact } from '@/utils/reportFormat';
+import { incidenceRows } from '@/data/cefmu';
 
 /**
  * Kalinga Intake Sheet (General Intake Sheet): identifying information,
  * family composition, CEFMU situation, initial safety and risk, the social
  * worker's assessment and the privacy notice and consent record.
  */
-const props = defineProps<{ report: ReportProps; reveal: boolean }>();
+const props = defineProps<{ report: ReportProps; reveal: boolean; clientName: string }>();
 const r = computed(() => props.report);
 const c = computed(() => r.value.client);
 const intake = computed(() => r.value.intake!);
 const age = computed(() => ageOn(c.value.birthdate, r.value.caseInfo.intake_at || r.value.generatedAt));
-const name = computed(() => props.reveal ? [c.value.first_name, c.value.middle_name, c.value.last_name, c.value.suffix].filter(Boolean).join(' ') : initialsOf(c.value.first_name, c.value.middle_name, c.value.last_name));
+const name = computed(() => props.clientName);
 const text = (value?: string | null, empty = 'Not recorded') => value && String(value).trim() ? value : empty;
 </script>
 
@@ -26,7 +27,7 @@ const text = (value?: string | null, empty = 'Not recorded') => value && String(
       <table class="rpt-kv"><tbody>
         <tr><th>Case number</th><td>{{ r.caseInfo.number }}</td></tr>
         <tr><th>Date of intake</th><td>{{ longDate(r.caseInfo.intake_at) }}</td></tr>
-        <tr><th>Mode of admission</th><td>{{ human(r.caseInfo.mode_of_admission) }}</td></tr>
+        <tr><th>Mode of reporting</th><td>{{ human(r.caseInfo.mode_of_admission) }}</td></tr>
         <tr><th>Referred by</th><td>{{ text(r.caseInfo.referred_by, 'Not applicable') }}</td></tr>
         <tr><th>Referral date</th><td>{{ longDate(r.caseInfo.referral_date) }}</td></tr>
         <tr><th>Case category</th><td>CEFMU{{ classificationText(r.caseInfo.classifications ?? []) ? ` - ${classificationText(r.caseInfo.classifications ?? [])}` : '' }}</td></tr>
@@ -60,6 +61,7 @@ const text = (value?: string | null, empty = 'Not recorded') => value && String(
         <tr><th>Name</th><td>{{ c.caregiver ? (reveal ? c.caregiver : initialsOf(c.caregiver)) : 'Not recorded' }}</td></tr>
         <tr><th>Relationship to child</th><td>{{ text(c.caregiver_relationship) }}</td></tr>
         <tr><th>Contact number</th><td>{{ maskContact(c.caregiver_contact, reveal) }}</td></tr>
+        <tr><th>Address</th><td>{{ text(c.caregiver_address) }}</td></tr>
       </tbody></table>
     </ReportSection>
   </div>
@@ -67,11 +69,10 @@ const text = (value?: string | null, empty = 'Not recorded') => value && String(
   <ReportSection :num="5" title="Family composition"><FamilyTable :family="r.family" :reveal="reveal" /></ReportSection>
 
   <div class="rpt-grid2">
-    <ReportSection :num="6" title="CEFMU situation">
+    <ReportSection :num="6" title="CEFMU incidence">
       <table class="rpt-kv"><tbody>
         <tr><th>Classification</th><td>{{ classificationText(r.caseInfo.classifications ?? []) || 'Not recorded' }}</td></tr>
-        <tr><th>Form of union</th><td>{{ human(r.caseInfo.union_type) }}</td></tr>
-        <tr><th>Partner age / power context</th><td>{{ human(r.caseInfo.partner_age_band) }}</td></tr>
+        <tr v-for="[label, value] in incidenceRows(r.caseInfo)" :key="label"><th>{{ label }}</th><td>{{ value }}</td></tr>
         <tr><th>Schooling at intake</th><td>{{ human(r.caseInfo.education_status) }}</td></tr>
         <tr v-if="intake.health_recorded"><th>Health information</th><td class="rpt-withheld">Recorded in the case record; not printed on this sheet.</td></tr>
       </tbody></table>

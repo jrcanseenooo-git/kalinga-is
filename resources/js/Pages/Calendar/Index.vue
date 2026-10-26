@@ -218,7 +218,7 @@ const toneClass = (type: string) => `tone-${eventTone(type)}`;
       <form class="space-y-4 p-5" data-skip-generic-confirm="true" @submit.prevent="save">
         <h2 class="text-lg font-semibold text-slate-900">{{ editing ? 'Edit activity' : 'Add activity' }}</h2>
         <div class="grid gap-4 sm:grid-cols-2">
-          <FormField id="event-type" label="Type of activity" :error="form.errors.event_type" required><select id="event-type" v-model="form.event_type" class="ui-field"><option v-for="type in EVENT_TYPES" :key="type.value" :value="type.value">{{ type.label }}</option></select></FormField>
+          <FormField id="event-type" label="Activity type" :error="form.errors.event_type" required><select id="event-type" v-model="form.event_type" class="ui-field"><option v-for="type in EVENT_TYPES" :key="type.value" :value="type.value">{{ type.label }}</option></select></FormField>
           <FormField id="event-case" label="Case (optional)" :error="form.errors.case_id"><select id="event-case" v-model="form.case_id" class="ui-field"><option value="">Not linked to a case</option><option v-for="item in availableCases" :key="item.id" :value="item.id">{{ item.case_number }}</option></select></FormField>
           <FormField id="event-title" label="Title" :error="form.errors.title" hint="Filled in from the type and case; change it if you like." required class="sm:col-span-2"><input id="event-title" v-model="form.title" required maxlength="255" class="ui-field" @input="titleTouched = true"></FormField>
           <FormField id="event-when" label="Date and time (Philippine time)" :error="form.errors.due_at" required><input id="event-when" v-model="form.due_at" type="datetime-local" required class="ui-field"></FormField>

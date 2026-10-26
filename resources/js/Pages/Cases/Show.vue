@@ -89,7 +89,7 @@ const referralDue = (item: TrackedReferral) => followUp(item, props.referralTarg
 // The closure workspace is lazy-loaded the first time its tab is opened.
 const closureLoaded = ref(false);
 watch(activeSection, section => { if (section === 'closure') closureLoaded.value = true; }, { immediate: true });
-const documentStateTone = (state?: string | null) => state === 'cleared' ? 'success' : state === 'legacy_unverified' ? 'neutral' : progressTone(state);
+const documentStateTone = (state?: string | null) => state === 'cleared' || state === 'sanitized' ? 'success' : state === 'legacy_unverified' ? 'neutral' : progressTone(state);
 async function openSection(key: typeof workspaceTabs[number]['key']) {
     activeSection.value = key;
     await nextTick();
@@ -405,7 +405,7 @@ const archiveCase = () => { if (window.confirm('Archive this case? The case will
                                 <td data-label="Uploaded" class="whitespace-nowrap">{{ shortDate(item.created_at) }}</td>
                                 <td data-label="By">{{ item.uploaded_by_name || '-' }}</td>
                                 <td data-label="Status"><StatusBadge :label="item.restricted ? 'Restricted' : titleCase(item.scan_state)" :tone="item.restricted ? 'neutral' : documentStateTone(item.scan_state)" /></td>
-                                <td class="text-right"><a v-if="item.id && (item.scan_state === 'legacy_unverified' || item.scan_state === 'cleared')" :href="route('cases.documents.download', [caseRecord.id, item.id])" class="ui-link text-sm">Download</a><span v-else class="text-xs font-semibold text-amber-700">{{ item.restricted ? 'Restricted' : 'Awaiting scan' }}</span></td>
+                                <td class="text-right"><a v-if="item.id && (item.scan_state === 'legacy_unverified' || item.scan_state === 'cleared' || item.scan_state === 'sanitized')" :href="route('cases.documents.download', [caseRecord.id, item.id])" class="ui-link text-sm">Download</a><span v-else class="text-xs font-semibold text-amber-700">{{ item.restricted ? 'Restricted' : 'Awaiting scan' }}</span></td>
                             </tr></tbody>
                         </table>
                         <p v-else class="px-5 py-6 text-sm text-slate-600">No documents in this folder.</p>
