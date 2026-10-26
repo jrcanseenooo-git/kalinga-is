@@ -1,5 +1,11 @@
 # MDT write integrity QA
 
+Current bounded CPU screen/assignment delivery: see
+[CPU workspace delivery - 2026-10-23](CPU-WORKSPACE-2026-10-23.md). That later
+full backend run passed 461 tests (3408 assertions, 2 PostgreSQL-only skips),
+including these existing write-integrity checks. The historical pending
+checkpoint below is retained as provenance, not the latest test result.
+
 ## R06-F1 MDT write integrity implementation/testing - 2026-10-19
 
 Next eligible UI-15 dependency audit reproduced nine failures before repair: grant creation, acknowledgement, revocation, action assignment/response, purpose-limited discussion, draft note, finalization and linked addendum all left changes committed after audit failure. Locked parent/account/LGU/grant context, fresh named permission/eligibility checks and audit now share one transaction. Case versions advance only after successful operations. Targeted62/408 (6.20s) passes, including revoked grant during note write, recipient LGU expiry during action creation, archive during acknowledgement and legitimate terminal completion. An internal canonical eligibility check permits only the already-authorized completion transaction to finish; normal completed-grant readers remain denied. No read-access restoration, new role/state, policy or schema change. Full backend and real browser MDT workflow checks remain pending.

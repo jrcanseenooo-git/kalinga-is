@@ -16,6 +16,24 @@ Analytics endpoints return aggregates only. Public and aggregate-only role views
 
 ## Offline processing
 
+Connect direct messages are a separate online-only flow: an authenticated sender
+selects another currently eligible member of the same LGU circle; the server
+checks current permissions, accounts, memberships, assignments and circle/LGU
+status for both participants before returning or accepting their pair's
+messages. A third member cannot read the pair through Connect. Body text is
+stored only in `coordination_direct_messages`, not group messages, audit
+metadata, case records or browser persistent storage. POST search keeps search
+terms out of URLs; responses are private/no-store. Drafts remain in tab memory,
+separated by circle and recipient, and clear on access denial. Sending requires
+connectivity and uses the existing explicit unknown-outcome recovery instead of
+automatic retries. Revocation blocks subsequent reads/searches/sends and causes
+the client to clear loaded conversation/draft data on the next denied request.
+Previously read information cannot be remotely recalled from a disconnected
+device. No group previews, mentions, formal capture, case tags, attachments,
+automated notifications or offline caching are added for direct messages.
+Retention and authorized operational review remain owner-policy decisions;
+no automatic purge or extra reviewer access is inferred.
+
 Offline workspaces are gated by `offline.use`, restricted to operationally necessary authorized cases, and use the application’s controlled sync queue. Offline packs, sync conflicts, revocation, retry, expiry, and device cleanup require continued deployment and field-device review. Sensitive data must not be stored in LocalStorage; browser storage, logs, URLs, and device loss remain privacy-sensitive surfaces.
 
 ## Audit and incident handling

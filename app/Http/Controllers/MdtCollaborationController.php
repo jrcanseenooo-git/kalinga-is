@@ -39,7 +39,10 @@ class MdtCollaborationController extends Controller
     private function activeGrant(Request $request, int $case): object
     {
         $this->record($case);
+        $selection = $request->validate(['mdt_access_id' => 'nullable|integer|min:1']);
         $grant = $this->grants->forUser($request->user())->where('cases.id', $case)
+            ->when(!empty($selection['mdt_access_id']), fn ($query) => $query->where('mdt_case_access.id', $selection['mdt_access_id']))
+            ->orderByRaw("CASE WHEN EXISTS (SELECT 1 FROM mdt_actions WHERE mdt_actions.mdt_access_id = mdt_case_access.id AND mdt_actions.status NOT IN ('responded', 'completed')) THEN 0 ELSE 1 END")
             ->latest('mdt_case_access.id')->first(['mdt_case_access.*']);
         abort_unless($grant, 403, 'An active case-specific MDT assignment is required.');
 
@@ -70,7 +73,8 @@ class MdtCollaborationController extends Controller
     {
         abort_unless($request->user()->role === 'cpu_member', 403);
         $grants = $this->grants->forUser($request->user())
-            ->latest('mdt_case_access.assigned_at')->get(['mdt_case_access.id', 'mdt_case_access.case_id', 'mdt_case_access.professional_role', 'mdt_case_access.organization', 'mdt_case_access.purpose', 'mdt_case_access.status', 'mdt_case_access.access_expires_at', 'cases.case_number']);
+            ->selectSub(DB::table('mdt_actions')->selectRaw('count(*)')->whereColumn('mdt_actions.mdt_access_id', 'mdt_case_access.id')->whereNotIn('status', ['responded', 'completed']), 'pending_actions')
+            ->addSelect(['mdt_case_access.id', 'mdt_case_access.case_id', 'mdt_case_access.professional_role', 'mdt_case_access.organization', 'mdt_case_access.purpose', 'mdt_case_access.status', 'mdt_case_access.access_expires_at', 'cases.case_number'])->orderByDesc('pending_actions')->latest('mdt_case_access.assigned_at')->latest('mdt_case_access.id')->get();
         $lguCaseIds = $this->lgus->dashboardCaseIds($request->user());
         $lguSummary = [
             'referred_cases' => $grants->pluck('case_id')->unique()->count(),
@@ -89,6 +93,11 @@ class MdtCollaborationController extends Controller
         $categories = json_decode($grant->allowed_categories, true) ?: [];
         $record = $this->record($case);
         $safe = ['case_number' => $record->case_number, 'status' => $record->status, 'stage' => $record->stage, 'grant' => $grant];
+        $safe['referrer'] = $grant->assigned_by ? DB::table('users')->where('id', $grant->assigned_by)->first(['id', 'name']) : null;
+        $safe['assignments'] = $this->grants->forUser($request->user())->where('cases.id', $case)
+            ->select(['mdt_case_access.id', 'mdt_case_access.purpose', 'mdt_case_access.status', 'mdt_case_access.assigned_at', 'mdt_case_access.access_expires_at'])
+            ->selectSub(DB::table('mdt_actions')->selectRaw('count(*)')->whereColumn('mdt_actions.mdt_access_id', 'mdt_case_access.id')->whereNotIn('status', ['responded', 'completed']), 'pending_actions')
+            ->latest('mdt_case_access.id')->get();
         if (in_array('case_summary', $categories, true)) {
             $safe['summary'] = ['category' => $record->category, 'priority' => $record->priority, 'opened_at' => $record->opened_at];
         }
@@ -99,8 +108,8 @@ class MdtCollaborationController extends Controller
             $safe['referrals'] = DB::table('referrals')->where('case_id', $case)->get(['id', 'service_category', 'status', 'referred_at']);
         }
         $safe['actions'] = DB::table('mdt_actions')->where('case_id', $case)->where('mdt_access_id', $grant->id)->orderBy('due_at')->get(['id', 'title', 'instructions', 'status', 'due_at', 'responded_at', 'completed_at']);
-        $safe['notes'] = DB::table('mdt_case_notes')->where('case_id', $case)->where('mdt_access_id', $grant->id)->latest('created_at')->get(['id', 'previous_note_id', 'record_type', 'addendum_reason', 'category', 'findings', 'recommendation', 'status', 'finalized_at', 'created_at']);
-        $safe['attachments'] = DB::table('mdt_attachments')->where('case_id', $case)->where('mdt_access_id', $grant->id)->whereNull('revoked_at')->latest()->get(['id', 'mdt_action_id', 'mdt_note_id', 'purpose_category', 'name', 'mime_type', 'size_bytes', 'created_at']);
+        $safe['notes'] = DB::table('mdt_case_notes')->where('case_id', $case)->where('mdt_access_id', $grant->id)->latest('created_at')->get(['id', 'previous_note_id', 'record_type', 'addendum_reason', 'category', 'findings', 'recommendation', 'status', 'finalized_at', 'created_at', 'created_by']);
+        $safe['attachments'] = DB::table('mdt_attachments')->where('case_id', $case)->where('mdt_access_id', $grant->id)->whereNull('revoked_at')->latest()->get(['id', 'mdt_action_id', 'mdt_note_id', 'purpose_category', 'name', 'mime_type', 'size_bytes', 'scan_state', 'created_at']);
         $safe['unread_discussions'] = DB::table('mdt_discussions as discussion')->where('discussion.case_id', $case)
             ->whereNotExists(fn ($query) => $query->selectRaw('1')->from('mdt_discussion_reads as reads')
                 ->whereColumn('reads.discussion_id', 'discussion.id')->where('reads.user_id', $request->user()->id))->count();
@@ -111,9 +120,9 @@ class MdtCollaborationController extends Controller
 
     public function workspace(Request $request, int $case)
     {
-        $this->activeGrant($request, $case);
+        $grant = $this->activeGrant($request, $case);
 
-        return Inertia::render('Mdt/CaseWorkspace', ['caseId' => $case]);
+        return Inertia::render('Mdt/CaseWorkspace', ['caseId' => $case, 'assignmentId' => (int) $grant->id]);
     }
 
     public function storeAccess(Request $request, int $case)
@@ -138,6 +147,8 @@ class MdtCollaborationController extends Controller
 
     public function acknowledge(Request $request, int $case, int $access)
     {
+        $request->merge(['mdt_access_id' => $access]);
+
         return $this->atomicWrite($request, $case, 'mdt.access', false, false, function () use ($request, $case, $access) {
             $grant = $this->activeGrant($request, $case);
             abort_unless($grant->id === $access, 403);

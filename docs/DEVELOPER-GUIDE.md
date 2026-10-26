@@ -55,6 +55,12 @@ so they run on both SQLite and PostgreSQL. New browser specs must be added to
 
 ## 5. Adding a feature checklist
 
+Connect group/private messaging uses the shared CoordinationAccess eligibility
+query. Direct-message endpoints live in CoordinationDirectMessageController;
+never reuse group message queries for private history. See
+[Connect delivery and reproduction](implementation/CONNECT-MESSAGING-2026-10-23.md)
+for pair authorization, migration, demo scope repair, tests and known limits.
+
 1. Permission in `RolePermissions` and a server-side check in the controller.
 2. Route under `auth`, numeric id pattern, throttle for writes.
 3. Audit row for every write (ids and codes only).

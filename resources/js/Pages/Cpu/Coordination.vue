@@ -14,18 +14,22 @@ const props = defineProps<CoordinationProps>();
 // shared workspace composable; this page only lays it out as a group chat.
 const workspace = useConnectWorkspace(props);
 const { activeCircle, currentCircle, items, circleMembers, pagination, unread, loading, sending, capturing, busy, refreshRequired, uncertainSend, uncertainCapture,
-  searchTerm, appliedSearch, requestError, notice, errorSummary, captureErrorSummary, composer, capture, selectedMessage, canPost, canCapture, dirty } = workspace;
+  activeRecipient, currentRecipient, directContacts, searchTerm, appliedSearch, requestError, notice, errorSummary, captureErrorSummary, composer, capture, selectedMessage, canPost, canCapture, dirty } = workspace;
 
 const showMembers = ref(false);
 const scroller = ref<HTMLElement | null>(null);
 const input = ref<HTMLTextAreaElement | null>(null);
+const optionsPanel = ref<HTMLDetailsElement | null>(null);
+const selectedCaseNumber = ref('');
+const closeOptions = () => { if (optionsPanel.value) optionsPanel.value.open = false; };
+function dismissOptions() { closeOptions(); optionsPanel.value?.querySelector<HTMLElement>('summary')?.focus(); }
+watch([activeCircle, activeRecipient], () => { closeOptions(); selectedCaseNumber.value = ''; });
 const previews = ref<Record<number, CoordinationCircle>>(Object.fromEntries(props.circles.map(circle => [circle.id, { ...circle }])));
 const circleList = computed(() => props.circles.map(circle => previews.value[circle.id] ?? circle));
 const memberCount = computed(() => circleMembers.value.length || currentCircle.value?.member_count || 0);
 const composerLocked = computed(() => sending.value || refreshRequired.value || uncertainSend.value);
 const replyTarget = computed(() => items.value.find(message => message.id === composer.parent_id) ?? null);
 const mentionedMembers = computed(() => circleMembers.value.filter(member => composer.mention_user_ids.includes(member.id)));
-const optionsSet = computed(() => Boolean(composer.case_id || composer.is_urgent || composer.follow_up || composer.mention_user_ids.length));
 if (props.circles[0]) previews.value[props.circles[0].id] = { ...previews.value[props.circles[0].id], unread: 0 };
 
 // Presentation helpers only.
@@ -58,11 +62,12 @@ async function scrollToBottom() { await nextTick(); if (scroller.value) scroller
 // Keep the conversation list preview in step with what this page has actually read back.
 watch(items, list => {
   const id = activeCircle.value; const last = list[list.length - 1];
-  if (id && last && !appliedSearch.value) previews.value[id] = { ...previews.value[id]!, last_author: last.author, last_excerpt: excerpt(last.body, 80), last_at: last.created_at, unread: 0 };
+  if (id && last && !appliedSearch.value && !activeRecipient.value) previews.value[id] = { ...previews.value[id]!, last_author: last.author, last_excerpt: excerpt(last.body, 80), last_at: last.created_at, unread: 0 };
   if (!appliedSearch.value) void scrollToBottom();
 }, { immediate: true });
 
-async function openCircle(id: number) { showMembers.value = false; await workspace.chooseCircle(id); }
+async function openCircle(id: number) { showMembers.value = false; if(id === activeCircle.value) await workspace.chooseRecipient(null); else await workspace.chooseCircle(id); }
+async function openDirect(id: number) { showMembers.value = false; closeOptions(); await workspace.chooseRecipient(id); }
 function onSelectCircle(event: Event) { void openCircle(Number((event.target as HTMLSelectElement).value)); }
 async function loadEarlier() {
   const previousHeight = scroller.value?.scrollHeight ?? 0;
@@ -88,7 +93,7 @@ const replyTo = (message: CoordinationMessage) => workspace.reply(message);
         <div class="flex items-center justify-between gap-3 px-4 pt-3 lg:px-5 lg:pt-5">
           <div class="min-w-0">
             <h1 class="sr-only text-lg font-bold text-[var(--color-ink)] lg:not-sr-only">Kalinga Connect</h1>
-            <p class="hidden text-xs text-slate-600 lg:block">CPU coordination groups</p>
+            <p class="hidden text-xs text-slate-600 lg:block">{{ currentCircle?.lgu_name ?? 'CPU coordination' }}</p>
           </div>
           <span v-if="unread" class="ui-pill bg-amber-100 text-amber-900">{{ unread }} unread</span>
         </div>
@@ -99,8 +104,9 @@ const replyTo = (message: CoordinationMessage) => workspace.reply(message);
           </select>
         </div>
         <nav aria-label="Coordination groups" class="hidden min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-3 pb-4 lg:flex">
-          <button v-for="circle in circleList" :key="circle.id" type="button" :aria-current="circle.id === activeCircle ? 'true' : undefined" :disabled="busy || uncertainSend"
-            class="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition disabled:cursor-not-allowed" :class="circle.id === activeCircle ? 'bg-brand-50 ring-1 ring-brand-200' : 'hover:bg-slate-50'" @click="openCircle(circle.id)">
+          <p class="px-3 pb-1 text-xs font-semibold text-slate-600">LGU group</p>
+          <button v-for="circle in circleList" :key="circle.id" type="button" :aria-current="circle.id === activeCircle && !activeRecipient ? 'true' : undefined" :disabled="busy || uncertainSend"
+            class="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left disabled:cursor-not-allowed" :class="circle.id === activeCircle && !activeRecipient ? 'bg-brand-50' : 'hover:bg-slate-50'" @click="openCircle(circle.id)">
             <span class="grid h-10 w-10 shrink-0 place-items-center rounded-full text-sm font-bold" :class="tone(circle.name)" aria-hidden="true">{{ initials(circle.name) }}</span>
             <span class="min-w-0 flex-1">
               <span class="flex items-center justify-between gap-2"><span class="truncate text-sm font-semibold text-[var(--color-ink)]">{{ circle.name }}</span><span v-if="circle.last_at" class="shrink-0 text-[11px] text-slate-600">{{ listTime(circle.last_at) }}</span></span>
@@ -108,6 +114,13 @@ const replyTo = (message: CoordinationMessage) => workspace.reply(message);
             </span>
           </button>
           <p v-if="!circleList.length" class="px-2 py-6 text-sm text-slate-600">You are not an active member of any coordination group.</p>
+          <template v-if="directContacts.length">
+            <p class="mt-5 px-3 pb-1 text-xs font-semibold text-slate-600">Direct messages</p>
+            <button v-for="member in directContacts" :key="member.id" type="button" :disabled="busy || uncertainSend" :aria-current="activeRecipient === member.id ? 'true' : undefined" class="flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-left hover:bg-slate-50 disabled:opacity-50" :class="activeRecipient === member.id ? 'bg-brand-50' : ''" @click="openDirect(member.id)">
+              <span class="grid h-9 w-9 shrink-0 place-items-center rounded-full text-xs font-semibold" :class="tone(member.name)" aria-hidden="true">{{ initials(member.name) }}</span>
+              <span class="min-w-0"><span class="block truncate text-sm font-medium">{{ member.name }}</span><span class="block truncate text-xs text-slate-600">{{ roleLabel(member.cpu_discipline || member.role) }}</span></span>
+            </button>
+          </template>
         </nav>
         <p class="mx-4 mb-4 hidden items-start gap-2 rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-600 lg:flex"><ShieldCheck class="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" aria-hidden="true" />Group membership does not authorize case access. Use the MDT referral pathway for case-specific work.</p>
       </div>
@@ -115,12 +128,12 @@ const replyTo = (message: CoordinationMessage) => workspace.reply(message);
       <!-- Conversation -->
       <div class="relative flex min-h-0 min-w-0 flex-1 flex-col">
         <header class="flex flex-wrap items-center gap-2 border-b border-[var(--color-line)] px-4 py-3 lg:px-5">
-          <span v-if="currentCircle" class="grid h-10 w-10 shrink-0 place-items-center rounded-full text-sm font-bold" :class="tone(currentCircle.name)" aria-hidden="true">{{ initials(currentCircle.name) }}</span>
+          <span v-if="currentCircle" class="grid h-10 w-10 shrink-0 place-items-center rounded-full text-sm font-bold" :class="tone(currentRecipient?.name ?? currentCircle.name)" aria-hidden="true">{{ initials(currentRecipient?.name ?? currentCircle.name) }}</span>
           <div class="min-w-0 flex-1">
-            <h2 class="truncate text-base font-semibold text-[var(--color-ink)]">{{ currentCircle ? currentCircle.name : 'No group selected' }}</h2>
-            <p class="truncate text-xs text-slate-600">{{ currentCircle?.lgu_name }}<template v-if="memberCount"> - {{ memberCount }} eligible {{ memberCount === 1 ? 'member' : 'members' }}</template></p>
+            <h2 :title="currentRecipient?.name ?? currentCircle?.name" class="truncate text-base font-semibold text-[var(--color-ink)]">{{ currentRecipient?.name ?? (currentCircle ? currentCircle.name : 'No group selected') }}</h2>
+            <p class="truncate text-xs text-slate-600">{{ currentCircle?.lgu_name }}<template v-if="activeRecipient"> - Direct message - Only you and this member</template><template v-else-if="memberCount"> - {{ memberCount }} eligible {{ memberCount === 1 ? 'member' : 'members' }}</template></p>
           </div>
-          <form role="search" data-skip-generic-confirm="true" class="order-last flex w-full items-center sm:order-none sm:w-52 xl:w-60" @submit.prevent="workspace.search()">
+          <form role="search" data-skip-generic-confirm="true" class="order-last flex w-full items-center 2xl:order-none 2xl:w-60" @submit.prevent="workspace.search()">
             <div class="relative min-w-0 flex-1">
               <input v-model="searchTerm" type="search" aria-label="Search authorized coordination messages" placeholder="Search messages" maxlength="100" :disabled="busy || refreshRequired" class="h-10 w-full rounded-xl border-transparent bg-[#f3f2f8] pl-3.5 pr-11 text-sm focus:bg-white" />
               <button type="submit" aria-label="Search" :disabled="busy || refreshRequired" class="absolute right-0.5 top-1/2 grid h-9 w-10 -translate-y-1/2 place-items-center rounded-lg text-slate-600 hover:bg-white hover:text-brand-700"><Search class="h-4 w-4" aria-hidden="true" /></button>
@@ -130,6 +143,7 @@ const replyTo = (message: CoordinationMessage) => workspace.reply(message);
           <button type="button" class="ui-button h-10 min-h-10 w-10 px-0 sm:hidden" aria-label="Write message" @click="writeMessage"><PenLine class="h-4 w-4" aria-hidden="true" /></button>
           <button type="button" class="ui-button h-10 min-h-10 w-10 px-0 xl:hidden" aria-label="Members" :aria-expanded="showMembers" aria-controls="circle-members" @click="showMembers = !showMembers"><Users class="h-4 w-4" aria-hidden="true" /></button>
         </header>
+        <button v-if="activeRecipient" type="button" class="min-h-11 border-b border-[var(--color-line)] px-4 text-left text-xs font-semibold text-brand-800 hover:bg-slate-50" :disabled="busy || uncertainSend" @click="workspace.chooseRecipient(null)">Back to {{ currentCircle?.name }}</button>
 
         <div v-if="appliedSearch" class="flex items-center justify-between gap-3 border-b border-[var(--color-line)] bg-brand-50/60 px-5 py-2 text-xs text-brand-900">
           <span>Search results for "{{ appliedSearch }}"</span>
@@ -189,7 +203,7 @@ const replyTo = (message: CoordinationMessage) => workspace.reply(message);
         <!-- Composer: the generic submit confirmation stays on, as verified for this workflow. -->
         <form v-if="canPost" aria-label="Send coordination message" class="relative border-t border-[var(--color-line)] bg-white px-3 py-3 sm:px-5" @submit.prevent="workspace.post()">
           <div v-if="composer.parent_id" class="mb-2 flex items-center justify-between gap-3 rounded-xl border-l-2 border-brand-500 bg-brand-50 px-3 py-2 text-xs text-slate-700">
-            <span class="min-w-0"><span class="font-semibold">Replying to a message in this group</span><span v-if="replyTarget" class="block truncate text-slate-600">{{ replyTarget.is_own ? 'You' : replyTarget.author }}: {{ excerpt(replyTarget.body, 90) }}</span></span>
+            <span class="min-w-0"><span class="font-semibold">Replying to a message {{ activeRecipient ? 'in this private conversation' : 'in this group' }}</span><span v-if="replyTarget" class="block truncate text-slate-600">{{ replyTarget.is_own ? 'You' : replyTarget.author }}: {{ excerpt(replyTarget.body, 90) }}</span></span>
             <button type="button" class="grid h-8 w-8 shrink-0 place-items-center rounded-lg hover:bg-white" aria-label="Cancel reply" :disabled="composerLocked" @click="composer.parent_id = null"><X class="h-4 w-4" aria-hidden="true" /></button>
           </div>
           <div v-if="uncertainSend || (dirty && refreshRequired)" class="mb-2 flex flex-wrap items-center gap-2 rounded-xl border border-amber-300 bg-kalinga-warm px-3 py-2 text-xs text-amber-950">
@@ -197,19 +211,20 @@ const replyTo = (message: CoordinationMessage) => workspace.reply(message);
             <button v-if="uncertainSend && !refreshRequired" type="button" class="ui-button min-h-9 text-xs" @click="workspace.resumeSend()">Review complete - allow send</button>
             <button type="button" class="ui-button min-h-9 text-xs" :disabled="busy" @click="workspace.discardMessage()">Discard unfinished message</button>
           </div>
-          <details class="composer-options mb-2" :open="optionsSet || undefined">
-            <summary class="inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-brand-800 hover:bg-brand-50"><SlidersHorizontal class="h-3.5 w-3.5" aria-hidden="true" />Case reference, urgency &amp; mentions</summary>
-            <div class="mt-2 grid gap-3 rounded-xl border border-[var(--color-line)] bg-slate-50/60 p-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-              <CoordinationCaseSelect v-if="activeCircle" id="coordination-case" v-model="composer.case_id" :circle-id="activeCircle" :disabled="composerLocked" :error="composer.errors.case_id" allow-known-reference @access-denied="workspace.reauthorize()" />
+          <details ref="optionsPanel" class="composer-options mb-2" @keydown.esc.prevent="dismissOptions">
+            <summary class="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-brand-800 hover:bg-brand-50"><SlidersHorizontal class="h-3.5 w-3.5" aria-hidden="true" />{{ activeRecipient ? 'Message priority' : 'Case reference, urgency & mentions' }}</summary>
+            <div class="absolute bottom-full left-3 right-3 z-10 mb-1 grid max-h-[min(42dvh,340px)] gap-3 overflow-y-auto rounded-lg border border-[var(--color-line)] bg-white p-3" :class="!activeRecipient ? '2xl:grid-cols-2' : ''">
+              <div class="col-span-full flex items-center justify-between gap-2"><span class="text-sm font-semibold text-slate-800">Message details</span><button type="button" class="grid h-11 w-11 shrink-0 place-items-center rounded-md text-slate-600 hover:bg-slate-100" aria-label="Close message details" @click="dismissOptions"><X class="h-4 w-4" aria-hidden="true" /></button></div>
+              <CoordinationCaseSelect v-if="activeCircle && !activeRecipient" id="coordination-case" v-model="composer.case_id" :circle-id="activeCircle" :disabled="composerLocked" :error="composer.errors.case_id" compact allow-known-reference @selected-reference="selectedCaseNumber = $event" @access-denied="workspace.reauthorize()" />
               <div class="space-y-3">
                 <div class="flex flex-wrap gap-2">
                   <label class="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border border-[var(--color-line)] bg-white px-3 text-sm"><input v-model="composer.is_urgent" type="checkbox" :disabled="composerLocked" class="rounded border-slate-300 text-rose-600" /><TriangleAlert class="h-4 w-4 text-rose-600" aria-hidden="true" />Urgent</label>
                   <label class="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border border-[var(--color-line)] bg-white px-3 text-sm"><input v-model="composer.follow_up" type="checkbox" :disabled="composerLocked" class="rounded border-slate-300 text-amber-600" /><Flag class="h-4 w-4 text-amber-600" aria-hidden="true" />Follow-up</label>
                 </div>
-                <fieldset :disabled="composerLocked">
+                <fieldset v-if="!activeRecipient" :disabled="composerLocked">
                   <legend class="text-xs font-semibold text-slate-600">Mention members</legend>
                   <div class="mt-1.5 flex max-h-32 flex-wrap gap-1.5 overflow-y-auto">
-                    <label v-for="member in circleMembers" :key="member.id" class="inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-full border px-2.5 text-xs" :class="composer.mention_user_ids.includes(member.id) ? 'border-sky-300 bg-sky-50 text-sky-900' : 'border-[var(--color-line)] bg-white text-slate-700'">
+                    <label v-for="member in circleMembers" :key="member.id" class="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 text-xs focus-within:ring-2 focus-within:ring-brand-500" :class="composer.mention_user_ids.includes(member.id) ? 'border-sky-300 bg-sky-50 text-sky-900' : 'border-[var(--color-line)] bg-white text-slate-700'">
                       <input type="checkbox" class="sr-only" :checked="composer.mention_user_ids.includes(member.id)" @change="toggleMention(member.id)" />@{{ member.name }}
                     </label>
                   </div>
@@ -217,12 +232,20 @@ const replyTo = (message: CoordinationMessage) => workspace.reply(message);
               </div>
             </div>
           </details>
-          <div class="flex items-end gap-2">
+          <div class="rounded-xl border border-[var(--color-line)] bg-[#f3f2f8] p-2 focus-within:border-brand-400 focus-within:bg-white">
+            <div v-if="composer.case_id || composer.is_urgent || composer.follow_up || mentionedMembers.length" aria-label="Selected message details" class="mb-1 flex flex-wrap gap-1.5">
+              <button v-if="composer.case_id && !activeRecipient" type="button" :disabled="composerLocked" class="inline-flex min-h-11 max-w-full items-center gap-2 rounded-md bg-brand-50 px-2 text-xs font-medium text-brand-900" aria-label="Remove case reference" @click="composer.case_id = ''"><span class="truncate">Case: {{ selectedCaseNumber || `Reference ID ${composer.case_id}` }}</span><X class="h-3.5 w-3.5 shrink-0" aria-hidden="true" /></button>
+              <button v-if="composer.is_urgent" type="button" :disabled="composerLocked" class="inline-flex min-h-11 items-center gap-2 rounded-md bg-rose-100 px-2 text-xs font-medium text-rose-900" aria-label="Remove urgent flag" @click="composer.is_urgent = false">Urgent<X class="h-3.5 w-3.5" aria-hidden="true" /></button>
+              <button v-if="composer.follow_up" type="button" :disabled="composerLocked" class="inline-flex min-h-11 items-center gap-2 rounded-md bg-amber-100 px-2 text-xs font-medium text-amber-900" aria-label="Remove follow-up flag" @click="composer.follow_up = false">Follow-up<X class="h-3.5 w-3.5" aria-hidden="true" /></button>
+              <button v-for="member in mentionedMembers" :key="member.id" type="button" :disabled="composerLocked" class="inline-flex min-h-11 max-w-full items-center gap-2 rounded-md bg-brand-50 px-2 text-xs font-medium text-brand-900" :aria-label="`Remove mention of ${member.name}`" @click="toggleMention(member.id)"><span class="truncate">@{{ member.name }}</span><X class="h-3.5 w-3.5 shrink-0" aria-hidden="true" /></button>
+            </div>
+            <div class="flex items-end gap-2">
             <label for="coordination-body" class="sr-only">New message</label>
             <textarea id="coordination-body" ref="input" v-model="composer.body" aria-label="New message" required rows="1" maxlength="3000" :disabled="composerLocked"
-              class="composer-input min-w-0 flex-1 resize-none rounded-2xl border-transparent bg-[#f3f2f8] px-4 py-2.5 text-sm leading-6 focus:bg-white disabled:opacity-60"
-              placeholder="Type a message..." :aria-invalid="Boolean(composer.errors.body) || undefined" @keydown="onComposerKey" />
-            <button type="submit" :disabled="composerLocked || busy || !canPost" aria-label="Send message" class="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-brand-700 text-white shadow-sm transition hover:bg-brand-800 disabled:opacity-50"><SendHorizontal class="h-5 w-5" aria-hidden="true" /></button>
+              class="composer-input min-w-0 flex-1 resize-none rounded-lg border-transparent bg-transparent px-2 py-2.5 text-sm leading-6 focus:border-transparent focus:ring-0 disabled:opacity-60"
+              placeholder="Type a message..." :aria-invalid="Boolean(composer.errors.body) || undefined" @focus="closeOptions" @keydown="onComposerKey" />
+            <button type="submit" :disabled="composerLocked || busy || !canPost" aria-label="Send message" class="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-brand-700 text-white hover:bg-brand-800 disabled:opacity-50"><SendHorizontal class="h-5 w-5" aria-hidden="true" /></button>
+            </div>
           </div>
           <p v-if="composer.errors.body" class="mt-2 text-sm text-rose-700">{{ composer.errors.body }}</p>
           <p class="mt-1.5 hidden text-[11px] text-slate-600 sm:block">Enter to send, Shift + Enter for a new line. Operational follow-up only - do not put sensitive narratives here.</p>
@@ -238,11 +261,13 @@ const replyTo = (message: CoordinationMessage) => workspace.reply(message);
         <ul class="space-y-1 overflow-y-auto p-3">
           <li v-for="member in circleMembers" :key="member.id" class="flex items-center gap-3 rounded-lg px-2 py-2">
             <span class="grid h-9 w-9 shrink-0 place-items-center rounded-full text-xs font-bold" :class="tone(member.name)" aria-hidden="true">{{ initials(member.name) }}</span>
-            <div class="min-w-0"><p class="truncate text-sm font-semibold text-slate-800">{{ member.name }}</p><p class="truncate text-[11px] text-slate-600">{{ roleLabel(member.membership_role) }} - {{ roleLabel(member.role) }}</p></div>
+            <div class="min-w-0 flex-1"><p class="truncate text-sm font-semibold text-slate-800">{{ member.name }}</p><p class="truncate text-[11px] text-slate-600">{{ roleLabel(member.cpu_discipline || member.role) }}</p>
+              <button v-if="directContacts.some(contact => contact.id === member.id)" type="button" :disabled="busy || uncertainSend" class="mt-1 inline-flex min-h-11 items-center rounded-md px-2 text-xs font-semibold text-brand-800 hover:bg-brand-50 disabled:opacity-50" :aria-label="`Message ${member.name}`" @click="openDirect(member.id)">Message</button>
+            </div>
           </li>
           <li v-if="!circleMembers.length" class="px-2 py-4 text-sm text-slate-600">No active members loaded.</li>
         </ul>
-        <p class="mx-3 mb-3 rounded-xl bg-sky-50 p-3 text-xs leading-5 text-sky-950">A reviewed professional summary can be recorded through your current case authority. The original chat is retained separately.</p>
+        <p class="mx-3 mb-3 rounded-lg bg-sky-50 p-3 text-xs leading-5 text-sky-950">{{ activeRecipient ? 'This direct conversation is separate from the group. Only you and the selected member can read it through Connect while both remain eligible.' : 'A reviewed professional summary can be recorded through your current case authority. The original chat is retained separately.' }}</p>
       </aside>
 
       <!-- Reviewed capture -->
@@ -277,7 +302,7 @@ const replyTo = (message: CoordinationMessage) => workspace.reply(message);
 .connect-shell { height: calc(100dvh - 172px); min-height: 560px; }
 @media (min-width: 768px) { .connect-shell { height: calc(100dvh - 184px); } }
 @media (min-width: 1024px) { .connect-shell { height: calc(100dvh - 132px); grid-template-rows: minmax(0, 1fr); } }
-.chat-scroll { background: linear-gradient(180deg, #fbfaff 0%, #f7f6fb 100%); scrollbar-width: thin; }
+.chat-scroll { background: #f7f6fb; scrollbar-width: thin; }
 .composer-input { max-height: 9rem; field-sizing: content; }
 .composer-options > summary { list-style: none; }
 .composer-options > summary::-webkit-details-marker { display: none; }

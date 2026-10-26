@@ -9,6 +9,7 @@ use App\Http\Controllers\CasePlanLifecycleController;
 use App\Http\Controllers\CaseReportController;
 use App\Http\Controllers\CaseworkController;
 use App\Http\Controllers\ChildParticipationController;
+use App\Http\Controllers\CoordinationDirectMessageController;
 use App\Http\Controllers\CpuCoordinationController;
 use App\Http\Controllers\IdentityReviewController;
 use App\Http\Controllers\LguProfileController;
@@ -74,6 +75,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/central-office/{section}', [ManagementDashboardController::class, 'section'])->whereIn('section', ['pipeline', 'geography', 'continuity'])->name('management.section');
     Route::get('/management-dashboard/export', [ManagementDashboardController::class, 'export'])->name('management.dashboard.export');
     Route::get('/cpu/coordination', [CpuCoordinationController::class, 'index'])->name('cpu.coordination.index');
+    Route::get('/cpu/coordination/{circle}/direct/{member}/messages', [CoordinationDirectMessageController::class, 'index'])->name('cpu.direct.messages.index');
+    Route::post('/cpu/coordination/{circle}/direct/{member}/search', [CoordinationDirectMessageController::class, 'index'])->middleware('throttle:sensitive-write')->name('cpu.direct.search');
+    Route::post('/cpu/coordination/{circle}/direct/{member}/messages', [CoordinationDirectMessageController::class, 'store'])->middleware('throttle:sensitive-write')->name('cpu.direct.messages.store');
     Route::get('/cpu/coordination/{circle}/messages', [CpuCoordinationController::class, 'messages'])->name('cpu.coordination.messages.index');
     Route::post('/cpu/coordination/{circle}/messages', [CpuCoordinationController::class, 'store'])->middleware('throttle:sensitive-write')->name('cpu.coordination.messages.store');
     Route::post('/cpu/coordination/{circle}/case-references', [CpuCoordinationController::class, 'caseReferences'])->name('cpu.coordination.cases.index');

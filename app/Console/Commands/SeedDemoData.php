@@ -3,6 +3,8 @@
 namespace App\Console\Commands;
 
 use App\Models\User;
+use Database\Seeders\KalingaConnectDemoScopeSeeder;
+use Database\Seeders\KalingaConnectDemoSeeder;
 use Database\Seeders\KalingaDemoSeeder;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -95,6 +97,16 @@ class SeedDemoData extends Command
 
             if (!$alreadySeeded) {
                 (new KalingaDemoSeeder)->setContainer(app())->setCommand($this)->run();
+            }
+
+            // Existing demo databases: keep the demo accounts to the City of Tabuk
+            // and their Connect circle (new installs get this from KalingaDemoSeeder).
+            if ($alreadySeeded) {
+                $ids = collect(['worker', 'supervisor', 'cpu'])
+                    ->map(fn (string $key) => $this->findAccount($key, self::ACCOUNTS[$key]['email'], $inbox, $google)?->id)
+                    ->filter()->values()->all();
+                (new KalingaConnectDemoScopeSeeder)->setContainer(app())->forUsers($ids)->run();
+                (new KalingaConnectDemoSeeder)->setContainer(app())->forUsers($ids)->run();
             }
 
             // Move the accounts to their final addresses after the seeder has linked them.

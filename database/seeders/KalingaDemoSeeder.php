@@ -28,7 +28,9 @@ class KalingaDemoSeeder extends Seeder
                 'active' => true, 'created_at' => $now, 'updated_at' => $now,
             ]);
             $lguIds[$municipality] = DB::table('lgu_units')->where('psgc_code', 'DEMO-LGU-' . str_pad((string) ($index + 1), 2, '0', STR_PAD_LEFT))->value('id');
-            foreach ([$worker, $supervisor] as $caseworker) {
+            // Demo accounts belong to Tabuk. Other LGUs remain reference/demo
+            // case data, not additional workplace assignments for these users.
+            foreach ($municipality === 'City of Tabuk' ? [$worker, $supervisor] : [] as $caseworker) {
                 DB::table('user_lgu_assignments')->updateOrInsert(['user_id' => $caseworker, 'lgu_id' => $lguIds[$municipality]], [
                     'effective_from' => $now->copy()->subYear(), 'effective_to' => null, 'active' => true,
                     'assigned_by' => $admin, 'created_at' => $now, 'updated_at' => $now,
@@ -39,6 +41,10 @@ class KalingaDemoSeeder extends Seeder
             'effective_from' => $now->copy()->subYear(), 'effective_to' => null, 'active' => true,
             'assigned_by' => $admin, 'created_at' => $now, 'updated_at' => $now,
         ]);
+
+        $demoUsers = [$worker, $supervisor, $cpu];
+        (new KalingaConnectDemoScopeSeeder)->setContainer(app())->forUsers($demoUsers)->run();
+        (new KalingaConnectDemoSeeder)->setContainer(app())->forUsers($demoUsers)->run();
 
         $providers = [
             ['name' => 'DEMO Kalinga Provincial Health Office', 'service_type' => 'Health services', 'contact_person' => 'Demo Health Coordinator', 'phone' => 'DEMO-0001', 'region' => 'Cordillera Administrative Region (CAR)', 'province' => 'Kalinga', 'municipality' => 'City of Tabuk', 'barangay' => 'Bulanao Centro'],

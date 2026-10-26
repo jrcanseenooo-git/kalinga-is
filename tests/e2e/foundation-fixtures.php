@@ -20,12 +20,12 @@ $db = DB::class;
 try {
     $cpu = $db::table('users')->where('email', 'cpu@kalinga.test')->value('id');
     $lgu = $db::table('user_lgu_assignments')->where('user_id', $cpu)->value('lgu_id');
-    $circle = $db::table('lgu_coordination_circles')->insertGetId([
+    $circle = $db::table('lgu_coordination_circles')->where('lgu_id', $lgu)->value('id') ?? $db::table('lgu_coordination_circles')->insertGetId([
         'lgu_id' => $lgu, 'name' => 'Synthetic browser circle', 'active' => true,
         'created_at' => now(), 'updated_at' => now(),
     ]);
-    $db::table('lgu_coordination_members')->insert([
-        'circle_id' => $circle, 'user_id' => $cpu, 'membership_role' => 'member',
+    $db::table('lgu_coordination_members')->updateOrInsert(['circle_id' => $circle, 'user_id' => $cpu], [
+        'membership_role' => 'member',
         'joined_at' => now()->subDay(), 'created_at' => now(), 'updated_at' => now(),
     ]);
     for ($index = 0; $index < 55; $index++) {
@@ -133,6 +133,15 @@ try {
     $secondCircle = $db::table('lgu_coordination_circles')->insertGetId(['lgu_id' => $secondLgu, 'name' => 'Synthetic second coordination circle', 'active' => true, 'created_at' => now(), 'updated_at' => now()]);
     $db::table('lgu_coordination_members')->insert(['circle_id' => $secondCircle, 'user_id' => $cpu, 'membership_role' => 'member', 'joined_at' => now()->subDay(), 'created_at' => now(), 'updated_at' => now()]);
     $db::table('lgu_coordination_messages')->insert(['circle_id' => $secondCircle, 'author_id' => $cpu, 'body' => 'Synthetic second-circle operational message.', 'created_at' => now(), 'updated_at' => now()]);
+
+    $cpuClient = $db::table('clients')->insertGetId(['first_name' => 'CPU protected identity sentinel', 'last_name' => 'Synthetic child', 'created_at' => now(), 'updated_at' => now()]);
+    $cpuCase = $db::table('cases')->insertGetId(['case_number' => 'SYN-CPU-PRESENTATION', 'client_id' => $cpuClient, 'lgu_id' => $lgu, 'assigned_to' => $worker, 'status' => 'FOR_FOLLOW_UP', 'stage' => 'monitoring', 'priority' => 'high', 'category' => 'Synthetic support coordination', 'opened_at' => now()->subDays(3), 'created_at' => now(), 'updated_at' => now()]);
+    $cpuGrants = [];
+    foreach (['Review the requested health coordination and provide recommendations.', 'Separate education coordination assignment.'] as $index => $referralPurpose) {
+        $cpuGrants[] = $db::table('mdt_case_access')->insertGetId(['case_id' => $cpuCase, 'user_id' => $cpu, 'professional_role' => 'CPU counterpart', 'organization' => 'Synthetic Tabuk CPU', 'purpose' => $referralPurpose, 'remarks' => $index === 0 ? 'Coordinate the available appointment and document the professional recommendation.' : 'Keep this separate from the health assignment.', 'allowed_categories' => json_encode($index === 0 ? ['case_summary', 'case_plan', 'referral_service'] : ['case_stage']), 'status' => $index === 0 ? 'action_required' : 'assigned', 'assigned_by' => $worker, 'assigned_at' => now()->subDays(2 - $index), 'access_starts_at' => now()->subDays(2), 'access_expires_at' => now()->addDays(14), 'expire_on_completion' => true, 'created_at' => now(), 'updated_at' => now()]);
+    }
+    $db::table('mdt_actions')->insert(['case_id' => $cpuCase, 'mdt_access_id' => $cpuGrants[0], 'title' => 'Confirm the health coordination schedule', 'instructions' => 'Contact the referring case manager about an available schedule. Record findings and a recommendation before marking this action complete.', 'status' => 'action_required', 'due_at' => now()->addDays(3), 'created_by' => $worker, 'created_at' => now(), 'updated_at' => now()]);
+    $db::table('case_plans')->insert(['case_id' => $cpuCase, 'plan_date' => today(), 'summary' => 'Synthetic authorized support plan summary.', 'status' => 'draft', 'version' => 1, 'authored_by' => $worker, 'created_at' => now(), 'updated_at' => now()]);
 
     echo 'KALINGA_SYNTHETIC_FIXTURES_READY' . PHP_EOL;
 } catch (Throwable) {
