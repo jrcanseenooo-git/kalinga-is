@@ -26,7 +26,8 @@ for (const width of [360, 768, 1440]) test(`Connect sends a JSON-backed message 
     await page.setViewportSize({ width, height: 1000 });
     await login(page, { email: 'cpu@kalinga.test', password: 'password' });
     await page.goto('/cpu/coordination');
-    await expect(page.getByLabel('Coordination circle')).toContainText('Synthetic browser circle');
+    // The demo setup gives the CPU member the City of Tabuk circle; the fixture adds its synthetic history there.
+    await expect(page.getByLabel('Coordination circle')).toContainText('City of Tabuk CPU Coordination Circle');
     const body = `Synthetic operational follow-up ${Date.now()}`;
     await page.getByLabel('New message', { exact: true }).fill(body);
     await page.getByRole('button', { name: 'Send message', exact: true }).click();
