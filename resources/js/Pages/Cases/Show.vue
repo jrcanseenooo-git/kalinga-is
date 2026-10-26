@@ -101,6 +101,12 @@ const showMdtAccessForm = ref(false);
 const showMdtActionForm = ref(false);
 const showUpload = ref(false);
 const referralDue = (item: TrackedReferral) => followUp(item, props.referralTargets);
+// On small screens the tab content starts far below the tabs; bring the opened panel into view.
+watch(activeSection, async section => {
+    if (section === 'overview') return;
+    await nextTick();
+    document.getElementById(`case-panel-${section}`)?.scrollIntoView({ block: 'start' });
+});
 const closureLoaded = ref(false);
 watch(activeSection, section => { if (section === 'closure') closureLoaded.value = true; }, { immediate: true });
 const documentStateTone = (state?: string | null) => state === 'cleared' || state === 'sanitized' ? 'success' : state === 'legacy_unverified' ? 'neutral' : progressTone(state);
@@ -300,17 +306,17 @@ const archiveCase = () => { if (window.confirm('Archive this case? The case will
                     <section v-show="activeSection === 'overview' || activeSection === 'people'" v-if="canAssignCase" class="ui-panel p-5">
                         <h2 class="font-bold">Assignment</h2><p class="mt-1 text-sm text-slate-600">Reassign this case using your existing assignment authority.</p><p v-if="!assignableWorkers.length" class="mt-3 text-sm text-slate-700">{{ caseRecord.lgu_id ? 'No active case workers have a current LGU assignment for this case.' : 'A verified case LGU assignment is required before reassignment. Request an authorized jurisdiction review.' }}</p><form v-else @submit.prevent="saveAssignment" class="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]"><label class="min-w-0 text-sm font-semibold text-slate-700">Assign case worker<select v-model="assignment.assigned_to" required class="mt-1 w-full rounded-md border-slate-300 text-sm"><option value="">Select worker</option><option v-for="worker in assignableWorkers" :key="worker.id" :value="worker.id">{{ worker.name }}</option></select></label><button :disabled="assignment.processing || !assignment.assigned_to" class="rounded-md bg-brand-700 px-4 py-2 text-sm font-bold text-white">Update assignment</button></form><p v-if="assignment.errors.assigned_to || assignment.errors.expected_version" role="alert" class="mt-2 text-sm text-rose-700">{{ assignment.errors.assigned_to || assignment.errors.expected_version }}</p></section>
 
-                    <section v-show="activeSection === 'kavat'" id="case-panel-kavat" role="tabpanel" aria-labelledby="case-tab-kavat" class="min-w-0">
+                    <section v-show="activeSection === 'kavat'" id="case-panel-kavat" role="tabpanel" aria-labelledby="case-tab-kavat" class="scroll-mt-24 min-w-0">
                         <KavatPanel :case-id="Number(caseRecord.id)" :definition="kavatDefinition" :records="kavat" :can-edit="canEditForms" />
                     </section>
 
-                    <section v-show="activeSection === 'forms'" id="case-panel-forms" role="tabpanel" aria-labelledby="case-tab-forms" class="min-w-0">
+                    <section v-show="activeSection === 'forms'" id="case-panel-forms" role="tabpanel" aria-labelledby="case-tab-forms" class="scroll-mt-24 min-w-0">
                         <CaseFormsPanel :case-id="Number(caseRecord.id)" :definition="formsDefinition" :forms="forms" :suggestions="formSuggestions" :can-edit="canEditForms"
                             :intake-at="caseRecord.intake_completed_at ?? caseRecord.opened_at ?? null" :note-count="notes.filter(note => note.record_type !== 'addendum').length"
                             :last-note-at="notes[0]?.occurred_at ?? notes[0]?.created_at ?? null" :plan-suggestions="planSuggestions" @open-notes="openSection('notes')" />
                     </section>
 
-                    <section v-show="activeSection === 'notes'" id="case-panel-notes" role="tabpanel" aria-labelledby="case-tab-notes" class="min-w-0 space-y-5">
+                    <section v-show="activeSection === 'notes'" id="case-panel-notes" role="tabpanel" aria-labelledby="case-tab-notes" class="scroll-mt-24 min-w-0 space-y-5">
                         <div class="ui-panel p-4 sm:p-5"><CaseMonitoringPanel ref="monitoringPanel" :case-id="caseRecord.id" :active="activeSection === 'notes'" :visits="visits" :notes="notes" :tasks="tasks" :referrals="referrals" :services="servicesProvided ?? []" :cpu-members="cpuMembers ?? []" :referral-targets="referralTargets" :referral-transitions="referralTransitions ?? {}" :has-sharing-consent="Boolean(hasSharingConsent)" :client-names="[caseRecord.first_name, caseRecord.last_name].filter(Boolean)" /></div>
                         <CaseServicesPanel :case-id="Number(caseRecord.id)" :referrals="referrals" :services="servicesProvided ?? []" :referral-targets="referralTargets" @compose="composeNote">
                             <template #status-form="{ referral }"><ReferralStatusForm :referral-id="referral.id" :status="referral.status" :allowed-statuses="referralTransitions?.[referral.status] ?? []" /></template>
@@ -334,7 +340,7 @@ const archiveCase = () => { if (window.confirm('Archive this case? The case will
                         </CaseServicesPanel>
                     </section>
 
-                    <section v-show="activeSection === 'closure'" id="case-panel-closure" role="tabpanel" aria-labelledby="case-tab-closure" class="min-w-0 space-y-5">
+                    <section v-show="activeSection === 'closure'" id="case-panel-closure" role="tabpanel" aria-labelledby="case-tab-closure" class="scroll-mt-24 min-w-0 space-y-5">
                         <section class="ui-panel p-5" aria-labelledby="closure-checklist-title">
                             <h2 id="closure-checklist-title" class="ui-section-title">Closure checklist</h2>
                             <p class="ui-muted mt-1">Before recommending closure, make sure the case record is complete. This is guidance; the closure record below still needs review and approval.</p>
@@ -345,7 +351,7 @@ const archiveCase = () => { if (window.confirm('Archive this case? The case will
                         <CaseClosurePanel v-if="closureLoaded" :case-id="Number(caseRecord.id)" @updated="router.reload()" />
                     </section>
 
-                    <section v-show="activeSection === 'records'" id="case-panel-records" role="tabpanel" aria-labelledby="case-tab-records" class="ui-panel overflow-hidden p-0">
+                    <section v-show="activeSection === 'records'" id="case-panel-records" role="tabpanel" aria-labelledby="case-tab-records" class="scroll-mt-24 ui-panel overflow-hidden p-0">
                         <header class="flex flex-wrap items-start justify-between gap-3 border-b border-[var(--color-line)] px-5 py-4">
                             <div><h2 class="ui-section-title">Documents</h2><p class="ui-muted mt-0.5">Case files stored privately. PDF, image, Word, or Word Open XML files up to 10 MB.</p></div>
                             <div class="flex flex-wrap gap-2"><Link v-if="canGovernRecords" :href="route('cases.records.governance.index', caseRecord.id)" class="ui-button min-h-10 gap-1.5 text-sm"><ShieldCheck class="h-4 w-4" aria-hidden="true" />Open records governance</Link><button type="button" class="ui-button ui-button-primary min-h-10 gap-1.5 text-sm" :aria-expanded="showUpload" aria-controls="case-document-upload" @click="showUpload = !showUpload"><Upload class="h-4 w-4" aria-hidden="true" />Upload document</button></div>
