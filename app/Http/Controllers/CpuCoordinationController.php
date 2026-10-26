@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Services\CaseAccessScope;
+use App\Services\CoordinationAccess;
 use App\Services\LguAssignmentScope;
 use App\Services\MdtGrantScope;
 use App\Services\OperationalNotification;
@@ -289,21 +290,12 @@ class CpuCoordinationController extends Controller
 
     private function eligibleMembers(int $circle)
     {
-        return DB::table('lgu_coordination_members as member')->join('users', 'users.id', '=', 'member.user_id')
-            ->join('lgu_coordination_circles as circle', 'circle.id', '=', 'member.circle_id')
-            ->join('lgu_units as lgu', 'lgu.id', '=', 'circle.lgu_id')
-            ->where('member.circle_id', $circle)->whereNull('member.left_at')->where('users.active', true)
-            ->where('circle.active', true)->where('lgu.active', true)
-            ->where(fn ($dates) => $dates->whereNull('member.joined_at')->orWhere('member.joined_at', '<=', now()))
-            ->whereExists(fn ($query) => $query->selectRaw('1')->from('user_lgu_assignments as assignment')
-                ->whereColumn('assignment.user_id', 'users.id')->whereColumn('assignment.lgu_id', 'circle.lgu_id')
-                ->where('assignment.active', true)->where('assignment.effective_from', '<=', now())
-                ->where(fn ($dates) => $dates->whereNull('assignment.effective_to')->orWhere('assignment.effective_to', '>', now())));
+        return app(CoordinationAccess::class)->members($circle);
     }
 
     private function members(int $circle)
     {
-        return $this->eligibleMembers($circle)->orderBy('users.name')->get(['users.id', 'users.name', 'users.role', 'member.membership_role']);
+        return $this->eligibleMembers($circle)->orderBy('users.name')->get(['users.id', 'users.name', 'users.role', 'users.cpu_discipline', 'member.membership_role']);
     }
 
     private function circleMessages(int $circle, User $user, ?int $before = null)

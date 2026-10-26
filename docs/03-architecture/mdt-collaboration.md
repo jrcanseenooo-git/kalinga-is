@@ -12,7 +12,7 @@ MDT membership is not case access. An active, case-specific `mdt_case_access` gr
 - `mdt_discussions` and `mdt_discussion_reads`: case-specific coordination only. A discussion message is never silently converted into a case note.
 - `mdt_attachments`: private, grant-scoped supporting files with purpose/category, optional action/note linkage, uploader, and upload/download audit events. They are not entries in the general case-document store.
 
-Active grants start only at their start time and are immediately invalid after expiry, revocation, return, user deactivation, or case closure. Completion ends access only when the grant's `expire_on_completion` setting is enabled; otherwise the action is completed while the time-limited grant remains active. The hourly `kalinga:expire-mdt-access` command persists expiry status for operational reporting; endpoint checks enforce expiry even if the scheduler is delayed. Historical authorship and audit events are retained. Case closure blocks new posts, notes, actions, and attachments. Managers/supervisors with normal scoped case authority can retain read-only discussion visibility for supervision/retention.
+Active grants start only at their start time and are immediately invalid after expiry, revocation, return, user deactivation, or case closure. The current action endpoint records the grant as completed when an action is completed, and completed grants are excluded from normal active access. The intended behavior for multiple actions and expire_on_completion=false remains the B05 owner-review flag; the UI warns about the actual access-ending behavior and does not invent a new completion policy. The hourly kalinga:expire-mdt-access command persists expiry status for operational reporting; endpoint checks enforce expiry even if the scheduler is delayed. Historical authorship and audit events are retained. Case closure blocks new posts, notes, actions, and attachments. Managers with normal scoped case authority can retain discussion visibility under the existing case authorization.
 
 ## Capability model
 
@@ -40,7 +40,25 @@ Attachment upload accepts only PDF, JPEG, PNG, DOC, or DOCX files up to 10 MB. E
 
 ## Read state and access matrix
 
-Opening an authorized discussion records a per-message last-read timestamp in `mdt_discussion_reads`; this supports an unread count without social-media-style receipts. An active MDT member can read/post only their assigned thread. The assigned case manager and scoped supervisor may read the thread, but cannot use it as unrestricted messaging. The manager's normal case scope still governs that read.
+Opening an authorized discussion records a per-message last-read timestamp in mdt_discussion_reads. The current discussion endpoint is case-wide: CPU members with an active assignment for that case and managers with scoped case authority can read the case coordination thread. It is not a private assignment-specific conversation and is not the LGU group chat. Actions, formal notes and attachments remain scoped to the selected assignment. The new UI states this existing distinction; no discussion disclosure scope was expanded.
+
+## Multiple assignments and presentation workspace - 2026-10-23
+
+The worklist now links to a specific mdt_access_id. CPU endpoints validate that
+selection against the current user's eligible assignments for the same case;
+a forbidden or ended selection never falls back to another grant. Case-only
+links prioritize an assignment with an unanswered action, then the latest ID.
+The case workspace provides an explicit selector for that user's active
+assignments, with pending counts. Reads and writes keep the selection pinned.
+No actions or category permissions are unioned across assignments.
+
+The task-first screen shows referral purpose, remarks, assigning worker,
+assignment status, instructions and due dates before permitted case metadata,
+professional notes and supporting files. Case status is separately labeled.
+The referrer's staff name, note author ID and attachment scan state are included
+to support provenance and accurate controls. Client identity and sensitive
+unapproved categories remain excluded. See
+[CPU workspace delivery](../implementation/CPU-WORKSPACE-2026-10-23.md).
 
 | Category | MDT member by default | Explicit grant required |
 |---|---:|---:|

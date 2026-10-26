@@ -1,6 +1,6 @@
 # Data dictionary - Kalinga CEFMU Case Management Information System
 
-Generated from the PostgreSQL schema by scripts/generate_data_dictionary.py. 93 tables. PK = primary key; FK = references another table.
+Generated from the PostgreSQL schema by scripts/generate_data_dictionary.py, with the 2026-10-23 direct-message migration supplement below. 94 tables. PK = primary key; FK = references another table.
 
 ## Clients and identity
 
@@ -1328,6 +1328,29 @@ Read receipts of messages.
 | message_id | bigint | No | FK lgu_coordination_messages | Link to the lgu coordination message record (lgu_coordination_messages). |
 | user_id | bigint | No | FK users | Link to the user record (users). |
 | read_at | timestamp | No |  | Date and time: read. |
+
+### coordination_direct_messages
+
+Participant-only online coordination messages, separate from group chat and
+formal case records. Added by the 2026-10-23 migration; the generator catalogue
+also includes this table for subsequent full schema exports.
+
+| Column | Type | Null | Key | Description |
+|---|---|---|---|---|
+| id | bigint | No | PK | Unique message record. |
+| circle_id | bigint | No | FK lgu_coordination_circles | Shared LGU context; deletion restricted. |
+| sender_id | bigint | No | FK users | Sender; deletion restricted. |
+| recipient_id | bigint | No | FK users | Other participant; deletion restricted. |
+| parent_id | bigint | Yes | FK coordination_direct_messages | Optional reply; server validates the same pair/circle. |
+| body | text | No | | Coordination text, validated at 3000 characters maximum. |
+| is_urgent | boolean | No | | Operational urgency flag, default false. |
+| follow_up | boolean | No | | Operational follow-up flag, default false. |
+| created_at | timestamp | Yes | | Message creation timestamp, stored as UTC. |
+| updated_at | timestamp | Yes | | Record timestamp, stored as UTC. |
+
+Indexes: circle/sender/recipient/id and circle/recipient/sender/id. Both
+participants must currently qualify for the circle and chat posting permission
+for reads, search and sends. No case-reference or formal-capture fields.
 
 ## Records governance
 

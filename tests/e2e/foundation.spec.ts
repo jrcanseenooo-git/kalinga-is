@@ -26,7 +26,8 @@ for (const width of [360, 768, 1440]) test(`Connect sends a JSON-backed message 
     await page.setViewportSize({ width, height: 1000 });
     await login(page, { email: 'cpu@kalinga.test', password: 'password' });
     await page.goto('/cpu/coordination');
-    await expect(page.getByLabel('Coordination circle')).toContainText('Synthetic browser circle');
+    // The demo setup gives the CPU member the City of Tabuk circle; the fixture adds its synthetic history there.
+    await expect(page.getByLabel('Coordination circle')).toContainText('City of Tabuk CPU Coordination Circle');
     const body = `Synthetic operational follow-up ${Date.now()}`;
     await page.getByLabel('New message', { exact: true }).fill(body);
     await page.getByRole('button', { name: 'Send message', exact: true }).click();
@@ -64,7 +65,7 @@ test('Connect keeps a failed send in the composer and allows recovery', async ({
 
 test('Connect records only a reviewed summary through the active MDT grant', async ({ page }) => {
     await login(page, { email: 'cpu@kalinga.test', password: 'password' });
-    const caseHref = await page.getByRole('link', { name: 'Open permitted case', exact: true }).getAttribute('href');
+    const caseHref = await page.getByRole('link', { name: 'Open assignment', exact: true }).first().getAttribute('href');
     const caseId = caseHref!.match(/cases\/(\d+)\//)![1];
     await page.goto('/cpu/coordination');
     await page.getByLabel('New message', { exact: true }).fill('Synthetic operational capture source');

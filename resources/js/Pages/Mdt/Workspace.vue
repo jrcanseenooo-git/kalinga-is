@@ -12,6 +12,7 @@ defineProps<{
     organization: string;
     purpose: string;
     status: string;
+    pending_actions: number;
     access_expires_at: string | null;
   }>;
   lguSummary?: Record<string, number>;
@@ -33,7 +34,7 @@ const fmtDate = (d: string | null) => d ? formatPh(d, 'date') : 'Not recorded';
     <section class="w-full max-w-5xl">
       <header class="ui-panel p-5 sm:p-7">
         <p class="text-sm font-bold text-brand-700">My assigned work</p>
-        <h1 class="mt-1 text-2xl font-extrabold text-slate-900 sm:text-3xl">MDT Collaboration</h1>
+        <h1 class="mt-1 text-2xl font-bold text-slate-900 sm:text-3xl">My referred cases</h1>
         <p class="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Only case-specific assignments appear here. Access is time-limited and restricted to the information needed for the stated purpose.</p>
       </header>
 
@@ -51,7 +52,7 @@ const fmtDate = (d: string | null) => d ? formatPh(d, 'date') : 'Not recorded';
 
       <!-- Assignments -->
       <div v-if="assignments.length" class="mt-5 grid gap-4 sm:grid-cols-2">
-        <article v-for="item in assignments" :key="item.id" class="ui-panel p-5 transition hover:shadow-md">
+        <article v-for="item in assignments" :key="item.id" class="rounded-xl border border-slate-200 bg-white p-5">
           <div class="flex items-start justify-between gap-3">
             <div>
               <p class="text-[10px] font-bold uppercase tracking-widest text-slate-500">{{ item.case_number }}</p>
@@ -64,10 +65,11 @@ const fmtDate = (d: string | null) => d ? formatPh(d, 'date') : 'Not recorded';
           <div class="mt-3 space-y-1.5">
             <p class="text-sm text-slate-700"><span class="font-bold text-slate-500">Office:</span> {{ item.organization }}</p>
             <p class="text-sm text-slate-600"><span class="font-bold text-slate-500">Purpose:</span> {{ item.purpose }}</p>
+            <p class="text-sm font-semibold text-brand-900">Assignment #{{ item.id }} - {{ item.pending_actions }} awaiting response</p>
           </div>
           <p class="mt-3 text-[11px] text-slate-500">Access expires: {{ fmtDate(item.access_expires_at) }}</p>
-          <Link :href="route('cases.mdt.workspace', item.case_id)" class="mt-4 inline-flex rounded-xl bg-brand-700 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-brand-800">
-            Open permitted case
+          <Link :href="route('cases.mdt.workspace', {case: item.case_id, mdt_access_id: item.id})" class="mt-4 inline-flex min-h-11 items-center rounded-lg bg-brand-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-800">
+            Open assignment
           </Link>
         </article>
       </div>

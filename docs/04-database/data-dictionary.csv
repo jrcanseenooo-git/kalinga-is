@@ -769,6 +769,14 @@ Multidisciplinary team and coordination,lgu_coordination_message_reads,,,,Read r
 ,lgu_coordination_message_reads,message_id,bigint,Yes,Links to lgu_coordination_messages
 ,lgu_coordination_message_reads,user_id,bigint,Yes,Links to users
 ,lgu_coordination_message_reads,read_at,timestamp,Yes,Date and time: read.
+Multidisciplinary team and coordination,coordination_direct_messages,,,,Participant-only online coordination messages between two currently eligible members of one LGU circle.
+,coordination_direct_messages,circle_id,bigint,Yes,Links to lgu_coordination_circles; deletion restricted.
+,coordination_direct_messages,sender_id,bigint,Yes,Links to users; sender.
+,coordination_direct_messages,recipient_id,bigint,Yes,Links to users; other participant.
+,coordination_direct_messages,parent_id,bigint,,Links to coordination_direct_messages; server validates the same pair and circle.
+,coordination_direct_messages,body,text,Yes,Coordination text; maximum 3000 characters.
+,coordination_direct_messages,is_urgent,boolean,Yes,Operational urgency flag; default false.
+,coordination_direct_messages,follow_up,boolean,Yes,Operational follow-up flag; default false.
 Records governance,record_governance,,,,Classification and retention status of a record.
 ,record_governance,case_id,bigint,Yes,Links to cases
 ,record_governance,record_type,varchar(64),Yes,Kind of record.

@@ -21,6 +21,8 @@
 | Incident response plan | docs/05-governance/INCIDENT-RESPONSE-PLAN.md |
 | Audit retention policy | docs/05-governance/AUDIT-RETENTION-POLICY.md |
 | Developer guide | docs/DEVELOPER-GUIDE.md |
+| Connect group scope, private messaging and composer delivery | docs/implementation/CONNECT-MESSAGING-2026-10-23.md |
+| CPU assignment screen, referral selection and presentation | docs/implementation/CPU-WORKSPACE-2026-10-23.md |
 | Local setup and deployment | docs/07-installation/ |
 | Release notes | docs/10-migration-history/ |
 
