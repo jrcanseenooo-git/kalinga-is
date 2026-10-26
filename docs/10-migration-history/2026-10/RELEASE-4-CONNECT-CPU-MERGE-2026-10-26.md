@@ -41,9 +41,9 @@ demo (Render + Supabase). This release combines both.
 
 ## Verification
 
-- PHP: 465 passed on PostgreSQL; 462 passed and 2 skipped (PostgreSQL-only) on SQLite.
+- PHP: 465 passed on PostgreSQL; 464 passed and 2 skipped (PostgreSQL-only) on SQLite.
 - Front end: 33 passed; type check clean; Pint clean.
-- Browser suite: see the release message.
+- Browser suite: 261 tests. 257 passed on the first run; the 4 Connect tests still expected the old group name and the old "Open permitted case" button. After updating them, the foundation file passed 26 of 26.
 
 ## To deploy
 
