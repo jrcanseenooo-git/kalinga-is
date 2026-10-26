@@ -16,7 +16,8 @@ class OperationsAccessTest extends TestCase
         $this->actingAs($viewer)->get(route('reports.index'))->assertForbidden();
         // The referral list page is retired; referrals live in case progress notes.
         $this->actingAs($viewer)->get(route('referrals.index'))->assertRedirect('/dashboard');
-        $this->actingAs($viewer)->get(route('tasks.index'))->assertForbidden();
+        // CPU members have a calendar since Phase 5 (to answer invitations).
+        $this->actingAs($viewer)->get(route('tasks.index'))->assertRedirect(route('calendar.index'));
         $this->actingAs($viewer)->getJson(route('search', ['q' => 'test']))->assertForbidden();
         $this->assertNull(app('router')->getRoutes()->getByName('reports.store'));
     }

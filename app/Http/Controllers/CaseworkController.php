@@ -587,11 +587,7 @@ class CaseworkController extends Controller
             DB::table('cases')->where('id', $case)->update([
                 'assigned_to' => $worker->id, 'offline_version' => DB::raw('offline_version + 1'), 'updated_at' => now(),
             ]);
-            DB::table('notifications')->insert([
-                'user_id' => $worker->id, 'type' => 'case_assigned', 'title' => 'Case assigned',
-                'body' => 'You were assigned ' . $record->case_number . '.', 'action_url' => '/cases/' . $case,
-                'created_at' => now(), 'updated_at' => now(),
-            ]);
+            app(OperationalNotification::class)->send($worker->id, 'case_assigned', 'Case assigned', 'You were assigned ' . $record->case_number . '.', '/cases/' . $case);
             AuditLog::insert([
                 'user_id' => $request->user()->id, 'event' => 'case.reassigned', 'auditable_type' => 'case',
                 'auditable_id' => $case, 'changes' => json_encode(['from' => $record->assigned_to, 'to' => $worker->id]),

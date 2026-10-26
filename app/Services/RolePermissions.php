@@ -80,6 +80,8 @@ class RolePermissions
             'mdt.access', 'mdt.note.create', 'mdt.discussion.create',
             'cpu.chat.view', 'cpu.chat.post', 'cpu.chat.search', 'cpu.chat.capture',
             'referrals.respond',
+            // Calendar: to see and answer invitations to shared activities (Phase 5).
+            'activities.manage',
         ],
     ];
 
@@ -171,6 +173,12 @@ class RolePermissions
     public function isCaseworkRole(User $user): bool
     {
         return $user->role === 'social_worker' && in_array('cases.view', self::GRANTS['social_worker'], true);
+    }
+
+    /** Display name of a role, for example "Case Manager". */
+    public static function label(?string $role): string
+    {
+        return self::ROLES[$role][0] ?? ucwords(str_replace('_', ' ', (string) $role));
     }
 
     public function isMonitoringRole(User $user): bool

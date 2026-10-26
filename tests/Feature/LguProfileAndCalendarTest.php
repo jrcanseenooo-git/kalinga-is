@@ -124,7 +124,7 @@ class LguProfileAndCalendarTest extends TestCase
 
         $this->post(route('tasks.store'), ['title' => 'Bad', 'event_type' => 'party'])->assertSessionHasErrors('event_type');
 
-        $this->patch(route('tasks.update', $task->id), ['title' => 'Home visit moved', 'event_type' => 'home_visit', 'due_at' => now()->addDays(4)->format('Y-m-d\TH:i')])->assertRedirect();
+        $this->patch(route('tasks.update', $task->id), ['title' => 'Home visit moved', 'event_type' => 'home_visit', 'due_at' => now()->addDays(4)->format('Y-m-d\TH:i'), 'reason' => 'Family asked to move it.'])->assertRedirect();
         $this->assertDatabaseHas('tasks', ['id' => $task->id, 'title' => 'Home visit moved']);
 
         $this->get(route('calendar.index'))->assertOk()->assertInertia(fn (Assert $page) => $page

@@ -35,6 +35,13 @@ return [
         ],
     ],
 
+    // Phone notifications (App\Services\WebPush). Create keys with: php artisan kalinga:vapid-keys
+    'webpush' => [
+        'public_key' => env('VAPID_PUBLIC_KEY'),
+        'private_key' => env('VAPID_PRIVATE_KEY'),
+        'subject' => env('VAPID_SUBJECT', 'mailto:no-reply@kalinga.local'),
+    ],
+
     'google' => [
         'client_id' => env('GOOGLE_CLIENT_ID'),
         'client_secret' => env('GOOGLE_CLIENT_SECRET'),

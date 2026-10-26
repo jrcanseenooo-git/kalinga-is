@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Services\CaseAccessScope;
 use App\Services\RolePermissions;
+use App\Services\WebPush;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -99,6 +100,8 @@ class HandleInertiaRequests extends Middleware
             'unreadNotifications' => fn () => $includeNotifications && $request->user()
                 ? DB::table('notifications')->where('user_id', $request->user()->id)->whereNull('read_at')->count()
                 : 0,
+            // Public VAPID key for turning on phone notifications (null when not configured).
+            'pushPublicKey' => fn () => $request->user() ? WebPush::publicKey() : null,
         ];
     }
 }

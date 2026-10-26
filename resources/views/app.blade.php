@@ -19,6 +19,10 @@
         </style>
         <link rel="icon" type="image/x-icon" href="{{ asset('favicon.ico') }}?v=4">
         <meta name="theme-color" content="#311969">
+        <link rel="manifest" href="/manifest.webmanifest">
+        <link rel="apple-touch-icon" href="/icons/kalinga-192.png">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-title" content="Kalinga">
 
         <!-- Scripts -->
         @routes(null, \Illuminate\Support\Facades\Vite::cspNonce())

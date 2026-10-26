@@ -68,6 +68,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/calendar', [OperationsController::class, 'calendar'])->name('calendar.index');
     Route::post('/tasks', [OperationsController::class, 'storeTask'])->middleware('throttle:sensitive-write')->name('tasks.store');
     Route::patch('/tasks/{task}', [OperationsController::class, 'updateTask'])->middleware('throttle:sensitive-write')->name('tasks.update');
+    Route::get('/calendar/invitees', [OperationsController::class, 'inviteCandidates'])->name('calendar.invitees');
+    Route::post('/tasks/{task}/response', [OperationsController::class, 'respondTask'])->middleware('throttle:sensitive-write')->name('tasks.respond');
     Route::patch('/tasks/{task}/status', [OperationsController::class, 'transitionTask'])->middleware('throttle:sensitive-write')->name('tasks.transition');
     Route::get('/analytics', [AnalyticsController::class, 'index'])->name('analytics.index');
     Route::get('/analytics/export', [AnalyticsController::class, 'export'])->name('analytics.export');
@@ -89,6 +91,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/cpu/coordination/circles', [CpuCoordinationController::class, 'createCircle'])->middleware('throttle:sensitive-write')->name('cpu.coordination.circles.store');
     Route::post('/cpu/coordination/{circle}/members', [CpuCoordinationController::class, 'addMember'])->middleware('throttle:sensitive-write')->name('cpu.coordination.members.store');
     Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::get('/notifications/latest', [NotificationController::class, 'latest'])->name('notifications.latest');
+    Route::post('/push-subscriptions', [NotificationController::class, 'subscribe'])->middleware('throttle:sensitive-write')->name('push.subscribe');
+    Route::delete('/push-subscriptions', [NotificationController::class, 'unsubscribe'])->middleware('throttle:sensitive-write')->name('push.unsubscribe');
     Route::patch('/notifications/read-all', [NotificationController::class, 'readAll'])->name('notifications.read-all');
     Route::redirect('/offline', '/offline-workspace')->name('offline.index');
     Route::patch('/notifications/{notification}/read', [NotificationController::class, 'read'])->name('notifications.read');

@@ -5,11 +5,16 @@ import FormField from '@/Components/UI/FormField.vue';
 import OptionSelect from '@/Components/UI/OptionSelect.vue';
 import { EVENT_TYPES, VISIT_LOCATIONS, eventTone, eventTypeLabel } from '@/utils/caseOptions';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
-import { AlertTriangle, CalendarDays, CalendarPlus, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Clock3, FolderOpen, List, MapPin, Plus, Sparkles, XCircle } from '@lucide/vue';
+import axios from 'axios';
+import { AlertTriangle, CalendarDays, Check, History, UserPlus, Users, X, CalendarPlus, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Clock3, FolderOpen, List, MapPin, Plus, Sparkles, XCircle } from '@lucide/vue';
 import { computed, ref, watch } from 'vue';
 import { formatPh, manilaDayKey, parseStored, storedUtcToManilaInput } from '@/utils/philippineTime';
 
-type Task = { id: number; title: string; event_type: string | null; due_at: string | null; location: string | null; details: string | null; status: string; case_id: number | null; case_number?: string | null };
+type Person = { id: number; name: string; role?: string; response?: string };
+type HistoryItem = { event: string; from_due_at: string | null; to_due_at: string | null; reason: string | null; created_at: string; actor: string };
+/** shared = invited by someone else (read only; answer the invitation). */
+type Task = { id: number; title: string; event_type: string | null; due_at: string | null; location: string | null; details: string | null; status: string; case_id: number | null; case_number?: string | null;
+  shared?: boolean; organizer?: string; my_response?: string; participants?: Person[]; history?: HistoryItem[] };
 type CaseEvent = { key: string; type: string; title: string; at: string; case_id: number; case_number: string; source: string };
 type Entry = { key: string; title: string; type: string; at: string; caseId: number | null; caseNumber: string | null; location: string | null; details: string | null; status: string; source: string | null; task: Task | null };
 
@@ -70,7 +75,26 @@ const overdue = computed(() => entries.value.filter(isOverdue));
 // Add / edit
 const formOpen = ref(false);
 const editing = ref<Task | null>(null);
-const form = useForm({ title: '', event_type: 'home_visit', case_id: '' as number | '', due_at: '', location: '', details: '' });
+const form = useForm({ title: '', event_type: 'home_visit', case_id: '' as number | '', due_at: '', location: '', details: '', participants: [] as number[], reason: '' });
+// Invitees: chosen by name from people working in your area.
+const invitees = ref<Person[]>([]);
+const inviteQuery = ref('');
+const inviteResults = ref<Person[]>([]);
+let inviteTimer: ReturnType<typeof setTimeout> | null = null;
+watch(inviteQuery, value => {
+  if (inviteTimer) clearTimeout(inviteTimer);
+  if (value.trim().length < 2) { inviteResults.value = []; return; }
+  inviteTimer = setTimeout(async () => {
+    try { inviteResults.value = (await axios.get(route('calendar.invitees'), { params: { q: value.trim() } })).data.users.filter((user: Person) => !invitees.value.some(item => item.id === user.id)); }
+    catch { inviteResults.value = []; }
+  }, 250);
+});
+const invite = (person: Person) => { invitees.value.push(person); inviteQuery.value = ''; inviteResults.value = []; };
+const uninvite = (id: number) => { invitees.value = invitees.value.filter(person => person.id !== id); };
+/** Moving an activity that already had a date needs a reason (shared with the people concerned). */
+const moved = computed(() => Boolean(editing.value?.due_at) && form.due_at !== manilaInput(editing.value!.due_at as string));
+const responseLabel: Record<string, string> = { pending: 'Invited', accepted: 'Going', declined: 'Not going' };
+const historyLabel: Record<string, string> = { created: 'Created', rescheduled: 'Rescheduled', cancelled: 'Cancelled', completed: 'Marked done', invited: 'Invited', accepted: 'Accepted', declined: 'Declined' };
 const titleTouched = ref(false);
 const caseNumber = (id: number | '') => props.availableCases.find(item => item.id === id)?.case_number;
 /** Suggests a title from the type and case until the worker types their own. */
@@ -79,12 +103,14 @@ watch(suggestedTitle, value => { if (!titleTouched.value) form.title = value; })
 const manilaInput = (stored: string) => storedUtcToManilaInput(stored);
 function openAdd(dayKey = todayKey) {
   editing.value = null; titleTouched.value = false; form.clearErrors();
-  form.defaults({ title: '', event_type: 'home_visit', case_id: '', due_at: `${dayKey}T09:00`, location: '', details: '' }); form.reset();
+  form.defaults({ title: '', event_type: 'home_visit', case_id: '', due_at: `${dayKey}T09:00`, location: '', details: '', participants: [], reason: '' }); form.reset();
+  invitees.value = []; inviteQuery.value = '';
   form.title = suggestedTitle.value; detail.value = null; formOpen.value = true;
 }
 function openEdit(task: Task) {
   editing.value = task; titleTouched.value = true; form.clearErrors();
-  form.defaults({ title: task.title, event_type: task.event_type || 'other', case_id: task.case_id ?? '', due_at: task.due_at ? manilaInput(task.due_at) : '', location: task.location ?? '', details: task.details ?? '' }); form.reset();
+  form.defaults({ title: task.title, event_type: task.event_type || 'other', case_id: task.case_id ?? '', due_at: task.due_at ? manilaInput(task.due_at) : '', location: task.location ?? '', details: task.details ?? '', participants: [], reason: '' }); form.reset();
+  invitees.value = (task.participants ?? []).filter(person => person.response !== 'removed').map(person => ({ ...person })); inviteQuery.value = '';
   detail.value = null; formOpen.value = true;
 }
 /** Gentle clash check: another activity within an hour of the chosen time. */
@@ -95,15 +121,21 @@ const clash = computed(() => {
 });
 function save() {
   const options = { preserveScroll: true, onSuccess: () => { formOpen.value = false; } };
-  form.transform(data => ({ ...data, case_id: data.case_id || null }));
+  form.transform(data => ({ ...data, case_id: data.case_id || null, participants: invitees.value.map(person => person.id), reason: moved.value ? data.reason : '' }));
   if (editing.value) form.patch(route('tasks.update', editing.value.id), options); else form.post(route('tasks.store'), options);
 }
 
 // Details
 const detail = ref<Entry | null>(null);
-function transition(task: Task, status: 'completed' | 'cancelled') {
-  router.patch(route('tasks.transition', task.id), { status }, { preserveScroll: true, onSuccess: () => { detail.value = null; } });
+function transition(task: Task, status: 'completed' | 'cancelled', reason = '') {
+  router.patch(route('tasks.transition', task.id), { status, reason }, { preserveScroll: true, onSuccess: () => { detail.value = null; cancelling.value = false; cancelReason.value = ''; }, onError: errors => { cancelError.value = errors.reason ?? ''; } });
 }
+// Cancelling needs a reason; it is shared with the people concerned and kept in the history.
+const cancelling = ref(false);
+const cancelReason = ref('');
+const cancelError = ref('');
+watch(detail, () => { cancelling.value = false; cancelReason.value = ''; cancelError.value = ''; });
+const respond = (task: Task, response: 'accepted' | 'declined') => router.post(route('tasks.respond', task.id), { response }, { preserveScroll: true, onSuccess: () => { detail.value = null; } });
 const toneClass = (type: string) => `tone-${eventTone(type)}`;
 </script>
 
@@ -201,10 +233,22 @@ const toneClass = (type: string) => `tone-${eventTone(type)}`;
           <div v-if="detail.caseNumber" class="flex gap-2"><dt class="sr-only">Case</dt><FolderOpen class="mt-0.5 h-4 w-4 text-slate-500" aria-hidden="true"/><dd><Link v-if="detail.caseId" :href="route('cases.show', detail.caseId)" class="font-semibold text-brand-700 hover:underline">{{ detail.caseNumber }}</Link></dd></div>
         </dl>
         <p v-if="detail.details" class="mt-4 whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-sm text-slate-700">{{ detail.details }}</p>
+        <p v-if="detail.task?.shared" class="mt-4 flex items-center gap-2 rounded-lg bg-brand-50 p-3 text-sm text-brand-900"><Users class="h-4 w-4 shrink-0" aria-hidden="true"/>Invited by {{ detail.task.organizer }}. Your answer: <b>{{ responseLabel[detail.task.my_response ?? 'pending'] }}</b></p>
+        <div v-if="detail.task?.participants?.length" class="mt-4"><h3 class="text-xs font-semibold uppercase tracking-wide text-slate-600">Invited</h3><ul class="mt-1 flex flex-wrap gap-1.5"><li v-for="person in detail.task.participants" :key="person.id" class="rounded-full border border-slate-200 px-2.5 py-1 text-xs">{{ person.name }} <span class="text-slate-600">- {{ responseLabel[person.response ?? 'pending'] ?? person.response }}</span></li></ul></div>
+        <details v-if="detail.task?.history?.length" class="mt-4 text-sm"><summary class="flex min-h-9 cursor-pointer items-center gap-1.5 text-xs font-semibold text-slate-700"><History class="h-4 w-4" aria-hidden="true"/>History ({{ detail.task.history.length }})</summary>
+          <ol class="mt-2 space-y-1.5 border-l-2 border-slate-200 pl-3 text-xs text-slate-700"><li v-for="(item, index) in detail.task.history" :key="index"><b>{{ historyLabel[item.event] ?? item.event }}</b> by {{ item.actor }}, {{ formatPh(item.created_at, 'dateTimeShort') }}<template v-if="item.event === 'rescheduled'"> - from {{ item.from_due_at ? formatPh(item.from_due_at, 'dateTimeShort') : 'no date' }} to {{ item.to_due_at ? formatPh(item.to_due_at, 'dateTimeShort') : 'no date' }}</template><template v-if="item.event === 'invited'"> - {{ item.reason }}</template><span v-else-if="item.reason" class="block text-slate-600">Reason: {{ item.reason }}</span></li></ol></details>
+        <form v-if="cancelling && detail.task" class="mt-4 space-y-2 rounded-lg border border-rose-200 bg-rose-50 p-3" data-skip-generic-confirm="true" @submit.prevent="transition(detail.task, 'cancelled', cancelReason)">
+          <FormField id="cancel-reason" label="Reason for cancelling" :error="cancelError" hint="Shared with the invited people and the supervisor, Field Office and Project Manager." required><textarea id="cancel-reason" v-model="cancelReason" rows="2" minlength="5" maxlength="500" required class="ui-field"></textarea></FormField>
+          <div class="flex justify-end gap-2"><button type="button" class="ui-button" @click="cancelling = false">Keep activity</button><button type="submit" class="ui-button text-rose-700" :disabled="cancelReason.trim().length < 5">Cancel activity</button></div>
+        </form>
         <p v-if="!detail.task" class="mt-4 text-xs text-slate-600">This date comes from the case record. Change it in the case itself.</p>
         <div class="mt-5 flex flex-wrap justify-end gap-2">
-          <template v-if="detail.task && detail.status === 'open'">
-            <button type="button" class="ui-button text-rose-700" @click="transition(detail.task, 'cancelled')"><XCircle class="h-4 w-4" aria-hidden="true"/>Cancel activity</button>
+          <template v-if="detail.task?.shared && detail.status === 'open'">
+            <button type="button" class="ui-button" :disabled="detail.task.my_response === 'declined'" @click="respond(detail.task, 'declined')"><X class="h-4 w-4" aria-hidden="true"/>Not going</button>
+            <button type="button" class="ui-button-primary" :disabled="detail.task.my_response === 'accepted'" @click="respond(detail.task, 'accepted')"><Check class="h-4 w-4" aria-hidden="true"/>Going</button>
+          </template>
+          <template v-else-if="detail.task && detail.status === 'open' && !cancelling">
+            <button type="button" class="ui-button text-rose-700" @click="cancelling = true"><XCircle class="h-4 w-4" aria-hidden="true"/>Cancel activity</button>
             <button type="button" class="ui-button" @click="openEdit(detail.task)">Edit</button>
             <button type="button" class="ui-button-primary" @click="transition(detail.task, 'completed')"><CheckCircle2 class="h-4 w-4" aria-hidden="true"/>Mark done</button>
           </template>
@@ -224,6 +268,15 @@ const toneClass = (type: string) => `tone-${eventTone(type)}`;
           <FormField id="event-when" label="Date and time (Philippine time)" :error="form.errors.due_at" required><input id="event-when" v-model="form.due_at" type="datetime-local" required class="ui-field"></FormField>
           <p v-if="clash" class="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-950 sm:col-span-2">You already have "{{ clash.title }}" at {{ time(clash.at) }} that day. Check you can make both.</p>
           <FormField id="event-where" label="Place" :error="form.errors.location"><OptionSelect id="event-where" v-model="form.location" :options="VISIT_LOCATIONS" placeholder="Not set" /></FormField>
+          <FormField v-if="moved" id="event-reason" label="Reason for moving this activity" :error="form.errors.reason" hint="Shared with the invited people and the supervisor, Field Office and Project Manager, and kept in the history." required class="sm:col-span-2"><textarea id="event-reason" v-model="form.reason" rows="2" minlength="5" maxlength="500" required class="ui-field"></textarea></FormField>
+          <div class="sm:col-span-2">
+            <label for="event-invite" class="flex items-center gap-1.5 text-sm font-medium text-slate-800"><UserPlus class="h-4 w-4" aria-hidden="true"/>Invite people (optional)</label>
+            <ul v-if="invitees.length" class="mt-2 flex flex-wrap gap-1.5" aria-label="Invited people"><li v-for="person in invitees" :key="person.id" class="inline-flex items-center gap-1 rounded-full bg-brand-50 py-1 pl-3 pr-1 text-xs text-brand-900">{{ person.name }}<button type="button" class="grid h-7 w-7 place-items-center rounded-full hover:bg-white" :aria-label="`Remove ${person.name}`" @click="uninvite(person.id)"><X class="h-3.5 w-3.5" aria-hidden="true"/></button></li></ul>
+            <input id="event-invite" v-model="inviteQuery" type="search" autocomplete="off" placeholder="Type a name" class="ui-field mt-2" aria-describedby="event-invite-help" :aria-expanded="inviteResults.length > 0" aria-controls="event-invite-results">
+            <p id="event-invite-help" class="mt-1 text-xs text-slate-600">People who work in your area. Inviting someone does not give them access to the case.</p>
+            <p v-if="form.errors.participants" class="mt-1 text-xs text-rose-800" role="alert">{{ form.errors.participants }}</p>
+            <ul v-if="inviteResults.length" id="event-invite-results" class="mt-1 max-h-48 divide-y divide-slate-100 overflow-y-auto rounded-lg border border-slate-200"><li v-for="person in inviteResults" :key="person.id"><button type="button" class="flex min-h-11 w-full items-center justify-between gap-2 px-3 text-left text-sm hover:bg-brand-50" @click="invite(person)"><span>{{ person.name }}</span><span class="text-xs text-slate-600">{{ person.role }}</span></button></li></ul>
+          </div>
           <FormField id="event-details" label="Notes (optional)" :error="form.errors.details" hint="Logistics only, for example who to bring. Write case findings in the progress notes." class="sm:col-span-2"><textarea id="event-details" v-model="form.details" rows="3" maxlength="2000" class="ui-field"/></FormField>
         </div>
         <div class="flex justify-end gap-2"><button type="button" class="ui-button" @click="formOpen = false">Cancel</button><button type="submit" class="ui-button-primary" :disabled="form.processing">{{ form.processing ? 'Saving...' : editing ? 'Save changes' : 'Add to calendar' }}</button></div>
