@@ -54,7 +54,7 @@ test('cpu member sees only referred work and its permitted case workspace', asyn
     await expect(page.getByText('My assigned work')).toBeVisible();
     await expect(page.getByText('DEMO-KLG-2026-0001')).toBeVisible();
     await expect(page.getByRole('link', { name: 'Cases', exact: true })).toHaveCount(0);
-    await page.getByRole('link', { name: 'Open permitted case information' }).click();
+    await page.getByRole('link', { name: 'Open assignment', exact: true }).first().click();
     await expect(page).toHaveURL(/cases\/\d+\/mdt\/workspace/);
     await expectAccessibleWorkspace(page);
 });
