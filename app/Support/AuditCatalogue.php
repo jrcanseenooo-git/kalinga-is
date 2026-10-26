@@ -50,7 +50,7 @@ final class AuditCatalogue
         'record' => 'Records Governance', 'record_hold' => 'Records Governance', 'record_disposition' => 'Records Governance',
         'identity_candidate' => 'Identity Review', 'identity_identifier' => 'Identity Review', 'identity_link' => 'Identity Review', 'identity_merge' => 'Identity Review',
         'form_field' => 'System Configuration', 'reference_data' => 'System Configuration', 'system' => 'System',
-        'offline' => 'Offline and Sync', 'demo' => 'System', 'intake_draft' => 'Intake',
+        'offline' => 'Offline and Sync', 'demo' => 'System', 'intake_draft' => 'Intake', 'case_remark' => 'Case Monitoring', 'kavat' => 'KaVAT', 'case_form' => 'Kalinga Forms', 'grant' => 'Grants',
     ];
 
     /** Exact events: [type, action, description] (module from the prefix). */
@@ -134,6 +134,9 @@ final class AuditCatalogue
         'intake_draft.completed' => ['workflow_status', 'SUBMIT', 'Saved intake completed; case folder created'],
         'case.risk_level_lowered' => ['data_modification', 'UPDATE', 'Initial risk level set lower than suggested'],
         'document.uploaded' => ['document_file', 'UPLOAD', 'Document uploaded'],
+        'case.monitored' => ['data_access', 'VIEW', 'Viewed the case monitoring summary'],
+        'case_remark.created' => ['data_creation', 'CREATE', 'Remark added'],
+        'case_remark.acknowledged' => ['workflow_status', 'UPDATE', 'Remark marked as read'],
         'demo.case_seeded' => ['data_creation', 'CREATE', 'Fictional demo case loaded'],
         'identity_merge.executed' => ['data_modification', 'UPDATE', 'Duplicate client records merged'],
         'identity_merge.approved' => ['workflow_status', 'APPROVE', 'Client record merge approved'],

@@ -12,7 +12,6 @@ use App\Support\AuditLog;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
@@ -147,17 +146,10 @@ class OperationsController extends Controller
         return $events;
     }
 
-    public function providers(Request $r)
-    {
-        $this->authorize('administer-system');
-
-        return Inertia::render('Providers/Index', ['items' => DB::table('service_providers')->orderBy('name')->get()]);
-    }
-
     public function storeReferral(Request $r)
     {
         $this->authorize('referrals.create');
-        $d = $r->validate(['case_id' => 'required|integer', 'service_provider_id' => ['nullable', Rule::exists('service_providers', 'id')->where('active', true)], 'service_category' => 'required|string|max:255', 'reason' => 'nullable|string|max:5000', 'lawful_basis' => 'required|in:consent,legal_obligation,vital_interests,public_task']);
+        $d = $r->validate(['case_id' => 'required|integer', 'service_category' => 'required|string|max:255', 'reason' => 'nullable|string|max:5000', 'lawful_basis' => 'required|in:consent,legal_obligation,vital_interests,public_task']);
         $this->caseAccess($r, (int) $d['case_id']);
         if ($d['lawful_basis'] === 'consent' && !$this->hasSharingConsent((int) $d['case_id'])) {
             throw ValidationException::withMessages(['lawful_basis' => 'This case has no active consent that allows sharing. Record it in the case (Client & Intake, Consent register) or choose another documented basis.']);
@@ -204,16 +196,6 @@ class OperationsController extends Controller
         AuditLog::insert(['user_id' => $r->user()->id, 'event' => 'task.updated', 'auditable_type' => 'task', 'auditable_id' => $task, 'created_at' => now(), 'updated_at' => now()]);
 
         return back()->with('success', 'Activity updated.');
-    }
-
-    public function storeProvider(Request $r)
-    {
-        $this->authorize('administer-system');
-        $d = $r->validate(['name' => 'required|string|max:255', 'service_type' => 'required|string|max:255', 'contact_person' => 'nullable|string|max:255', 'phone' => 'nullable|string|max:80', 'region' => 'nullable|string|max:120', 'province' => 'nullable|string|max:120', 'municipality' => 'nullable|string|max:120', 'barangay' => 'nullable|string|max:120']);
-        $id = DB::table('service_providers')->insertGetId($d + ['active' => true, 'created_at' => now(), 'updated_at' => now()]);
-        AuditLog::insert(['user_id' => $r->user()->id, 'event' => 'provider.created', 'auditable_type' => 'service_provider', 'auditable_id' => $id, 'created_at' => now(), 'updated_at' => now()]);
-
-        return back()->with('success', 'Service provider added to the directory.');
     }
 
     public function transitionTask(Request $r, int $task)

@@ -7,6 +7,7 @@ use App\Http\Controllers\CaseArtifactController;
 use App\Http\Controllers\CaseClosureRecordController;
 use App\Http\Controllers\CaseConferenceController;
 use App\Http\Controllers\CasePlanLifecycleController;
+use App\Http\Controllers\CaseRemarkController;
 use App\Http\Controllers\CaseReportController;
 use App\Http\Controllers\CaseworkController;
 use App\Http\Controllers\ChildParticipationController;
@@ -17,6 +18,7 @@ use App\Http\Controllers\IntakeDraftController;
 use App\Http\Controllers\LguProfileController;
 use App\Http\Controllers\ManagementDashboardController;
 use App\Http\Controllers\MdtCollaborationController;
+use App\Http\Controllers\MonitoringController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OfflineDeviceController;
 use App\Http\Controllers\OfflineSyncController;
@@ -66,8 +68,6 @@ Route::middleware('auth')->group(function () {
     Route::post('/tasks', [OperationsController::class, 'storeTask'])->middleware('throttle:sensitive-write')->name('tasks.store');
     Route::patch('/tasks/{task}', [OperationsController::class, 'updateTask'])->middleware('throttle:sensitive-write')->name('tasks.update');
     Route::patch('/tasks/{task}/status', [OperationsController::class, 'transitionTask'])->middleware('throttle:sensitive-write')->name('tasks.transition');
-    Route::get('/providers', [OperationsController::class, 'providers'])->name('providers.index');
-    Route::post('/providers', [OperationsController::class, 'storeProvider'])->middleware('throttle:sensitive-write')->name('providers.store');
     Route::get('/analytics', [AnalyticsController::class, 'index'])->name('analytics.index');
     Route::get('/analytics/export', [AnalyticsController::class, 'export'])->name('analytics.export');
     Route::get('/quarterly-monitoring', [AnalyticsController::class, 'quarterly'])->name('analytics.quarterly');
@@ -118,6 +118,13 @@ Route::middleware('auth')->group(function () {
     Route::get('/admin/users/{user}/devices', [OfflineDeviceController::class, 'adminIndex'])->name('admin.users.devices.index');
     Route::post('/admin/devices/{device}/revoke', [OfflineDeviceController::class, 'adminRevoke'])->middleware('throttle:sensitive-write')->name('admin.devices.revoke');
     Route::get('/cases', [CaseworkController::class, 'cases'])->name('cases.index');
+    Route::get('/monitoring/cases', [MonitoringController::class, 'index'])->name('monitoring.cases.index');
+    Route::get('/monitoring/cases/{case}', [MonitoringController::class, 'show'])->name('monitoring.cases.show');
+    Route::post('/monitoring/cases/{case}/remarks', [MonitoringController::class, 'remark'])->middleware('throttle:sensitive-write')->name('monitoring.cases.remarks.store');
+    Route::post('/monitoring/cases/{case}/closure/approve', [MonitoringController::class, 'approveClosure'])->middleware('throttle:sensitive-write')->name('monitoring.cases.closure.approve');
+    Route::post('/monitoring/cases/{case}/closure/return', [MonitoringController::class, 'returnClosure'])->middleware('throttle:sensitive-write')->name('monitoring.cases.closure.return');
+    Route::post('/cases/{case}/remarks/{remark}/reply', [CaseRemarkController::class, 'reply'])->middleware('throttle:sensitive-write')->name('cases.remarks.reply');
+    Route::post('/cases/{case}/remarks/{remark}/acknowledge', [CaseRemarkController::class, 'acknowledge'])->middleware('throttle:sensitive-write')->name('cases.remarks.acknowledge');
     Route::get('/cases/create', [CaseworkController::class, 'create'])->name('cases.create');
     // Retired: identity candidates are reviewed through the scoped Identity Review queue.
     Route::get('/cases/duplicates/check', fn () => abort(410, 'Use the authorized Identity Review queue.'))->name('cases.duplicates');

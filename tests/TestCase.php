@@ -21,21 +21,7 @@ abstract class TestCase extends BaseTestCase
      */
     public function actingAs(Authenticatable $user, $guard = null): static
     {
-        // Legacy tests represented an LGU/FO reviewer as an unassigned
-        // social_worker with the same municipality as the case. Reconcile that
-        // fixture to the current oversight role instead of weakening assigned-
-        // case access for ordinary case managers.
-        if ($user instanceof User && $user->role === 'social_worker'
-            && $user->account_status !== 'fixture_unassigned'
-            && !DB::table('cases')->where('assigned_to', $user->id)->exists()
-            && trim((string) $user->municipality) !== '') {
-            $reviewProvince = DB::table('cases')->join('clients', 'clients.id', '=', 'cases.client_id')
-                ->where('clients.municipality', trim((string) $user->municipality))
-                ->value('clients.province');
-            if ($reviewProvince) {
-                $user->forceFill(['role' => 'fo_user', 'province' => $reviewProvince])->save();
-            }
-        }
+        $this->reconcileLegacyReviewer($user);
 
         if ($user instanceof User && in_array($user->role, ['social_worker', 'cpu_member'], true)) {
             $this->ensureNormalizedLguAssignment($user);
@@ -52,6 +38,59 @@ abstract class TestCase extends BaseTestCase
         }
 
         return parent::actingAs($user, $guard);
+    }
+
+    /** be() is used directly by some tests; it only reconciles legacy reviewer fixtures. */
+    public function be(Authenticatable $user, $guard = null): static
+    {
+        $this->reconcileLegacyReviewer($user);
+
+        return parent::be($user, $guard);
+    }
+
+    private function reconcileLegacyReviewer(Authenticatable $user): void
+    {
+        // Legacy tests represented the second, reviewing person either as an
+        // unassigned social_worker with the case municipality or as a province
+        // Field Office user. Reviews now belong to the LGU Head, so reconcile
+        // those fixtures to an LGU Head assigned to the LGUs of those cases.
+        if ($user instanceof User && $user->account_status !== 'fixture_unassigned') {
+            $legacyReviewer = $user->role === 'social_worker' && trim((string) $user->municipality) !== ''
+                && !DB::table('cases')->where('assigned_to', $user->id)->exists();
+            $legacyFieldOffice = $user->role === 'fo_user' && trim((string) $user->province) !== '' && trim((string) $user->region) === '';
+            if ($legacyReviewer || $legacyFieldOffice) {
+                $column = $legacyReviewer ? 'clients.municipality' : 'clients.province';
+                $value = trim((string) ($legacyReviewer ? $user->municipality : $user->province));
+                $cases = DB::table('cases')->join('clients', 'clients.id', '=', 'cases.client_id')->where($column, $value)
+                    ->get(['cases.id', 'cases.lgu_id', 'cases.assigned_to', 'clients.municipality', 'clients.province', 'clients.region']);
+                if ($cases->isNotEmpty()) {
+                    $user->forceFill(['role' => 'lgu_head', 'municipality' => null, 'province' => null])->save();
+                    foreach ($cases as $case) {
+                        $lgu = $case->lgu_id ?: $this->testLgu((string) $case->municipality, (string) $case->province, (string) ($case->region ?: 'CAR'));
+                        if (!$case->lgu_id) {
+                            DB::table('cases')->where('id', $case->id)->update(['lgu_id' => $lgu]);
+                        }
+                        if (!DB::table('user_lgu_assignments')->where('user_id', $user->id)->where('lgu_id', $lgu)->where('active', true)->exists()) {
+                            DB::table('user_lgu_assignments')->insert(['user_id' => $user->id, 'lgu_id' => $lgu, 'effective_from' => now()->subDay(), 'active' => true, 'created_at' => now(), 'updated_at' => now()]);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /** The synthetic LGU used by legacy fixtures for a municipality (one per place). */
+    protected function test_lgu(string $municipality, string $province, string $region): int
+    {
+        $municipality = trim($municipality) ?: 'Tabuk City';
+        $province = trim($province) ?: 'Kalinga';
+        $region = trim($region) ?: 'CAR';
+        $code = 'TEST-' . substr(hash('sha256', $region . '|' . $province . '|' . $municipality), 0, 14);
+
+        return (int) (DB::table('lgu_units')->where('psgc_code', $code)->value('id') ?: DB::table('lgu_units')->insertGetId([
+            'psgc_code' => $code, 'name' => $municipality, 'province' => $province,
+            'region' => $region, 'active' => true, 'created_at' => now(), 'updated_at' => now(),
+        ]));
     }
 
     protected function ensureNormalizedLguAssignment(User $user, ?int $preferredLgu = null): int
@@ -84,14 +123,7 @@ abstract class TestCase extends BaseTestCase
         $municipality = trim((string) ($user->municipality ?: $caseLocation?->municipality ?: 'Tabuk City'));
         $province = trim((string) ($user->province ?: $caseLocation?->province ?: 'Kalinga'));
         $region = trim((string) ($user->region ?: $caseLocation?->region ?: 'CAR'));
-        $code = 'TEST-' . substr(hash('sha256', $region . '|' . $province . '|' . $municipality), 0, 14);
-        $lgu = DB::table('lgu_units')->where('psgc_code', $code)->value('id');
-        if (!$lgu) {
-            $lgu = DB::table('lgu_units')->insertGetId([
-                'psgc_code' => $code, 'name' => $municipality, 'province' => $province,
-                'region' => $region, 'active' => true, 'created_at' => now(), 'updated_at' => now(),
-            ]);
-        }
+        $lgu = $this->testLgu($municipality, $province, $region);
 
         DB::table('user_lgu_assignments')->insert([
             'user_id' => $user->id, 'lgu_id' => $lgu, 'effective_from' => now()->subDay(),

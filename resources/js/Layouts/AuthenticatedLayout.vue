@@ -20,16 +20,19 @@ const open = ref(false); const collapsed = ref(false); const confirmLogout = ref
 const permissions = computed(() => new Set<string>(page.props.auth.permissions ?? []));
 const can = (permission: string) => permissions.value.has(permission);
 const isActive = (link: NavigationLink) => link.match.some((name) => route().current(name));
-const homeLink = computed(() => can('management.dashboard.view')
-  ? { label:'National overview', icon:'home', route:'management.dashboard', match:['management.dashboard','management.section'] }
-  : (page.props.auth.user.role === 'cpu_member'
-    ? { label:'My referred cases', icon:'home', route:'mdt.collaboration.index', match:['mdt.collaboration.index','mdt.workspace'] }
-    : { label:'Dashboard', icon:'home', route:'dashboard', match:['dashboard'] }));
+const homeLink = computed(() => can('cases.create')
+  ? { label:'Dashboard', icon:'home', route:'dashboard', match:['dashboard'] }
+  : can('management.dashboard.view')
+    ? { label:'Overview', icon:'home', route:'management.dashboard', match:['management.dashboard','management.section'] }
+    : (page.props.auth.user.role === 'cpu_member'
+      ? { label:'My referred cases', icon:'home', route:'mdt.collaboration.index', match:['mdt.collaboration.index','mdt.workspace'] }
+      : { label:'Dashboard', icon:'home', route:'dashboard', match:['dashboard'] }));
 const navCounts = computed(() => (page.props as unknown as { navCounts?: { activeCases: number | null; calendarDue: number | null } | null }).navCounts ?? null);
 const groups = computed<{ title: string; links: NavigationLink[] }[]>(() => [
   { title:'', links:[homeLink.value] },
   { title:'Case work', links:[
-    ...(can('cases.view') ? [{ label:'Cases', icon:'cases', route:'cases.index', match:['cases.index','cases.show','cases.plans.workspace','cases.conferences.index','reports.index','identity.review.index'], badge: navCounts.value?.activeCases, badgeTone: 'brand' as const }] : []),
+    ...(can('cases.create') ? [{ label:'Cases', icon:'cases', route:'cases.index', match:['cases.index','cases.show','cases.plans.workspace','cases.conferences.index','reports.index','identity.review.index'], badge: navCounts.value?.activeCases, badgeTone: 'brand' as const }]
+      : can('cases.monitor') ? [{ label:'Cases', icon:'cases', route:'monitoring.cases.index', match:['monitoring.cases.index','monitoring.cases.show'] }] : []),
     ...(can('cases.create') ? [{ label:'Case intake', icon:'intake', route:'cases.create', match:['cases.create'] }] : []),
     ...(can('activities.manage') ? [{ label:'Calendar', icon:'calendar', route:'calendar.index', match:['calendar.index','tasks.index'], badge: navCounts.value?.calendarDue, badgeTone: 'alert' as const }] : []),
   ]},
@@ -39,17 +42,21 @@ const groups = computed<{ title: string; links: NavigationLink[] }[]>(() => [
   ...(can('analytics.view') || can('analytics.quarterly') ? [{ title:'Insights', links:[
     { label:'Analytics', icon:'bars', route:'analytics.index', match:['analytics.index','analytics.quarterly'] },
   ]}] : []),
-  { title:'Settings', links:[
-    ...(can('lgu.profile.view') ? [{ label:'LGU profile & signatories', icon:'building', route:'lgu-profile.show', match:['lgu-profile.show'] }] : []),
-    ...(can('admin.manage') ? [{ label:'Administration', icon:'settings', route:'admin.overview', match:['admin.overview','admin.index','admin.lgus.index','admin.audits','admin.forms','providers.index'] }] : []),
+  { title: can('admin.manage') ? 'Settings' : 'Management', links:[
+    ...(can('admin.manage') ? [{ label:'Administration', icon:'settings', route:'admin.overview', match:['admin.overview','admin.index','admin.lgus.index','admin.audits','admin.forms'] }] : [
+      ...(can('users.approve') ? [{ label:'Users & approvals', icon:'settings', route:'admin.index', match:['admin.index'] }] : []),
+      ...(can('lgu.registry.view') ? [{ label:'LGU registry', icon:'building', route:'admin.lgus.index', match:['admin.lgus.index'] }] : []),
+    ]),
+    ...(can('lgu.profile.view') ? [{ label:'Office profile & signatories', icon:'building', route:'lgu-profile.show', match:['lgu-profile.show'] }] : []),
   ]},
 ].filter(group => group.links.length));
-const mobileLinks = computed(()=>[homeLink.value,...groups.value.flatMap(group=>group.links).filter(link=>['cases.index','cases.create','calendar.index','cpu.coordination.index'].includes(link.route))].slice(0,5));
+const mobileLinks = computed(()=>[homeLink.value,...groups.value.flatMap(group=>group.links).filter(link=>['cases.index','monitoring.cases.index','cases.create','calendar.index','cpu.coordination.index','analytics.index'].includes(link.route))].slice(0,5));
 const offlinePending = ref(0);
 function readOfflinePending(){ try { offlinePending.value = Number(localStorage.getItem('kalinga_offline_pending') ?? 0) || 0; } catch { offlinePending.value = 0; } }
 const initials = computed(() => String(page.props.auth.user.name).split(' ').map((part:string) => part[0]).slice(0,2).join(''));
-const roleLabel = computed(() => String(page.props.auth.user.role).replaceAll('_',' ').replace(/\b\w/g,(letter:string)=>letter.toUpperCase()));
-function submitSearch(){ const term=searchTerm.value.trim(); router.get(route('cases.index'), term?{search:term}:{}); }
+const ROLE_LABELS: Record<string, string> = { system_admin:'System Administrator', project_manager:'Project Manager', fo_user:'Field Office', lgu_head:'LGU Head', social_worker:'Case Manager', cpu_member:'CPU Member' };
+const roleLabel = computed(() => ROLE_LABELS[String(page.props.auth.user.role)] ?? String(page.props.auth.user.role).replaceAll('_',' '));
+function submitSearch(){ const term=searchTerm.value.trim(); router.get(route(can('cases.create') ? 'cases.index' : 'monitoring.cases.index'), term?{search:term}:{}); }
 function onDocumentClick(event: MouseEvent){ if(userMenuOpen.value && userMenu.value && !userMenu.value.contains(event.target as Node)) userMenuOpen.value=false; }
 const today = computed(() => formatPh(new Date(), 'weekdayDate'));
 const pageTitle = computed(() => {
@@ -63,10 +70,12 @@ const pageTitle = computed(() => {
   if (route().current('identity.review.index')) return 'Cases · Identity review';
   
   if (route().current('calendar.index')) return 'Calendar';
-  if (route().current('lgu-profile.show')) return 'Settings · LGU profile';
+  if (route().current('lgu-profile.show')) return 'Settings · Office profile';
   if (route().current('analytics.index')) return 'Analytics · Reports';
   if (route().current('analytics.quarterly')) return 'Analytics · Quarterly monitoring';
-  if (route().current('management.dashboard')) return 'National overview';
+  if (route().current('monitoring.cases.index')) return 'Cases · Monitoring';
+  if (route().current('monitoring.cases.show')) return 'Cases · Case monitoring';
+  if (route().current('management.dashboard')) return 'Overview';
   if (route().current('management.section')) return 'National overview · Management';
   if (route().current('cpu.coordination.index')) return 'Kalinga Connect · CPU group chat';
   if (route().current('mdt.collaboration.index')) return 'MDT Coordination · CPU referral pathway';
@@ -74,7 +83,6 @@ const pageTitle = computed(() => {
   if (route().current('notifications.index')) return 'Alerts';
   if (route().current('help.guide')) return 'Help & guides';
   if (route().current('offline.workspace')) return 'Offline workspace';
-  if (route().current('providers.index')) return 'Administration · Providers';
   if (route().current('admin.overview')) return 'Administration';
   if (route().current('admin.lgus.index')) return 'Administration · LGU registry';
   if (route().current('admin.index')) return 'Administration · Users';
@@ -119,7 +127,7 @@ onUnmounted(()=>{ removeEventListener('storage', readOfflinePending); removeEven
   <header :inert="open" class="workspace-header" :class="navigationCollapsed?'shell-collapsed':''">
    <div class="flex min-w-0 flex-1 items-center gap-3">
     <button ref="menuButton" type="button" aria-controls="workspace-navigation" :aria-expanded="desktop?!navigationCollapsed:open" class="ui-button h-11 w-11 shrink-0 border-0 bg-transparent px-0 hover:bg-slate-100" :aria-label="desktop?(navigationCollapsed?'Expand navigation':'Collapse navigation'):(open?'Close navigation':'Open navigation')" @click="toggleSidebar"><Menu class="h-5 w-5"/></button>
-    <form v-if="can('cases.view')" role="search" data-skip-generic-confirm="true" class="relative hidden w-full max-w-md min-[768px]:block" @submit.prevent="submitSearch"><label for="workspace-search" class="sr-only">Search authorized cases</label><Search aria-hidden="true" class="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500"/><input id="workspace-search" v-model="searchTerm" type="search" autocomplete="off" placeholder="Search case number or client name..." class="h-11 w-full rounded-xl border-transparent bg-[#f3f2f8] pl-10 pr-3 text-sm text-slate-800 placeholder:text-slate-500 focus:bg-white"/></form>
+    <form v-if="can('cases.view') || can('cases.monitor')" role="search" data-skip-generic-confirm="true" class="relative hidden w-full max-w-md min-[768px]:block" @submit.prevent="submitSearch"><label for="workspace-search" class="sr-only">Search authorized cases</label><Search aria-hidden="true" class="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500"/><input id="workspace-search" v-model="searchTerm" type="search" autocomplete="off" :placeholder="can('cases.create') ? 'Search case number or client name...' : 'Search case number or alias...'" class="h-11 w-full rounded-xl border-transparent bg-[#f3f2f8] pl-10 pr-3 text-sm text-slate-800 placeholder:text-slate-500 focus:bg-white"/></form>
     <div :class="can('cases.view')?'min-[768px]:sr-only':''"><Breadcrumbs :items="[{label:pageTitle}]" /></div>
    </div>
    <div class="flex shrink-0 items-center gap-1 sm:gap-2">

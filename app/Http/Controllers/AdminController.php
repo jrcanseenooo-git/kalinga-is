@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Auth\RegisteredUserController;
+use App\Services\MonitoringScope;
 use App\Services\RolePermissions;
 use App\Support\AuditLog;
 use Illuminate\Http\Request;
@@ -15,6 +16,43 @@ class AdminController extends Controller
     private function guard(Request $r): void
     {
         $this->authorize('administer-system');
+    }
+
+    /** Roles an account manager may give: administrators any role; Project Managers the field roles only. */
+    private function assignableRoles(Request $r): array
+    {
+        return $r->user()->hasPermission('admin.manage') ? array_keys(RolePermissions::ROLES) : ['social_worker', 'cpu_member', 'lgu_head', 'fo_user'];
+    }
+
+    /** Regions the account manager covers; null = all (administrator or national Project Manager). */
+    private function managedRegions(Request $r): ?array
+    {
+        return $r->user()->hasPermission('admin.manage') ? null : app(MonitoringScope::class)->regions($r->user());
+    }
+
+    /** True when the account belongs to the manager's regions (by LGU assignment or recorded region). */
+    private function accountInScope(Request $r, object $target): bool
+    {
+        $regions = $this->managedRegions($r);
+        if ($regions === null) {
+            return true;
+        }
+        if (!$r->user()->hasPermission('admin.manage') && in_array($target->role, ['system_admin', 'project_manager'], true) && $target->account_status !== 'pending') {
+            return false;
+        }
+        if (in_array($target->region, $regions, true)) {
+            return true;
+        }
+
+        return DB::table('user_lgu_assignments')->join('lgu_units', 'lgu_units.id', '=', 'user_lgu_assignments.lgu_id')->where('user_lgu_assignments.user_id', $target->id)
+            ->where('user_lgu_assignments.active', true)->whereIn('lgu_units.region', $regions)->exists();
+    }
+
+    private function lguInScope(Request $r, int $lgu): bool
+    {
+        $regions = $this->managedRegions($r);
+
+        return $regions === null || DB::table('lgu_units')->where('id', $lgu)->whereIn('region', $regions)->exists();
     }
 
     private function psgc(): array
@@ -74,9 +112,28 @@ class AdminController extends Controller
 
     public function index(Request $r)
     {
-        $this->guard($r);
+        $this->authorize('users.approve');
+        $regions = $this->managedRegions($r);
+        $assignments = DB::table('user_lgu_assignments')->where('active', true)->where(fn ($q) => $q->whereNull('effective_to')->orWhere('effective_to', '>', now()))->get(['user_id', 'lgu_id', 'effective_from']);
+        $lgus = DB::table('lgu_units')->where('active', true)->when($regions !== null, fn ($q) => $q->whereIn('region', $regions ?: ['-']))->orderBy('name')->get(['id', 'psgc_code', 'name', 'province', 'region']);
+        $users = DB::table('users')->select('id', 'name', 'email', 'role', 'cpu_discipline', 'active', 'region', 'region_scope', 'province', 'municipality', 'account_status', 'created_at')->orderBy('name')->get()
+            ->filter(fn ($user) => $user->account_status !== 'pending' && $this->accountInScope($r, $user))->values()
+            ->map(fn ($user) => (array) $user + ['region_scope' => json_decode($user->region_scope ?? 'null', true)]);
+        $pending = DB::table('users')->where('account_status', 'pending')->select('id', 'name', 'email', 'requested_role', 'cpu_discipline', 'region', 'province', 'municipality', 'created_at')->orderBy('created_at')
+            ->when($regions !== null, fn ($q) => $q->whereIn('region', $regions ?: ['-']))->get();
 
-        return Inertia::render('Admin/Index', ['users' => DB::table('users')->select('id', 'name', 'email', 'role', 'cpu_discipline', 'active', 'region', 'province', 'municipality', 'account_status', 'created_at')->orderBy('name')->get(), 'roles' => DB::table('roles')->orderBy('name')->get(), 'references' => DB::table('reference_data')->orderBy('set_name')->orderBy('label')->get(), 'lguUnits' => DB::table('lgu_units')->where('active', true)->orderBy('name')->get(['id', 'psgc_code', 'name', 'province', 'region']), 'lguAssignments' => DB::table('user_lgu_assignments')->where('active', true)->where(fn ($q) => $q->whereNull('effective_to')->orWhere('effective_to', '>', now()))->get(['user_id', 'lgu_id', 'effective_from']), 'audits' => $this->auditQuery()->limit(100)->get(), 'pendingRegistrations' => DB::table('users')->where('account_status', 'pending')->select('id', 'name', 'email', 'requested_role', 'cpu_discipline', 'region', 'province', 'municipality', 'created_at')->orderBy('created_at')->get(), 'registrableRoles' => collect(RegisteredUserController::REGISTRABLE_ROLES)->mapWithKeys(fn (string $c) => [$c => RolePermissions::ROLES[$c][0]])->all(), 'cpuDisciplines' => RolePermissions::CPU_DISCIPLINES]);
+        return Inertia::render('Admin/Index', [
+            'users' => $users, 'roles' => DB::table('roles')->whereIn('code', $this->assignableRoles($r))->orderBy('name')->get(),
+            'lguUnits' => $lgus, 'lguAssignments' => $assignments->whereIn('user_id', $users->pluck('id'))->values(),
+            'audits' => $r->user()->hasPermission('audits.view') ? $this->auditQuery()->limit(100)->get() : [],
+            'pendingRegistrations' => $pending,
+            'registrableRoles' => collect(RegisteredUserController::REGISTRABLE_ROLES)->mapWithKeys(fn (string $c) => [$c => RolePermissions::ROLES[$c][0]])->all(),
+            'cpuDisciplines' => RolePermissions::CPU_DISCIPLINES,
+            'roleLabels' => collect(RolePermissions::ROLES)->map(fn ($role) => $role[0]),
+            'regionOptions' => DB::table('lgu_units')->whereNotNull('region')->distinct()->orderBy('region')->pluck('region'),
+            'scopeLabel' => $regions === null ? 'All regions' : (implode(', ', $regions) ?: 'No region assigned'),
+            'canManageSystem' => $r->user()->hasPermission('admin.manage'),
+        ]);
     }
 
     public function overview(Request $r)
@@ -88,9 +145,30 @@ class AdminController extends Controller
 
     public function lgus(Request $r)
     {
-        $this->guard($r);
+        $this->authorize('lgu.registry.view');
+        $regions = $r->user()->hasPermission('admin.manage') ? null : app(MonitoringScope::class)->regions($r->user());
+        $staff = DB::table('user_lgu_assignments')->join('users', 'users.id', '=', 'user_lgu_assignments.user_id')->where('user_lgu_assignments.active', true)->where('users.active', true)
+            ->where(fn ($q) => $q->whereNull('user_lgu_assignments.effective_to')->orWhere('user_lgu_assignments.effective_to', '>', now()))
+            ->groupBy('user_lgu_assignments.lgu_id', 'users.role')->select('user_lgu_assignments.lgu_id', 'users.role', DB::raw('count(*) as total'))->get()->groupBy('lgu_id');
+        $cases = DB::table('cases')->whereNull('deleted_at')->whereNotNull('lgu_id')->groupBy('lgu_id')
+            ->select('lgu_id', DB::raw('count(*) as total'), DB::raw("sum(case when status <> 'CLOSED' then 1 else 0 end) as active"))->get()->keyBy('lgu_id');
+        $profiles = DB::table('lgu_profiles')->pluck('lgu_id')->flip();
 
-        return Inertia::render('Admin/Lgus', ['lgus' => DB::table('lgu_units as lgu')->leftJoin('lgu_coordination_circles as circles', 'circles.lgu_id', '=', 'lgu.id')->select('lgu.id', 'lgu.psgc_code', 'lgu.name', 'lgu.province', 'lgu.region', 'lgu.active', 'circles.id as circle_id')->orderBy('lgu.region')->orderBy('lgu.province')->orderBy('lgu.name')->get()]);
+        return Inertia::render('Admin/Lgus', [
+            'lgus' => DB::table('lgu_units as lgu')->leftJoin('lgu_coordination_circles as circles', 'circles.lgu_id', '=', 'lgu.id')
+                ->when($regions !== null, fn ($q) => $q->whereIn('lgu.region', $regions ?: ['-']))
+                ->select('lgu.id', 'lgu.psgc_code', 'lgu.name', 'lgu.province', 'lgu.region', 'lgu.active', 'circles.id as circle_id')
+                ->orderBy('lgu.region')->orderBy('lgu.province')->orderBy('lgu.name')->get()
+                ->map(fn ($lgu) => (array) $lgu + [
+                    'case_managers' => (int) ($staff->get($lgu->id)?->firstWhere('role', 'social_worker')->total ?? 0),
+                    'cpu_members' => (int) ($staff->get($lgu->id)?->firstWhere('role', 'cpu_member')->total ?? 0),
+                    'lgu_heads' => (int) ($staff->get($lgu->id)?->firstWhere('role', 'lgu_head')->total ?? 0),
+                    'cases' => (int) ($cases->get($lgu->id)->total ?? 0), 'active_cases' => (int) ($cases->get($lgu->id)->active ?? 0),
+                    'has_profile' => $profiles->has($lgu->id),
+                ]),
+            'canManage' => $r->user()->hasPermission('lgu.registry.manage'),
+            'scopeLabel' => $regions === null ? 'All regions' : (implode(', ', $regions) ?: 'No region assigned'),
+        ]);
     }
 
     public function forms(Request $r)
@@ -123,17 +201,29 @@ class AdminController extends Controller
 
     public function updateUser(Request $r, int $user)
     {
-        $this->guard($r);
-        $d = $r->validate(['role' => 'required|exists:roles,code', 'active' => 'required|boolean', 'cpu_discipline' => 'nullable|string|in:' . implode(',', array_keys(RolePermissions::CPU_DISCIPLINES)), 'region' => 'nullable|string|max:120', 'province' => 'nullable|string|max:120', 'municipality' => 'nullable|string|max:120']);
-        if (in_array($d['role'], ['social_worker', 'cpu_member'], true)) {
+        $this->authorize('users.approve');
+        $d = $r->validate(['role' => 'required|exists:roles,code|in:' . implode(',', $this->assignableRoles($r)), 'active' => 'required|boolean', 'cpu_discipline' => 'nullable|string|in:' . implode(',', array_keys(RolePermissions::CPU_DISCIPLINES)), 'region' => 'nullable|string|max:120', 'province' => 'nullable|string|max:120', 'municipality' => 'nullable|string|max:120',
+            'region_scope' => 'nullable|array', 'region_scope.*' => 'string|max:120']);
+        $before = DB::table('users')->find($user);
+        abort_unless($before && $this->accountInScope($r, $before), 404);
+        if (in_array($d['role'], ['social_worker', 'cpu_member', 'lgu_head', 'project_manager', 'system_admin'], true)) {
+            // These roles are placed by LGU assignment (or region scope), not by a single address.
             $d['region'] = $d['province'] = $d['municipality'] = null;
         } else {
+            $d['province'] = $d['municipality'] = null;
+            abort_unless(!empty($d['region']), 422, 'Select the region of the Field Office user.');
             $this->validateJurisdiction($d);
-        }abort_unless($user !== $r->user()->id || $d['active'], 422, 'You cannot deactivate your own account.');
-        $before = DB::table('users')->find($user);
-        abort_unless($before, 404);
-        DB::transaction(function () use ($r, $user, $d, $before) {
-            DB::table('users')->where('id', $user)->update(['role' => $d['role'], 'active' => $d['active'], 'cpu_discipline' => $d['role'] === 'cpu_member' ? ($d['cpu_discipline'] ?? null) : null, 'region' => $d['region'] ?? null, 'province' => $d['province'] ?? null, 'municipality' => $d['municipality'] ?? null, 'access_revoked_at' => $d['active'] ? null : now(), 'updated_at' => now()]);
+            abort_unless($this->managedRegions($r) === null || in_array($d['region'], $this->managedRegions($r), true), 403, 'You can only manage accounts in your regions.');
+        }
+        $scope = null;
+        if ($d['role'] === 'project_manager') {
+            abort_unless($r->user()->hasPermission('admin.manage'), 403);
+            $scope = array_values(array_unique($d['region_scope'] ?? []));
+            abort_if($scope === [], 422, 'Choose the regions this Project Manager monitors, or All regions.');
+        }
+        abort_unless($user !== $r->user()->id || $d['active'], 422, 'You cannot deactivate your own account.');
+        DB::transaction(function () use ($r, $user, $d, $before, $scope) {
+            DB::table('users')->where('id', $user)->update(['role' => $d['role'], 'active' => $d['active'], 'cpu_discipline' => $d['role'] === 'cpu_member' ? ($d['cpu_discipline'] ?? null) : null, 'region' => $d['region'] ?? null, 'region_scope' => $scope === null ? null : json_encode($scope), 'province' => $d['province'] ?? null, 'municipality' => $d['municipality'] ?? null, 'access_revoked_at' => $d['active'] ? null : now(), 'updated_at' => now()]);
             if (!$d['active']) {
                 DB::table('offline_devices')->where('user_id', $user)->whereNull('revoked_at')->update(['revoked_at' => now(), 'updated_at' => now()]);
             }
@@ -195,12 +285,13 @@ class AdminController extends Controller
 
     public function storeLgu(Request $r)
     {
-        $this->guard($r);
+        $this->authorize('lgu.registry.manage');
         $d = $r->validate(['psgc_code' => 'required|string|max:20|unique:lgu_units,psgc_code', 'name' => 'required|string|max:160', 'province' => 'nullable|string|max:120', 'region' => 'nullable|string|max:120']);
         $location = $this->psgcMunicipality($d['psgc_code']);
         if (!$location) {
             throw ValidationException::withMessages(['psgc_code' => 'Select a municipality or city PSGC code from the approved reference data.']);
         }$d = array_merge($d, $location);
+        abort_unless($this->managedRegions($r) === null || in_array($d['region'], $this->managedRegions($r), true), 403, 'You can only add LGUs in your regions.');
         $id = DB::transaction(function () use ($d, $r) {
             $id = DB::table('lgu_units')->insertGetId($d + ['active' => true, 'created_at' => now(), 'updated_at' => now()]);
             DB::table('lgu_coordination_circles')->insert(['lgu_id' => $id, 'name' => $d['name'] . ' CPU Coordination Circle', 'active' => true, 'created_at' => now(), 'updated_at' => now()]);
@@ -214,7 +305,8 @@ class AdminController extends Controller
 
     public function destroyLgu(Request $r, int $lgu)
     {
-        $this->guard($r);
+        $this->authorize('lgu.registry.manage');
+        abort_unless($this->lguInScope($r, $lgu), 404);
         $d = $r->validate(['confirmation' => 'required|string']);
         $record = DB::table('lgu_units')->find($lgu);
         abort_unless($record, 404);
@@ -234,10 +326,10 @@ class AdminController extends Controller
 
     public function approveRegistration(Request $r, int $user)
     {
-        $this->guard($r);
-        $d = $r->validate(['role' => 'required|string|in:' . implode(',', array_keys(RolePermissions::ROLES))]);
+        $this->authorize('users.approve');
+        $d = $r->validate(['role' => 'required|string|in:' . implode(',', $this->assignableRoles($r))]);
         $target = DB::table('users')->where('id', $user)->where('account_status', 'pending')->first();
-        abort_unless($target, 404, 'Registration not found or already reviewed.');
+        abort_unless($target && $this->accountInScope($r, $target), 404, 'Registration not found or already reviewed.');
         DB::transaction(function () use ($r, $user, $d, $target) {
             DB::table('users')->where('id', $user)->update(['role' => $d['role'], 'active' => true, 'account_status' => 'approved', 'reviewed_at' => now(), 'reviewed_by' => $r->user()->id, 'updated_at' => now()]);
             AuditLog::insert(['user_id' => $r->user()->id, 'event' => 'user.registration_approved', 'auditable_type' => 'user', 'auditable_id' => $user, 'changes' => json_encode(['role' => $d['role'], 'requested_role' => $target->requested_role]), 'created_at' => now(), 'updated_at' => now()]);
@@ -248,9 +340,9 @@ class AdminController extends Controller
 
     public function declineRegistration(Request $r, int $user)
     {
-        $this->guard($r);
+        $this->authorize('users.approve');
         $target = DB::table('users')->where('id', $user)->where('account_status', 'pending')->first();
-        abort_unless($target, 404, 'Registration not found or already reviewed.');
+        abort_unless($target && $this->accountInScope($r, $target), 404, 'Registration not found or already reviewed.');
         DB::transaction(function () use ($r, $user, $target) {
             DB::table('users')->where('id', $user)->update(['account_status' => 'declined', 'reviewed_at' => now(), 'reviewed_by' => $r->user()->id, 'updated_at' => now()]);
             AuditLog::insert(['user_id' => $r->user()->id, 'event' => 'user.registration_declined', 'auditable_type' => 'user', 'auditable_id' => $user, 'changes' => json_encode(['requested_role' => $target->requested_role]), 'created_at' => now(), 'updated_at' => now()]);
@@ -261,8 +353,10 @@ class AdminController extends Controller
 
     public function assignLgu(Request $r, int $user)
     {
-        $this->guard($r);
+        $this->authorize('users.approve');
         $d = $r->validate(['lgu_id' => 'required|exists:lgu_units,id', 'effective_from' => 'required|date']);
+        $account = DB::table('users')->find($user);
+        abort_unless($account && $this->accountInScope($r, $account) && $this->lguInScope($r, (int) $d['lgu_id']), 404);
         DB::transaction(function () use ($r, $user, $d) {
             DB::table('user_lgu_assignments')->where('user_id', $user)->where('active', true)->where(fn ($q) => $q->whereNull('effective_to')->orWhere('effective_to', '>', now()))->update(['active' => false, 'effective_to' => now(), 'updated_at' => now()]);
             $oldCircles = DB::table('lgu_coordination_circles')->where('lgu_id', '!=', $d['lgu_id'])->pluck('id');
@@ -270,8 +364,8 @@ class AdminController extends Controller
             DB::table('user_lgu_assignments')->insert(['user_id' => $user, 'lgu_id' => $d['lgu_id'], 'effective_from' => $d['effective_from'], 'active' => true, 'assigned_by' => $r->user()->id, 'created_at' => now(), 'updated_at' => now()]);
             $target = DB::table('users')->find($user);
             $circle = DB::table('lgu_coordination_circles')->where('lgu_id', $d['lgu_id'])->value('id');
-            if ($target && $circle && in_array($target->role, ['social_worker', 'cpu_member'], true)) {
-                DB::table('lgu_coordination_members')->updateOrInsert(['circle_id' => $circle, 'user_id' => $user], ['membership_role' => $target->role === 'cpu_member' ? 'cpu_member' : 'case_manager', 'joined_at' => now(), 'left_at' => null, 'configured_by' => $r->user()->id, 'created_at' => now(), 'updated_at' => now()]);
+            if ($target && $circle && in_array($target->role, ['social_worker', 'cpu_member', 'lgu_head'], true)) {
+                DB::table('lgu_coordination_members')->updateOrInsert(['circle_id' => $circle, 'user_id' => $user], ['membership_role' => ['cpu_member' => 'cpu_member', 'lgu_head' => 'lgu_head'][$target->role] ?? 'case_manager', 'joined_at' => now(), 'left_at' => null, 'configured_by' => $r->user()->id, 'created_at' => now(), 'updated_at' => now()]);
             }AuditLog::insert(['user_id' => $r->user()->id, 'event' => 'user.lgu_assigned', 'auditable_type' => 'user', 'auditable_id' => $user, 'changes' => json_encode(['lgu_id' => $d['lgu_id'], 'effective_from' => $d['effective_from']]), 'created_at' => now(), 'updated_at' => now()]);
         });
 

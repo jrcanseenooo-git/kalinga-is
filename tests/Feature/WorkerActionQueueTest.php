@@ -108,8 +108,6 @@ class WorkerActionQueueTest extends TestCase
         $this->task($worker, $own, 'Recorded case action', '2026-10-17 17:00:00');
         $this->be($worker)->get(route('cases.show', $own))->assertOk()->assertInertia(fn (Assert $page) => $page
             ->where('tasks.0.due_at', '2026-10-17T17:00:00+00:00')->where('canGenerateReport', true));
-        DB::table('clients')->update(['province' => 'Kalinga']);
-        $this->be(User::factory()->create(['role' => 'fo_user', 'province' => 'Kalinga']))
-            ->get(route('cases.show', $own))->assertOk()->assertInertia(fn (Assert $page) => $page->where('canGenerateReport', false));
+        $this->be(User::factory()->create(['role' => 'cpu_member']))->get(route('cases.show', $own))->assertForbidden();
     }
 }

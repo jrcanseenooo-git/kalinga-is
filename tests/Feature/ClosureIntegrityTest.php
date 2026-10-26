@@ -60,8 +60,8 @@ class ClosureIntegrityTest extends TestCase
         $this->freezeTime();
         [, $case] = $this->context();
         $this->post(route('cases.closure.store', $case), ['closure_summary' => 'Synthetic earlier closure recommendation.'])->assertRedirect();
-        $lastAuthor = User::factory()->create(['role' => 'fo_user', 'province' => 'Kalinga']);
-        $this->actingAs($lastAuthor)->post(route('cases.closure.store', $case), ['closure_summary' => 'Synthetic revised closure recommendation.'])->assertRedirect();
+        // Only the case manager records the closure; the same person can never also review it.
+        $this->post(route('cases.closure.store', $case), ['closure_summary' => 'Synthetic revised closure recommendation.'])->assertRedirect();
         $this->patch(route('cases.closure.review', $case))->assertUnprocessable();
         $this->assertDatabaseHas('cases', ['id' => $case, 'closure_reviewed_by' => null, 'closure_reviewed_at' => null]);
     }

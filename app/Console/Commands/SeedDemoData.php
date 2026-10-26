@@ -35,7 +35,9 @@ class SeedDemoData extends Command
 
     private const ACCOUNTS = [
         'worker' => ['name' => 'Kalinga Social Worker', 'email' => 'worker@kalinga.test', 'role' => 'social_worker'],
-        'supervisor' => ['name' => 'Kalinga Supervisor', 'email' => 'supervisor@kalinga.test', 'role' => 'social_worker'],
+        'supervisor' => ['name' => 'Kalinga Supervisor', 'email' => 'supervisor@kalinga.test', 'role' => 'lgu_head'],
+        'pm' => ['name' => 'Kalinga Project Manager', 'email' => 'pm@kalinga.test', 'role' => 'project_manager', 'region_scope' => ['*']],
+        'fo' => ['name' => 'Kalinga Field Office', 'email' => 'fo@kalinga.test', 'role' => 'fo_user', 'region' => 'Cordillera Administrative Region (CAR)'],
         'cpu' => ['name' => 'Kalinga CPU Member', 'email' => 'cpu@kalinga.test', 'role' => 'cpu_member', 'cpu_discipline' => 'social_worker_cpo'],
         'admin' => ['name' => 'Kalinga System Admin', 'email' => 'admin@kalinga.test', 'role' => 'system_admin'],
     ];
@@ -88,6 +90,7 @@ class SeedDemoData extends Command
         }
 
         DB::transaction(function () use ($password, $inbox, $google, $alreadySeeded) {
+            $this->convertLegacySupervisor($inbox, $google);
             foreach (self::ACCOUNTS as $key => $account) {
                 $user = $this->findAccount($key, $account['email'], $inbox, $google)
                     ?? User::create($account + ['email_verified_at' => now(), 'password' => Hash::make($password)]);
@@ -122,6 +125,23 @@ class SeedDemoData extends Command
         $this->info($alreadySeeded ? 'Demo data already present; demo passwords refreshed.' : 'Fictional demo data loaded.');
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Earlier demos made the supervisor a second case manager with three cases.
+     * The supervisor is now the LGU Head: the cases move to the demo case manager.
+     */
+    private function convertLegacySupervisor(string $inbox, array $google): void
+    {
+        $legacy = User::where('name', self::ACCOUNTS['supervisor']['name'])->where('role', 'social_worker')->first();
+        if (!$legacy) {
+            return;
+        }
+        $worker = $this->findAccount('worker', self::ACCOUNTS['worker']['email'], $inbox, $google);
+        if ($worker) {
+            DB::table('cases')->where('assigned_to', $legacy->id)->update(['assigned_to' => $worker->id, 'updated_at' => now()]);
+        }
+        $legacy->forceFill(['role' => 'lgu_head'])->save();
     }
 
     /** The address an account should end up with: the Google address for the case worker when set. */

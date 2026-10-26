@@ -8,6 +8,7 @@ use App\Services\CaseAssignmentEligibility;
 use App\Services\CaseClosureHistory;
 use App\Services\CaseIntake;
 use App\Services\CaseLifecyclePolicy;
+use App\Services\CaseRemarks;
 use App\Services\CaseVersionGuard;
 use App\Services\IdentityIntegrity;
 use App\Services\IntakeDrafts;
@@ -418,6 +419,7 @@ class CaseworkController extends Controller
             'riskAssessments' => DB::table('risk_assessments')->join('users', 'users.id', '=', 'risk_assessments.assessed_by')->where('case_id', $case)->latest('assessed_at')->get(['risk_assessments.*', 'users.name as assessor'])->map(fn ($assessment) => ['assessment' => $assessment, 'factors' => DB::table('risk_assessment_factors')->where('risk_assessment_id', $assessment->id)->get()]),
             // Detailed plans are fetched only by the dedicated scoped workspace.
             'consents' => DB::table('consents')->where('case_id', $case)->latest('granted_at')->get(), 'relationships' => DB::table('relationships')->where('client_id', $record->client_id)->latest()->get(),
+            'remarks' => app(CaseRemarks::class)->thread($case),
             'timeline' => DB::table('audit_logs')->where('auditable_type', 'case')->where('auditable_id', $case)->where('event', '!=', 'case.viewed')->latest()->limit(30)->get(['id', 'event', 'changes', 'outcome', 'created_at']),
             'tasks' => app(WorkerTasks::class)->withIsoDates(DB::table('tasks')->where('case_id', $case)->orderBy('due_at')->get()),
             'canGenerateReport' => $request->user()->can('reports.social.generate'),

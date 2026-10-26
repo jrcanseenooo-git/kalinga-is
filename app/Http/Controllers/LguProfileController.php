@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\LguAssignmentScope;
+use App\Services\MonitoringScope;
 use App\Support\AuditLog;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -14,11 +15,12 @@ use Inertia\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
- * LGU profile and signatories: office identity, logo, the office head who signs
- * reports, and the Child Protection Unit (CPU) composition.
+ * Office profile and signatories: office identity, logo, the office head who
+ * signs reports, and the Child Protection Unit (CPU) composition.
  *
- * Case managers manage the LGUs they are assigned to; system administrators
- * manage any LGU; Field Office users may view LGUs in their province.
+ * Case managers manage the LGUs they are assigned to; Project Managers manage
+ * the LGUs in their regions (all LGUs when national); Field Office users may
+ * view the LGUs in their region.
  */
 class LguProfileController extends Controller
 {
@@ -31,11 +33,13 @@ class LguProfileController extends Controller
     {
         $user = $request->user();
 
-        return match ($user->role) {
-            'system_admin' => DB::table('lgu_units')->where('active', true)->pluck('id')->map(fn ($id) => (int) $id)->all(),
-            'fo_user' => DB::table('lgu_units')->where('active', true)->when($user->province, fn ($q) => $q->where('province', $user->province))->pluck('id')->map(fn ($id) => (int) $id)->all(),
-            default => $this->assignments->activeLguIds($user),
-        };
+        if (in_array($user->role, ['project_manager', 'fo_user'], true)) {
+            $regions = app(MonitoringScope::class)->regions($user);
+
+            return DB::table('lgu_units')->where('active', true)->when($regions !== null, fn ($q) => $q->whereIn('region', $regions ?: ['-']))->pluck('id')->map(fn ($id) => (int) $id)->all();
+        }
+
+        return $this->assignments->activeLguIds($user);
     }
 
     private function viewable(Request $request, int $lgu): void

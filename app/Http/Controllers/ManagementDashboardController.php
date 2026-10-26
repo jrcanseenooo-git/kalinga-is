@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\MonitoringScope;
 use App\Support\AuditLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -43,6 +44,11 @@ class ManagementDashboardController extends Controller
     private function base(array $filters)
     {
         $query = DB::table('cases')->join('clients', 'clients.id', '=', 'cases.client_id')->whereNull('cases.deleted_at');
+        // Monitoring roles see their regions or LGU only; administrators see national aggregates.
+        $user = request()->user();
+        if ($user && !$user->hasPermission('admin.manage')) {
+            app(MonitoringScope::class)->scopeCases($query, $user);
+        }
         foreach (['region', 'province', 'municipality'] as $field) {
             if (!empty($filters[$field])) {
                 $query->where("clients.$field", $filters[$field]);
@@ -128,7 +134,10 @@ class ManagementDashboardController extends Controller
     {
         $this->authorize('management-dashboard-view');
 
-        return Inertia::render('Management/Overview', $this->sectionDataset($this->filters($request), 'overview'));
+        $user = $request->user();
+        $scope = $user->hasPermission('admin.manage') ? 'All regions' : app(MonitoringScope::class)->label($user);
+
+        return Inertia::render('Management/Overview', $this->sectionDataset($this->filters($request), 'overview') + ['scopeLabel' => $scope]);
     }
 
     public function section(Request $request, string $section)

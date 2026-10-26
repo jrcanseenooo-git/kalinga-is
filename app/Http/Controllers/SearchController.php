@@ -44,10 +44,6 @@ class SearchController extends Controller
         return response()->json([
             'cases' => $cases->limit(10)->get(['cases.id', 'cases.case_number', 'cases.status', 'clients.first_name', 'clients.last_name']),
             'reports' => $reports->limit(10)->get(['id', 'reference_no', 'status', 'priority']),
-            'providers' => DB::table('service_providers')
-                ->whereRaw('LOWER(name) LIKE ?', [$like])
-                ->limit(10)
-                ->get(['id', 'name', 'service_type']),
         ]);
     }
 }

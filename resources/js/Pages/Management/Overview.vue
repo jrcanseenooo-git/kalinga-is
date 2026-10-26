@@ -3,7 +3,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue'
 import { Head, Link } from '@inertiajs/vue3'
 import { BarChart3, ChevronRight, FolderOpen, Map, Route, ShieldCheck, TriangleAlert, Send, HeartHandshake, Activity } from '@lucide/vue'
 
-defineProps<{ kpis: Record<string, number|string>; suppression_rule: string; kpi_notice: string }>()
+defineProps<{ kpis: Record<string, number|string>; suppression_rule: string; kpi_notice: string; scopeLabel?: string }>()
 
 const workspaces = [
   { section: 'pipeline', title: 'Case pipeline', icon: BarChart3, description: 'Stages, status, approved risk metadata, and timeliness indicators.' },
@@ -25,14 +25,14 @@ const suppressed = (value: number | string) => value === 'Suppressed'
 </script>
 
 <template>
-  <Head title="National dashboard" />
+  <Head title="Overview" />
   <AuthenticatedLayout>
     <section class="mx-auto max-w-[1440px] space-y-5">
       <header class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p class="text-xs font-semibold uppercase tracking-wider text-brand-700">Central Office</p>
-          <h1 class="mt-1 text-2xl font-bold tracking-tight text-[var(--color-ink)] sm:text-[28px]">CEFMU national management dashboard</h1>
-          <p class="mt-1 max-w-3xl text-sm leading-6 text-slate-600">Aggregate figures across pilot LGUs. No case files, client identities or narratives are shown here.</p>
+          <p class="text-xs font-semibold uppercase tracking-wider text-brand-700">{{ scopeLabel || 'All regions' }}</p>
+          <h1 class="mt-1 text-2xl font-bold tracking-tight text-[var(--color-ink)] sm:text-[28px]">CEFMU project overview</h1>
+          <p class="mt-1 max-w-3xl text-sm leading-6 text-slate-600">Aggregate figures for the LGUs you monitor. No case files, client identities or narratives are shown here.</p>
         </div>
         <p class="inline-flex items-center gap-2 self-start rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800 sm:self-auto"><ShieldCheck class="h-4 w-4" aria-hidden="true" />Aggregate-only view</p>
       </header>

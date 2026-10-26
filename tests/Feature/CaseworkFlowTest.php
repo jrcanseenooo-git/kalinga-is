@@ -74,6 +74,7 @@ class CaseworkFlowTest extends TestCase
         $fieldOffice = User::factory()->create(['role' => 'fo_user', 'province' => 'Kalinga']);
         $client = DB::table('clients')->insertGetId(['first_name' => 'Scoped', 'last_name' => 'Client', 'province' => 'Kalinga', 'created_at' => now(), 'updated_at' => now()]);
         DB::table('cases')->insert(['case_number' => 'KLG-2026-00006', 'client_id' => $client, 'assigned_to' => $fieldOffice->id, 'status' => 'OPEN', 'stage' => 'intake', 'priority' => 'normal', 'opened_at' => now(), 'created_at' => now(), 'updated_at' => now()]);
-        $this->actingAs($fieldOffice)->get(route('dashboard'))->assertOk()->assertInertia(fn ($page) => $page->where('lguWorkload', null));
+        // Monitoring roles start on the scoped project overview, never on a case manager's workload.
+        $this->actingAs($fieldOffice)->get(route('dashboard'))->assertRedirect(route('management.dashboard'));
     }
 }

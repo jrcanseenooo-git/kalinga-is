@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\CaseAccessScope;
+use App\Services\MonitoringScope;
 use App\Services\RolePermissions;
 use App\Support\AuditLog;
 use Carbon\Carbon;
@@ -18,11 +19,15 @@ class AnalyticsController extends Controller
 
     private function scopedCases($query, Request $request)
     {
-        if ($this->permissions->canViewAggregateOnly($request->user())) {
+        $user = $request->user();
+        if ($this->permissions->isMonitoringRole($user)) {
+            return app(MonitoringScope::class)->scopeCases($query, $user);
+        }
+        if ($this->permissions->canViewAggregateOnly($user)) {
             return $query;
         }
 
-        return $this->scope->scopeCases($query, $request->user());
+        return $this->scope->scopeCases($query, $user);
     }
 
     private function minimum(Request $request): int

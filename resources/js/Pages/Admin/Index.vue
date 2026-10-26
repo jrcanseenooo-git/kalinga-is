@@ -11,8 +11,11 @@ import { locationDatasetUrl, type LocationDataset } from '@/data/locations'
 const props = defineProps<{
   users: any[]
   roles: any[]
-  references: any[]
   audits: any[]
+  roleLabels: Record<string, string>
+  regionOptions: string[]
+  scopeLabel: string
+  canManageSystem: boolean
   lguUnits: any[]
   lguAssignments: any[]
   pendingRegistrations: any[]
@@ -24,9 +27,9 @@ const flash = computed(() => (usePage().props.flash as any)?.success || '')
 
 const activeTab = ref<'users' | 'pending' | 'audit'>('users')
 const tabs = computed<Array<{ key: 'users' | 'pending' | 'audit'; label: string; icon: Component; badge?: number }>>(() => [
-  { key: 'users', label: 'All Users', icon: Users },
-  { key: 'pending', label: 'Pending', icon: UserPlus, badge: props.pendingRegistrations.length },
-  { key: 'audit', label: 'Activity Log', icon: Shield },
+  { key: 'users' as const, label: 'All Users', icon: Users },
+  { key: 'pending' as const, label: 'Pending', icon: UserPlus, badge: props.pendingRegistrations.length },
+  ...(props.canManageSystem ? [{ key: 'audit' as const, label: 'Activity Log', icon: Shield }] : []),
 ])
 const searchQuery = ref('')
 const roleFilter = ref('')
@@ -66,7 +69,8 @@ const deactivationConfirmed = ref(false)
 const deleteConfirmation = ref('')
 const deleteError = ref('')
 const deleteBusy = ref(false)
-const editForm = useForm({ role: '', cpu_discipline: '', active: true, region: '', province: '', municipality: '' })
+const editForm = useForm({ role: '', cpu_discipline: '', active: true, region: '', province: '', municipality: '', region_scope: [] as string[] })
+const nationalScope = computed({ get: () => editForm.region_scope.includes('*'), set: (value: boolean) => { editForm.region_scope = value ? ['*'] : [] } })
 const editLgu = useForm({ lgu_id: '', effective_from: new Date().toISOString().slice(0, 10) })
 const detailTab = ref<'settings' | 'devices'>('settings')
 const locations = ref<LocationDataset | null>(null)
@@ -81,12 +85,14 @@ const setRegion = (value: string) => { editForm.region = value; editForm.provinc
 const setProvince = (value: string) => { editForm.province = value; editForm.municipality = '' }
 
 const roleDescriptions: Record<string, { scope: string; hint: string }> = {
-  system_admin: { scope: 'National', hint: 'Full system access. No LGU or geographic restriction.' },
-  social_worker: { scope: 'LGU', hint: 'Case management within assigned LGU. Requires LGU assignment.' },
+  system_admin: { scope: 'National', hint: 'IT administration only: accounts, LGU registry, form builder and audit logs. No case records.' },
+  project_manager: { scope: 'Regions', hint: 'Monitors cases (secured names) and analytics in all or chosen regions; approves accounts; manages the LGU registry and office profiles.' },
+  fo_user: { scope: 'Region', hint: 'Field Office Social Technology Unit: monitors cases (secured names) and analytics in its region; can add remarks.' },
+  lgu_head: { scope: 'LGU', hint: 'Monitors the LGU\'s CEFMU cases, adds remarks and approves closure. Holds no cases. Requires LGU assignment.' },
+  social_worker: { scope: 'LGU', hint: 'Case manager: owns assigned cases in the LGU. Requires LGU assignment.' },
   cpu_member: { scope: 'LGU', hint: 'CPU coordination within assigned LGU. Requires LGU assignment and discipline.' },
-  fo_user: { scope: 'Regional', hint: 'Aggregate oversight across the assigned region. No LGU assignment needed.' },
 }
-const needsLgu = computed(() => editForm.role === 'social_worker' || editForm.role === 'cpu_member')
+const needsLgu = computed(() => ['social_worker', 'cpu_member', 'lgu_head'].includes(editForm.role))
 
 watch(() => editForm.role, (newRole, oldRole) => {
   if (newRole === oldRole) return
@@ -117,9 +123,10 @@ const selectUser = (user: any) => {
   editForm.region = user.region || ''
   editForm.province = user.province || ''
   editForm.municipality = user.municipality || ''
+  editForm.region_scope = Array.isArray(user.region_scope) ? [...user.region_scope] : []
   editLgu.lgu_id = currentLgu(user.id)?.toString() || ''
   detailTab.value = 'settings'
-  loadUserDevices(user.id)
+  if (props.canManageSystem) loadUserDevices(user.id)
 }
 
 const closeDetail = () => { selectedUser.value = null }
@@ -169,7 +176,7 @@ async function adminRevokeDevice(deviceId: number) {
   catch { /* silently fail */ }
 }
 
-const roleName = (code: string) => props.roles.find((r: any) => r.code === code)?.name || code
+const roleName = (code: string) => props.roleLabels?.[code] || props.roles.find((r: any) => r.code === code)?.name || code
 const roleShort = (code: string) => roleName(code).split('/')[0].replace(/\s*\(.*\)/, '').trim()
 const disciplineName = (code: string) => props.cpuDisciplines?.[code] || code
 
@@ -179,6 +186,8 @@ const roleColor = (role: string) => {
     social_worker: { bg: 'bg-sky-50', text: 'text-sky-700', ring: 'ring-sky-200/60', dot: 'bg-sky-500', avatar: 'from-sky-500 to-blue-700', light: 'bg-sky-500/10' },
     cpu_member: { bg: 'bg-amber-50', text: 'text-amber-700', ring: 'ring-amber-200/60', dot: 'bg-amber-500', avatar: 'from-amber-500 to-orange-700', light: 'bg-amber-500/10' },
     fo_user: { bg: 'bg-teal-50', text: 'text-teal-700', ring: 'ring-teal-200/60', dot: 'bg-teal-500', avatar: 'from-teal-500 to-emerald-700', light: 'bg-teal-500/10' },
+    project_manager: { bg: 'bg-fuchsia-50', text: 'text-fuchsia-700', ring: 'ring-fuchsia-200/60', dot: 'bg-fuchsia-500', avatar: 'from-fuchsia-500 to-pink-700', light: 'bg-fuchsia-500/10' },
+    lgu_head: { bg: 'bg-indigo-50', text: 'text-indigo-700', ring: 'ring-indigo-200/60', dot: 'bg-indigo-500', avatar: 'from-indigo-500 to-blue-800', light: 'bg-indigo-500/10' },
   }
   return map[role] || { bg: 'bg-slate-50', text: 'text-slate-600', ring: 'ring-slate-200', dot: 'bg-slate-400', avatar: 'from-slate-400 to-slate-600', light: 'bg-slate-500/10' }
 }
@@ -270,7 +279,8 @@ const fmtDateTime = (d: string) => formatPh(d, 'dateTimeShort')
   <Head title="User management" />
   <AuthenticatedLayout>
     <div class="w-full max-w-none space-y-4">
-      <SectionNav section="admin" />
+      <SectionNav v-if="props.canManageSystem" section="admin" />
+      <header v-else class="ui-panel p-5"><p class="text-sm font-bold text-brand-700">{{ props.scopeLabel }}</p><h1 class="mt-1 text-2xl font-extrabold text-slate-900">Users and account approvals</h1><p class="mt-1 text-sm text-slate-600">Approve the accounts registered in your regions, assign their LGU and keep access up to date.</p></header>
       <div v-if="flash" class="rounded-xl bg-emerald-50 border border-emerald-200 p-3 text-sm font-medium text-emerald-700">{{ flash }}</div>
 
       <!-- ── TABS ── -->
@@ -637,7 +647,7 @@ const fmtDateTime = (d: string) => formatPh(d, 'dateTimeShort')
                 Settings
                 <span v-if="detailTab === 'settings'" class="absolute inset-x-1 -bottom-px h-0.5 rounded-full bg-brand-600" />
               </button>
-              <button type="button" class="relative flex items-center gap-1.5 px-3 py-2.5 text-xs font-bold transition" :class="detailTab === 'devices' ? 'text-brand-700' : 'text-slate-500'" @click="detailTab = 'devices'">
+              <button v-if="props.canManageSystem" type="button" class="relative flex items-center gap-1.5 px-3 py-2.5 text-xs font-bold transition" :class="detailTab === 'devices' ? 'text-brand-700' : 'text-slate-500'" @click="detailTab = 'devices'">
                 Devices
                 <span v-if="userDevices.length" class="grid h-4 min-w-4 place-items-center rounded-full bg-slate-100 px-1 text-[10px] font-black text-slate-600">{{ userDevices.length }}</span>
                 <span v-if="detailTab === 'devices'" class="absolute inset-x-1 -bottom-px h-0.5 rounded-full bg-brand-600" />
@@ -685,7 +695,16 @@ const fmtDateTime = (d: string) => formatPh(d, 'dateTimeShort')
                   <select :value="editForm.region" aria-label="Assigned region" class="w-full rounded-xl border-0 bg-slate-50 py-2.5 text-sm font-medium ring-1 ring-slate-200/60 focus:bg-white focus:ring-2 focus:ring-brand-500" @change="setRegion(($event.target as HTMLSelectElement).value)">
                     <option value="">Select region</option><option v-for="region in locations?.regions ?? []" :key="region.code" :value="region.name">{{ region.name }}</option>
                   </select>
-                  <p class="mt-2 text-[11px] leading-4 text-slate-500">Field Office users see aggregate data across all LGUs within their assigned region.</p>
+                  <p class="mt-2 text-[11px] leading-4 text-slate-500">Field Office users monitor the cases (secured names) and analytics of all LGUs in this region.</p>
+                </fieldset>
+
+                <fieldset v-if="editForm.role === 'project_manager'">
+                  <legend class="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">Regions monitored</legend>
+                  <label class="flex min-h-10 items-center gap-2 text-sm font-semibold text-slate-800"><input v-model="nationalScope" type="checkbox" class="rounded border-slate-300 text-brand-700" />All regions (national)</label>
+                  <div v-if="!nationalScope" class="mt-2 max-h-48 space-y-1 overflow-y-auto rounded-xl bg-slate-50 p-2 ring-1 ring-slate-200/60">
+                    <label v-for="region in (locations?.regions ?? []).map(item => item.name)" :key="region" class="flex min-h-9 items-center gap-2 text-sm"><input v-model="editForm.region_scope" type="checkbox" :value="region" class="rounded border-slate-300 text-brand-700" />{{ region }}</label>
+                  </div>
+                  <p v-if="editForm.errors.region_scope" class="mt-1 text-xs text-rose-700">{{ editForm.errors.region_scope }}</p>
                 </fieldset>
 
                 <fieldset v-if="needsLgu">
@@ -722,7 +741,7 @@ const fmtDateTime = (d: string) => formatPh(d, 'dateTimeShort')
                     </div>
                   </label>
                 </div>
-                <div class="rounded-xl border border-rose-100 bg-rose-50/50 p-4">
+                <div v-if="props.canManageSystem" class="rounded-xl border border-rose-100 bg-rose-50/50 p-4">
                   <p class="text-sm font-bold text-rose-900">Delete account</p>
                   <p class="mt-1 text-[11px] leading-4 text-rose-700">Only unused accounts can be deleted. Accounts with casework or audit history must be deactivated.</p>
                   <button type="button" class="mt-3 min-h-10 rounded-xl border border-rose-200 bg-white px-3 text-xs font-bold text-rose-700 hover:bg-rose-50" @click="openDeleteUser">Delete account</button>

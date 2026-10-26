@@ -109,16 +109,20 @@ class AnalyticsSuppressionTest extends TestCase
             ->assertSee('"Active cases","Suppressed"', false);
     }
 
-    public function test_fo_operational_counts_remain_exact_and_province_scoped(): void
+    public function test_field_office_sees_only_its_region_with_small_numbers_suppressed(): void
     {
-        $this->cases(4);
-        DB::table('clients')->update(['province' => 'Kalinga']);
-        $this->be(User::factory()->create(['role' => 'fo_user', 'province' => 'Kalinga']));
-        $this->get(route('analytics.index'))->assertOk()->assertInertia(fn (Assert $page) => $page
-            ->where('totals.cases', 4)->where('trend.5.total', 4));
-        $this->get(route('analytics.export'))->assertOk()->assertSee('"Total cases","4"', false);
-        $this->be(User::factory()->create(['role' => 'fo_user', 'province' => 'OtherProvince']));
-        $this->get(route('analytics.index'))->assertOk()->assertInertia(fn (Assert $page) => $page
-            ->where('totals.cases', 0));
+        $car = DB::table('lgu_units')->insertGetId(['psgc_code' => 'SYN-CAR', 'name' => 'Synthetic Tabuk', 'province' => 'Kalinga', 'region' => 'CAR', 'active' => true, 'created_at' => now(), 'updated_at' => now()]);
+        $other = DB::table('lgu_units')->insertGetId(['psgc_code' => 'SYN-R8', 'name' => 'Synthetic Tacloban', 'province' => 'Leyte', 'region' => 'Region VIII', 'active' => true, 'created_at' => now(), 'updated_at' => now()]);
+        $this->cases(6);
+        $ids = DB::table('cases')->orderBy('id')->pluck('id');
+        DB::table('cases')->whereIn('id', $ids->take(5))->update(['lgu_id' => $car]);
+        DB::table('cases')->where('id', $ids->last())->update(['lgu_id' => $other]);
+
+        $this->be(User::factory()->create(['role' => 'fo_user', 'region' => 'CAR']));
+        $this->get(route('analytics.index'))->assertOk()->assertInertia(fn (Assert $page) => $page->where('totals.cases', 5));
+        $this->be(User::factory()->create(['role' => 'fo_user', 'region' => 'Region VIII']));
+        $this->get(route('analytics.index'))->assertOk()->assertInertia(fn (Assert $page) => $page->where('totals.cases', 'Suppressed'));
+        $this->be(User::factory()->create(['role' => 'project_manager', 'region_scope' => ['*']]));
+        $this->get(route('analytics.index'))->assertOk()->assertInertia(fn (Assert $page) => $page->where('totals.cases', 6));
     }
 }

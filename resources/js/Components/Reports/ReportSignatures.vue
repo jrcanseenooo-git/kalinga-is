@@ -17,5 +17,5 @@ defineProps<{
     <div v-for="item in extra ?? []" :key="item.label"><p class="lbl">{{ item.label }}</p><p class="sig">&nbsp;</p><p class="pos">{{ item.role }}</p></div>
     <div v-if="notedBy"><p class="lbl">Noted by:</p><p class="sig">{{ notedBy.name }}</p><p class="pos">{{ notedBy.position }}</p><p v-if="notedBy.designation" class="pos">{{ notedBy.designation }}</p></div>
   </div>
-  <p v-if="!notedBy" class="rpt-warn no-print">Add the office head in LGU profile &amp; signatories to print the "Noted by" signature.</p>
+  <p v-if="!notedBy" class="rpt-warn no-print">Add the office head in Office profile &amp; signatories to print the "Noted by" signature.</p>
 </template>

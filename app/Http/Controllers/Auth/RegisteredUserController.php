@@ -16,7 +16,7 @@ use Inertia\Response;
 
 class RegisteredUserController extends Controller
 {
-    public const REGISTRABLE_ROLES = ['social_worker', 'cpu_member'];
+    public const REGISTRABLE_ROLES = ['social_worker', 'cpu_member', 'lgu_head'];
 
     public function create(): Response
     {

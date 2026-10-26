@@ -7,7 +7,8 @@ use Illuminate\Database\Query\Builder;
 
 /**
  * Applies the minimum-necessary jurisdiction boundary to casework queries.
- * Query scope must match detail authorization. Administrators have no case access.
+ * Query scope must match detail authorization. Administrators have no case access;
+ * monitoring roles use MonitoringScope (secured names, read-only).
  */
 class CaseAccessScope
 {
@@ -29,8 +30,10 @@ class CaseAccessScope
             return $query->where("{$caseTable}.assigned_to", $user->id);
         }
 
-        if ($user->hasPermission('cases.view') && $user->role === 'fo_user') {
-            return $this->scopeProvince($query, $user, "{$clientTable}.province");
+        if ($user->role === 'lgu_head') {
+            $ids = $this->lgus->activeLguIds($user);
+
+            return $ids === [] ? $query->whereRaw('1 = 0') : $query->whereIn("{$caseTable}.lgu_id", $ids);
         }
 
         return $query->whereRaw('1 = 0');
@@ -51,7 +54,11 @@ class CaseAccessScope
             return (int) $case->assigned_to === $user->id;
         }
 
-        return $user->role === 'fo_user' && $this->matches($user->province, $province);
+        if ($user->role === 'lgu_head') {
+            return $this->lgus->caseMatches($user, $case, $municipality, $province);
+        }
+
+        return false;
     }
 
     public function scopeMunicipality(Builder $query, User $user, string $column): Builder
@@ -66,11 +73,6 @@ class CaseAccessScope
         return $this->hasAssignment($user->province)
             ? $query->where($column, trim((string) $user->province))
             : $query->whereRaw('1 = 0');
-    }
-
-    private function matches(?string $assigned, ?string $actual): bool
-    {
-        return $this->hasAssignment($assigned) && trim((string) $assigned) === trim((string) $actual);
     }
 
     private function hasAssignment(?string $value): bool

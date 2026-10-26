@@ -16,7 +16,7 @@ class RegistrationTest extends TestCase
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 ->component('Auth/Register')
-                ->has('registrableRoles', 2)
+                ->has('registrableRoles', 3)
             );
     }
 
