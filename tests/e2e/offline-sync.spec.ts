@@ -282,7 +282,7 @@ test('a different signed-in worker cannot unlock the previous account pack or qu
         await expect(page).toHaveURL(/\/login$/);
     };
     await signOut();
-    await login(page, { email: 'supervisor@kalinga.test', password: 'password' });
+    await login(page, { email: 'empty-worker@kalinga.test', password: 'password' });
     await page.goto('/offline-workspace');
     await page.getByLabel('Offline passphrase').fill('synthetic-sync-passphrase');
     await page.getByRole('button', { name: 'Unlock workspace', exact: true }).click();
