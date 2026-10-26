@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Services\OptionSets;
 use App\Services\RolePermissions;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
@@ -26,5 +27,6 @@ class ReferenceDataSeeder extends Seeder
                 DB::table('permission_role')->updateOrInsert(['role_id' => $roleId, 'permission_id' => $permissionIds[$permission]], []);
             }
         }
+        OptionSets::ensureDefaults();
     }
 }

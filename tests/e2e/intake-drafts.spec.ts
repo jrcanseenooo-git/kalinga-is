@@ -16,7 +16,27 @@ async function unlock(page: Page) {
     await page.getByRole('button', { name: 'Unlock workspace', exact: true }).click();
 }
 test.use({ serviceWorkers: 'allow' });
-const firstName = (page: Page) => page.getByPlaceholder('First name * (e.g., Maria)', { exact: true });
+const firstName = (page: Page) => page.getByRole('textbox', { name: 'First name *', exact: true });
+const privacyBox = (page: Page) => page.getByRole('checkbox', { name: /I gave the privacy notice/ });
+/** Step 1 of the intake, then on to the child's details (step 2). */
+async function toChildStep(page: Page) {
+    await privacyBox(page).check();
+    await page.getByRole('combobox', { name: /^How was the privacy notice given/ }).selectOption('explained_verbally');
+    await page.getByRole('button', { name: 'Continue', exact: true }).click();
+    await expect(firstName(page)).toBeVisible();
+}
+/** After an intake is queued, the form starts again at an empty step 1. */
+/** The child's first name as kept in the draft, opening step 2 when the form is further along. */
+async function expectName(page: Page, value: string) {
+    const stepTwo = page.getByRole('navigation', { name: 'CEFMU intake steps', exact: true }).getByRole('button', { name: /Child & safe contact/ });
+    await expect(stepTwo).toBeEnabled(); // the recovered draft is past step 1
+    const moved = await firstName(page).count() === 0;
+    if (moved) await stepTwo.click();
+    await expect(firstName(page)).toHaveValue(value);
+    // Back to the safety step so the intake can be saved as before.
+    if (moved) for (let i = 0; i < 2; i++) await page.getByRole('button', { name: 'Continue', exact: true }).click();
+}
+const expectFresh = async (page: Page) => { await expect(firstName(page)).toHaveCount(0); await expect(privacyBox(page)).not.toBeChecked(); };
 
 test.describe('encrypted intake drafts', () => {
     test.use({ serviceWorkers: 'allow' });
@@ -24,6 +44,7 @@ test.describe('encrypted intake drafts', () => {
         await provision(page);
         await expect(page.getByText('Field app ready', { exact: true })).toBeVisible({ timeout: 30_000 });
         await context.setOffline(true);
+        await toChildStep(page);
         await firstName(page).fill('SyntheticRecoverable');
         await expect(page.getByText('Draft encrypted and saved on this device. Not yet queued.', { exact: true })).toBeVisible();
         await page.reload();
@@ -33,19 +54,21 @@ test.describe('encrypted intake drafts', () => {
 });
 
 const saved = (page: Page) => page.getByText('Draft encrypted and saved on this device. Not yet queued.', { exact: true });
-const submit = (page: Page) => page.getByRole('button', { name: 'Save encrypted CEFMU Intake Sheet', exact: true });
+const submit = (page: Page) => page.getByRole('button', { name: 'Save intake on this device', exact: true });
 const queue = (page: Page) => page.locator('#encrypted-operation-queue');
 async function completeIntake(page: Page) {
+    await toChildStep(page);
     await firstName(page).fill('SyntheticAtomic');
-    await page.getByPlaceholder('Last name * (e.g., Dela Cruz)', { exact: true }).fill('Draft');
-    await page.locator('input[type="date"]').first().fill('2014-02-16');
-    await page.locator('select').filter({ has: page.locator('option', { hasText: 'Sex *' }) }).selectOption('Female');
-    await page.getByRole('checkbox', { name: /I acknowledge that I have read/ }).check();
-    await page.locator('select').filter({ has: page.locator('option', { hasText: 'How was the privacy notice provided?' }) }).selectOption('explained_verbally');
-    await page.getByRole('checkbox', { name: /Early union/ }).check();
-    await page.locator('select').filter({ has: page.locator('option', { hasText: 'Initial risk level *' }) }).selectOption('low');
-    await page.getByPlaceholder('Municipality / city').fill('City of Tabuk');
-    await page.getByPlaceholder('Barangay').fill('Dagupan Centro');
+    await page.getByRole('textbox', { name: 'Last name *', exact: true }).fill('Draft');
+    await page.getByLabel('Date of birth *').fill('2014-02-16');
+    await page.getByRole('combobox', { name: 'Sex *', exact: true }).selectOption('Female');
+    await page.locator('#intake-region').selectOption('Cordillera Administrative Region (CAR)');
+    await page.locator('#intake-province').selectOption('Kalinga');
+    await page.locator('#intake-municipality').selectOption('City of Tabuk');
+    await page.getByRole('button', { name: 'Continue', exact: true }).click();
+    await page.getByRole('checkbox', { name: /^Early union/ }).check();
+    await page.getByRole('button', { name: 'Continue', exact: true }).click();
+    await expect(page.getByRole('radio', { name: /^Low/ })).toBeChecked();
     await expect(saved(page)).toBeVisible();
 }
 
@@ -62,21 +85,21 @@ for (const failure of ['QuotaExceededError', 'AbortError']) test(`atomic intake 
     }, failure);
     await submit(page).click();
     await expect(page.getByRole('alert')).toContainText('Could not queue this intake');
-    await expect(firstName(page)).toHaveValue('SyntheticAtomic');
+    await expectName(page, 'SyntheticAtomic');
     await page.reload(); await unlock(page);
-    await expect(firstName(page)).toHaveValue('SyntheticAtomic');
+    await expectName(page, 'SyntheticAtomic');
     await expect(queue(page)).toHaveCount(0);
     await submit(page).evaluate((button: HTMLButtonElement) => { button.click(); button.click(); });
     await expect(queue(page).locator('span').filter({ hasText: /^pending$/ })).toHaveCount(1);
-    await expect(firstName(page)).toHaveValue('');
+    await expectFresh(page);
     await page.reload(); await unlock(page);
-    await expect(firstName(page)).toHaveValue('');
+    await expectFresh(page);
     await expect(queue(page).locator('span').filter({ hasText: /^pending$/ })).toHaveCount(1);
     await page.getByRole('button', { name: 'Sync now', exact: true }).click();
     await expect(queue(page)).toContainText('synced');
     await page.reload(); await unlock(page);
     await expect(queue(page)).toContainText('synced');
-    await expect(firstName(page)).toHaveValue('');
+    await expectFresh(page);
 });
 
 test('draft quota failure retains entered work and permits explicit recovery', async ({ page }) => {
@@ -89,6 +112,7 @@ test('draft quota failure retains entered work and permits explicit recovery', a
             return original.call(this, value, key);
         };
     });
+    await toChildStep(page);
     await firstName(page).fill('SyntheticQuotaRetained');
     await expect(page.locator('#intake-draft-recovery').getByRole('alert')).toBeVisible();
     await expect(firstName(page)).toHaveValue('SyntheticQuotaRetained');
@@ -101,6 +125,7 @@ test('draft quota failure retains entered work and permits explicit recovery', a
 
 test('stale tabs cannot overwrite a recovered draft and can retain a separate draft', async ({ page, context }) => {
     await provision(page);
+    await toChildStep(page);
     await firstName(page).fill('SyntheticShared'); await expect(saved(page)).toBeVisible();
     const other = await context.newPage(); await other.goto('/offline-workspace'); await unlock(other);
     await expect(firstName(other)).toHaveValue('SyntheticShared');
@@ -121,6 +146,7 @@ test('drafts remain encrypted, hidden on expiry and recover after reauthorizatio
     await provision(page);
     await expect(page.getByText('Field app ready', { exact: true })).toBeVisible({ timeout: 30_000 });
     const secret = 'SyntheticSecretDraftNarrative';
+    await toChildStep(page);
     await firstName(page).fill(secret); await expect(saved(page)).toBeVisible();
     const surfaces = await page.evaluate(async () => {
         const database = await new Promise<IDBDatabase>((resolve, reject) => { const request = indexedDB.open('kalinga-secure-offline'); request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
@@ -142,6 +168,7 @@ test('drafts remain encrypted, hidden on expiry and recover after reauthorizatio
 
 test('interrupted draft transaction restores its last committed revision after reload', async ({ page }) => {
     await provision(page);
+    await toChildStep(page);
     await firstName(page).fill('SyntheticCommitted'); await expect(saved(page)).toBeVisible();
     await page.evaluate(() => {
         const original = IDBObjectStore.prototype.put;
@@ -160,6 +187,7 @@ test('interrupted draft transaction restores its last committed revision after r
 
 test('locking and confirmed revocation clear draft narratives across open workspace tabs', async ({ page, context }) => {
     await provision(page);
+    await toChildStep(page);
     await firstName(page).fill('SyntheticCrossTabClear'); await expect(saved(page)).toBeVisible();
     const other = await context.newPage(); await other.goto('/offline-workspace'); await unlock(other);
     await expect(firstName(other)).toHaveValue('SyntheticCrossTabClear');
@@ -167,6 +195,7 @@ test('locking and confirmed revocation clear draft narratives across open worksp
     await expect(firstName(other)).toHaveCount(0);
     await unlock(page); await unlock(other);
     await expect(firstName(page)).toHaveValue('SyntheticCrossTabClear');
+    await expect(firstName(other)).toHaveValue('SyntheticCrossTabClear');
     await page.route('**/offline-workspace/device-status', route => route.fulfill({ json: { revoked: true } }));
     await page.getByRole('button', { name: 'Lock workspace', exact: true }).click();
     await unlock(page);
@@ -178,6 +207,7 @@ test('locking and confirmed revocation clear draft narratives across open worksp
 for (const width of [360, 768, 1440]) test(`intake draft recovery controls fit ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 950 });
     await provision(page);
+    await toChildStep(page);
     await firstName(page).fill('SyntheticResponsive'); await expect(saved(page)).toBeVisible();
     const box = (await page.locator('#intake-draft-recovery').boundingBox())!;
     expect(box.x).toBeGreaterThanOrEqual(0); expect(box.x + box.width).toBeLessThanOrEqual(width);
@@ -190,9 +220,10 @@ for (const width of [360, 768, 1440]) test(`intake draft recovery controls fit $
 test('two tabs promoting the same recovered intake create one queue identity', async ({ page, context }) => {
     await provision(page); await completeIntake(page);
     const other = await context.newPage(); await other.goto('/offline-workspace'); await unlock(other);
-    await expect(firstName(other)).toHaveValue('SyntheticAtomic');
+    await expect(other.getByText('Recovered encrypted draft. Not yet queued.', { exact: true })).toBeVisible();
+    await expect(submit(other)).toBeVisible();
     await Promise.all([submit(page).click(), submit(other).click()]);
-    await expect(firstName(page)).toHaveValue(''); await expect(firstName(other)).toHaveValue('');
+    await expectFresh(page); await expectFresh(other);
     await page.reload(); await unlock(page);
     await expect(queue(page).locator('span').filter({ hasText: /^pending$/ })).toHaveCount(1);
     await page.getByRole('button', { name: 'Sync now', exact: true }).click();
@@ -207,7 +238,7 @@ test('an intake queue remains recoverable after server authorization expires', a
     await expect(queue(page)).toContainText('failed');
     await expect(queue(page)).not.toContainText('Synthetic sensitive server error');
     await page.reload(); await unlock(page);
-    await expect(queue(page)).toContainText('failed'); await expect(firstName(page)).toHaveValue('');
+    await expect(queue(page)).toContainText('failed'); await expectFresh(page);
     await page.unroute('**/sync');
     await queue(page).getByRole('button', { name: 'Retry now', exact: true }).click();
     await expect(queue(page)).toContainText('synced');
@@ -225,10 +256,10 @@ test('intake fields are protected while atomic promotion is in flight', async ({
     });
     await submit(page).click();
     await expect(submit(page)).toBeDisabled();
-    await expect(firstName(page)).toBeDisabled();
+    await expect(page.getByRole('checkbox', { name: /^Planned or impending union/ })).toBeDisabled();
     await page.evaluate(() => window.dispatchEvent(new Event('synthetic-promotion-release')));
     await expect(queue(page)).toContainText('pending');
-    await expect(firstName(page)).toBeEnabled(); await expect(firstName(page)).toHaveValue('');
+    await expectFresh(page); await expect(privacyBox(page)).toBeEnabled();
 });
 
 // GIDA: an intake can be done with no signal and no case pack, and sync never interrupts it.
@@ -261,6 +292,7 @@ test('reconnection waits for the intake in progress, then syncs and notifies', a
     await completeIntake(page);
     await submit(page).click();
     await expect(savedList(page)).toContainText('Waiting to sync');
+    await toChildStep(page);
     await firstName(page).fill('SyntheticSecondChild');
     await expect(saved(page)).toBeVisible();
     await context.setOffline(false);
@@ -268,8 +300,8 @@ test('reconnection waits for the intake in progress, then syncs and notifies', a
     await expect(page.getByText(/Syncing waits until you save the intake/)).toBeVisible();
     await expect(savedList(page)).toContainText('Waiting to sync');
     await firstName(page).fill('');
-    await page.getByPlaceholder('Last name * (e.g., Dela Cruz)', { exact: true }).fill('');
-    await page.locator('input[type="date"]').first().fill('');
+    await page.getByRole('button', { name: 'Back', exact: true }).click();
+    await privacyBox(page).uncheck();
     // Leaving the unfinished intake empty releases the wait; sync then runs by itself.
     await expect(savedList(page)).toContainText('Synced - case created', { timeout: 30_000 });
 });

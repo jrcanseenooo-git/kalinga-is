@@ -14,7 +14,7 @@ test('client details have labelled editing and actual intake and caregiver readb
     const panel = await openContext(page);
     await expect(panel.getByRole('textbox', { name: 'Given name', exact: true })).toHaveValue('Synthetic');
     await panel.getByRole('button', { name: 'Recorded intake context', exact: true }).click();
-    await expect(panel.getByText('early union', { exact: true })).toBeVisible();
+    await expect(panel.getByText('Early union', { exact: true })).toBeVisible();
     await expect(panel.getByText('Synthetic trusted caregiver', { exact: true })).toBeVisible();
     await expect(panel.getByText('Synthetic safe contact guidance.', { exact: true })).toBeVisible();
 });

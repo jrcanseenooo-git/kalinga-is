@@ -23,7 +23,7 @@ policies, training, physical security) are outside this register.
 | A06 Vulnerable components | composer audit and npm audit in the release check | scripts/security-check.sh | npm audit: 0 vulnerabilities (2026-10-22) |
 | A07 Identification and authentication failures | Password policy (10+ chars, mixed case, number, symbol, breached-password check); sign-in throttled per email+address and per account; 2FA required for configured roles; 5 wrong codes end the session; constant-time recovery-code check; session renewed after login and 2FA; reset and 2FA endpoints throttled | LoginRequest, TwoFactorController, routes/auth.php, config/kalinga.php | BruteForceProtectionTest, TwoFactorTest, AccountEnumerationTest |
 | A08 Software and data integrity failures | Offline sync is idempotent with version checks and conflict states; uploads quarantined until malware scan clears them | OfflineSyncController, CaseArtifactController | OfflineSyncIntegrityTest, offline-sync e2e |
-| A09 Logging and monitoring failures | Audit trail with client IP for sign-in (success, failure, lockout, logout, reset), case views, report generation, exports and every change; append-only at the database (PostgreSQL trigger refuses update, delete and truncate) | app/Support/AuditLog.php, migration 2026_10_22_000200 | AuthAuditTrailTest |
+| A09 Logging and monitoring failures | Audit trail with client IP for sign-in (success, failure, lockout, logout, reset), case views, report generation, exports and every change, classified into 14 log types with role, record ID and old/new value; access denied, repeated denials (security alert) and application/database errors are logged; secrets removed before writing; append-only at the database (PostgreSQL trigger refuses update, delete and truncate); read-only admin page with filters and Excel/CSV export (exports logged) | app/Support/AuditLog.php, AuditCatalogue.php, AuditExceptions.php, AuditLogController.php, migrations 2026_10_22_000200 and 2026_10_27_000100 | AuthAuditTrailTest, SystemAuditLogTest |
 | A10 Server-side request forgery | The application makes no server-side requests to user-supplied URLs | - | - |
 
 ## 2. Findings fixed in this review (2026-10-22)
@@ -69,3 +69,9 @@ policies, training, physical security) are outside this register.
   production should use a separate migration account so the application
   account cannot alter triggers.
 - A third-party penetration test is recommended before nationwide roll-out.
+
+## Intake uploads and saved intakes (Release 5)
+
+- Consent / assent form photos: images only (JPEG, PNG, WebP, max 6 MB), decoded and redrawn as a new JPEG on the server so no embedded content or camera/location data remains; stored privately as a case document with scan state `sanitized` (app/Services/ConsentFormImage.php, KalingaIntakeTest).
+- Saved intakes: encrypted with the application key, visible only to their author, nothing stored before the privacy notice step, deleted on case creation, discard or after 30 days (app/Services/IntakeDrafts.php, KalingaIntakeTest).
+

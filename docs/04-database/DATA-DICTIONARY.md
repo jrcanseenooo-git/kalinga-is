@@ -1,6 +1,6 @@
 # Data dictionary - Kalinga CEFMU Case Management Information System
 
-Generated from the PostgreSQL schema by scripts/generate_data_dictionary.py, with the 2026-10-23 direct-message migration supplement below. 94 tables. PK = primary key; FK = references another table.
+Generated from the PostgreSQL schema by scripts/generate_data_dictionary.py. 95 tables. PK = primary key; FK = references another table.
 
 ## Clients and identity
 
@@ -44,6 +44,14 @@ The child (client) of a case: identifying information, address, safe contact and
 | identity_status | varchar(32) | No |  | Identity status. |
 | canonical_client_id | bigint | Yes | FK clients | Link to the client record (clients). |
 | identity_updated_at | timestamp | Yes |  | Date and time: identity updated. |
+| alias | varchar(80) | Yes |  | Alias. |
+| permanent_same_as_present | boolean | Yes |  | Yes/no: permanent same as present. |
+| caregiver_same_address | boolean | Yes |  | Yes/no: caregiver same address. |
+| caregiver_house_no_street | varchar(255) | Yes |  | Caregiver house no street. |
+| caregiver_region | varchar(120) | Yes |  | Caregiver region. |
+| caregiver_province | varchar(120) | Yes |  | Caregiver province. |
+| caregiver_municipality | varchar(120) | Yes |  | Caregiver municipality. |
+| caregiver_barangay | varchar(120) | Yes |  | Caregiver barangay. |
 
 ### client_identifiers
 
@@ -202,6 +210,13 @@ Family members and support persons of a client (family composition).
 | birthdate | date | Yes |  | Birthdate. |
 | education | varchar(255) | Yes |  | Education. |
 | occupation | varchar(255) | Yes |  | Occupation. |
+| civil_status | varchar(80) | Yes |  | Civil status. |
+| same_address_as_client | boolean | Yes |  | Yes/no: same address as client. |
+| house_no_street | varchar(255) | Yes |  | House no street. |
+| region | varchar(120) | Yes |  | Region. |
+| province | varchar(120) | Yes |  | Province. |
+| municipality | varchar(120) | Yes |  | City or municipality. |
+| barangay | varchar(120) | Yes |  | Barangay. |
 
 ### households
 
@@ -302,6 +317,22 @@ Counters used to issue report and case numbers.
 | created_at | timestamp | Yes |  | When the record was created. |
 | updated_at | timestamp | Yes |  | When the record was last changed. |
 
+### intake_drafts
+
+Saved intakes: a paused Kalinga Intake, visible only to the case manager who started it. Answers are encrypted with the application key; deleted when the case folder is created, when discarded, or 30 days after the last change.
+
+| Column | Type | Null | Key | Description |
+|---|---|---|---|---|
+| id | uuid | No | PK | Unique record number. |
+| user_id | bigint | No | FK users | Link to the user record (users). |
+| lgu_id | bigint | Yes | FK lgu_units | Link to the lgu unit record (lgu_units). |
+| label | varchar(80) | Yes |  | Display label. |
+| step | smallint | No |  | Step. |
+| payload | text | No |  | Payload. |
+| expires_at | timestamp | No |  | Date and time: expires. |
+| created_at | timestamp | Yes |  | When the record was created. |
+| updated_at | timestamp | Yes |  | When the record was last changed. |
+
 ## Case folder
 
 ### cases
@@ -363,6 +394,16 @@ The case folder: status, stage, CEFMU classification, intake details, risk level
 | current_risk_level | varchar(20) | Yes |  | Current risk level. |
 | current_risk_assessed_at | timestamp | Yes |  | Date and time: current risk assessed. |
 | lgu_id | bigint | Yes | FK lgu_units | Link to the lgu unit record (lgu_units). |
+| union_forms | json | Yes |  | Union forms. |
+| union_status | varchar(20) | Yes |  | Union status. |
+| partner_current_age | smallint | Yes |  | Partner current age. |
+| union_duration_months | smallint | Yes |  | Union duration months. |
+| current_residence | varchar(40) | Yes |  | Current residence. |
+| risk_points | numeric | Yes |  | Risk points. |
+| suggested_risk_level | varchar(20) | Yes |  | Suggested risk level. |
+| risk_level_reason | varchar(1000) | Yes |  | Risk level reason. |
+| consent_form_type | varchar(30) | Yes |  | Consent form type. |
+| consent_document_id | bigint | Yes | FK documents | Link to the document record (documents). |
 
 ### case_status_history
 
@@ -1331,26 +1372,20 @@ Read receipts of messages.
 
 ### coordination_direct_messages
 
-Participant-only online coordination messages, separate from group chat and
-formal case records. Added by the 2026-10-23 migration; the generator catalogue
-also includes this table for subsequent full schema exports.
+Participant-only online coordination messages between two currently eligible members of the same LGU circle. Separate from group chat and formal case records.
 
 | Column | Type | Null | Key | Description |
 |---|---|---|---|---|
-| id | bigint | No | PK | Unique message record. |
-| circle_id | bigint | No | FK lgu_coordination_circles | Shared LGU context; deletion restricted. |
-| sender_id | bigint | No | FK users | Sender; deletion restricted. |
-| recipient_id | bigint | No | FK users | Other participant; deletion restricted. |
-| parent_id | bigint | Yes | FK coordination_direct_messages | Optional reply; server validates the same pair/circle. |
-| body | text | No | | Coordination text, validated at 3000 characters maximum. |
-| is_urgent | boolean | No | | Operational urgency flag, default false. |
-| follow_up | boolean | No | | Operational follow-up flag, default false. |
-| created_at | timestamp | Yes | | Message creation timestamp, stored as UTC. |
-| updated_at | timestamp | Yes | | Record timestamp, stored as UTC. |
-
-Indexes: circle/sender/recipient/id and circle/recipient/sender/id. Both
-participants must currently qualify for the circle and chat posting permission
-for reads, search and sends. No case-reference or formal-capture fields.
+| id | bigint | No | PK | Unique record number. |
+| circle_id | bigint | No | FK lgu_coordination_circles | Link to the lgu coordination circle record (lgu_coordination_circles). |
+| sender_id | bigint | No | FK users | Link to the user record (users). |
+| recipient_id | bigint | No | FK users | Link to the user record (users). |
+| parent_id | bigint | Yes | FK coordination_direct_messages | Link to the coordination direct message record (coordination_direct_messages). |
+| body | text | No |  | Text of the note or message. |
+| is_urgent | boolean | No |  | Yes/no: is urgent. |
+| follow_up | boolean | No |  | Yes/no: follow up. |
+| created_at | timestamp | Yes |  | When the record was created. |
+| updated_at | timestamp | Yes |  | When the record was last changed. |
 
 ## Records governance
 
@@ -1713,6 +1748,14 @@ Append-only audit trail of sign-ins, views and every change (ids and codes, no n
 | ip_address | varchar(45) | Yes |  | Client network address at the time of the action. |
 | created_at | timestamp | Yes |  | When the record was created. |
 | updated_at | timestamp | Yes |  | When the record was last changed. |
+| log_type | varchar(40) | Yes |  | Log type. |
+| module | varchar(60) | Yes |  | Module. |
+| action | varchar(20) | Yes |  | Action. |
+| record_ref | varchar(80) | Yes |  | Record ref. |
+| description | varchar(255) | Yes |  | Description. |
+| old_value | varchar(255) | Yes |  | Old value. |
+| new_value | varchar(255) | Yes |  | New value. |
+| user_role | varchar(40) | Yes |  | User role. |
 
 ### notifications
 
@@ -1798,6 +1841,9 @@ Lists used in forms (reference values).
 | active | boolean | No |  | Whether the record is in use. |
 | created_at | timestamp | Yes |  | When the record was created. |
 | updated_at | timestamp | Yes |  | When the record was last changed. |
+| sort_order | integer | No |  | Sort order. |
+| weight | numeric | Yes |  | Weight. |
+| meta | json | Yes |  | Meta. |
 
 ## Framework (Laravel)
 

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { classificationLabels, incidenceRows, type IncidenceRecord } from '@/data/cefmu';
 import OptionSelect from '@/Components/UI/OptionSelect.vue';
 import { CLIENT_CATEGORIES, CONSENT_BASES, RELATIONSHIPS } from '@/utils/caseOptions';
 import { computed, nextTick, onBeforeUnmount, ref } from 'vue';
@@ -20,7 +21,7 @@ const message = ref('');
 const failures = ref<string[]>([]);
 const errorSummary = ref<HTMLElement | null>(null);
 const edit = useForm({
-    first_name: props.record.first_name, last_name: props.record.last_name,
+    first_name: props.record.first_name, last_name: props.record.last_name, alias: props.record.alias ?? '',
     birthdate: props.record.birthdate?.slice(0, 10) ?? '', sex: props.record.sex ?? '', phone: props.record.phone ?? '',
     region: props.record.region ?? '', province: props.record.province ?? '', municipality: props.record.municipality ?? '',
     barangay: props.record.barangay ?? '', category: props.record.category ?? '', priority: props.record.priority,
@@ -41,10 +42,10 @@ function list(value: string | string[] | null | undefined): string[] {
 }
 const human = (value: string | null | undefined) => value ? value.replaceAll('_', ' ') : 'Not recorded';
 const context = computed(() => [
-    ['CEFMU classifications', list(props.record.cefmu_classifications).map(human).join(', ')],
-    ['Union type', props.record.union_type], ['Partner age band', props.record.partner_age_band],
+    ['CEFMU classifications', classificationLabels(list(props.record.cefmu_classifications)).join(', ')],
+    ...incidenceRows(props.record as IncidenceRecord),
     ['Education at intake', props.record.education_status_at_intake], ['Pregnancy / parenting context', props.record.pregnancy_parenting_status],
-    ['Admission method', props.record.mode_of_admission], ['Referred by', props.record.referred_by],
+    ['Mode of reporting', props.record.mode_of_admission], ['Referred by', props.record.referred_by],
     ['Referral date', props.record.referral_date ? calendarDateLabel(props.record.referral_date) : null],
     ['Privacy notice method', human(props.record.privacy_notice_method)],
     ['Intake completed', props.record.intake_completed_at ? philippineTimestamp(props.record.intake_completed_at) : null],
@@ -97,6 +98,7 @@ function withdraw(id: number) {
                     <div class="grid gap-4 sm:grid-cols-2">
                         <FormField id="client-first" label="Given name" :error="edit.errors.first_name" required><input id="client-first" v-model="edit.first_name" required maxlength="80" class="ui-field" :aria-invalid="Boolean(edit.errors.first_name)||undefined"></FormField>
                         <FormField id="client-last" label="Family name" :error="edit.errors.last_name" required><input id="client-last" v-model="edit.last_name" required maxlength="80" class="ui-field"></FormField>
+                        <FormField id="client-alias" label="Alias or nickname" :error="edit.errors.alias" hint="Shown on forms instead of the full name when chosen."><input id="client-alias" v-model="edit.alias" maxlength="80" class="ui-field"></FormField>
                         <FormField id="client-birth" label="Birthdate" :error="edit.errors.birthdate"><input id="client-birth" v-model="edit.birthdate" type="date" class="ui-field"></FormField>
                         <FormField id="client-sex" label="Sex" :error="edit.errors.sex"><select id="client-sex" v-model="edit.sex" class="ui-field"><option value="">Not recorded</option><option>Female</option><option>Male</option></select></FormField>
                         <FormField id="client-phone" label="Contact number (optional)" :error="edit.errors.phone" hint="Review the recorded safe contact guidance before making contact."><input id="client-phone" v-model="edit.phone" inputmode="tel" maxlength="13" class="ui-field"></FormField>

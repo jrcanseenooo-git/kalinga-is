@@ -1,4 +1,4 @@
-export const FIELD_CACHE = 'kalinga-field-shell-v15';
+export const FIELD_CACHE = 'kalinga-field-shell-v16';
 const PREPARATION_TIMEOUT_MS = 20_000;
 let preparation: Promise<void> | null = null;
 

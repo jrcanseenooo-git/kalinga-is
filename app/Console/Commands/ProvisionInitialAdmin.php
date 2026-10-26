@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\User;
+use App\Support\AuditLog;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Hash;
 
@@ -27,7 +28,8 @@ class ProvisionInitialAdmin extends Command
 
             return self::SUCCESS;
         }
-        User::create(['name' => $name, 'email' => $email, 'email_verified_at' => now(), 'password' => Hash::make($password), 'role' => 'system_admin']);
+        $admin = User::create(['name' => $name, 'email' => $email, 'email_verified_at' => now(), 'password' => Hash::make($password), 'role' => 'system_admin']);
+        AuditLog::record('user.created', 'user', $admin->id, ['role' => 'system_admin', 'source' => 'provisioning_command'], null, 'success', ['user_role' => null]);
         $this->info('Initial administrator created. Remove PROVISION_ADMIN_PASSWORD after confirming access.');
 
         return self::SUCCESS;

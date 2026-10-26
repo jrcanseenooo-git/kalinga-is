@@ -127,16 +127,29 @@ test('draft promotion preserves queued records and leaves a narrative-free idemp
     assert.throws(() => promoteDraft([], [], 'draft', 7, 'device', 1, payload, 'digest'));
 });
 
-const intakeErrorSource = readFileSync(new URL('../../resources/js/Casework/intakeErrors.ts', import.meta.url), 'utf8');
-const intakeErrorCompiled = ts.transpileModule(intakeErrorSource, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 } }).outputText;
-const { intakeStepForError, intakeFieldId } = await import(`data:text/javascript;base64,${Buffer.from(intakeErrorCompiled).toString('base64')}`);
-test('online intake server errors route to the existing responsible step and control group', () => {
-    assert.equal(intakeStepForError('privacy_notice_method'), 1);
-    assert.equal(intakeStepForError('immediate_actions'), 2);
-    assert.equal(intakeStepForError('first_name'), 3);
-    assert.equal(intakeStepForError('cefmu_classifications.0'), 4);
-    assert.equal(intakeStepForError('problem_presented'), 5);
-    assert.equal(intakeStepForError('unknown_field'), 5);
+const intakeRulesSource = readFileSync(new URL('../../resources/js/Casework/intakeRules.ts', import.meta.url), 'utf8');
+const intakeRulesCompiled = ts.transpileModule(intakeRulesSource, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 } }).outputText;
+const { intakeStepForField, intakeFieldId, suggestRisk, isLowerThan } = await import(`data:text/javascript;base64,${Buffer.from(intakeRulesCompiled).toString('base64')}`);
+test('intake server errors route to the step that holds the field', () => {
+    assert.equal(intakeStepForField('privacy_notice_method'), 1);
+    assert.equal(intakeStepForField('consent_photo'), 1);
+    assert.equal(intakeStepForField('first_name'), 2);
+    assert.equal(intakeStepForField('family_members.1.name'), 2);
+    assert.equal(intakeStepForField('cefmu_classifications.0'), 3);
+    assert.equal(intakeStepForField('union_duration_months'), 3);
+    assert.equal(intakeStepForField('risk_level_reason'), 4);
+    assert.equal(intakeStepForField('unknown_field'), 4);
     assert.equal(intakeFieldId('cefmu_classifications.0'), 'intake-cefmu_classifications');
     assert.equal(intakeFieldId('first_name'), 'intake-first_name');
+});
+test('the suggested risk level follows the points and their thresholds', () => {
+    const options = { riskFactors: [{ code: 'a', weight: 1 }, { code: 'b', weight: 1 }, { code: 'danger', weight: 4 }], riskRule: { moderate: 1, high: 2, critical: 4 } };
+    assert.deepEqual(suggestRisk([], options), { level: 'low', points: 0 });
+    assert.deepEqual(suggestRisk(['a'], options), { level: 'moderate', points: 1 });
+    assert.deepEqual(suggestRisk(['a', 'b'], options), { level: 'high', points: 2 });
+    assert.deepEqual(suggestRisk(['danger'], options), { level: 'critical', points: 4 });
+    assert.equal(suggestRisk(['unknown label from an older intake'], options).level, 'low');
+    assert.equal(isLowerThan('moderate', 'critical'), true);
+    assert.equal(isLowerThan('critical', 'high'), false);
+    assert.equal(isLowerThan('', 'high'), false);
 });

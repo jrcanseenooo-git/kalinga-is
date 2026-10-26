@@ -6,12 +6,15 @@ use App\Models\User;
 use App\Services\CaseAccessScope;
 use App\Services\CaseAssignmentEligibility;
 use App\Services\CaseClosureHistory;
+use App\Services\CaseIntake;
 use App\Services\CaseLifecyclePolicy;
 use App\Services\CaseVersionGuard;
 use App\Services\IdentityIntegrity;
+use App\Services\IntakeDrafts;
 use App\Services\LguAssignmentScope;
 use App\Services\NoteReferrals;
 use App\Services\OperationalNotification;
+use App\Services\OptionSets;
 use App\Services\RecordsGovernance;
 use App\Services\ReferenceNumberService;
 use App\Services\ReferralTracking;
@@ -284,42 +287,43 @@ class CaseworkController extends Controller
         $lguIds = $this->lgus->activeLguIds($request->user());
         $assignedLgu = $lguIds ? DB::table('lgu_units')->find($lguIds[0]) : null;
 
+        $draftId = $request->validate(['draft' => 'nullable|uuid'])['draft'] ?? null;
+        $draft = $draftId ? IntakeDrafts::open($draftId, $request->user()->id) : null;
+        abort_if($draftId && !$draft, 404, 'This saved intake is no longer available.');
+
         return Inertia::render('Cases/Create', [
             'assignedLocation' => $assignedLgu ? [
                 'municipality' => $assignedLgu->name,
                 'province' => $assignedLgu->province,
                 'region' => $assignedLgu->region,
             ] : null,
-        ]);
+            'intakeOptions' => [
+                'riskFactors' => OptionSets::options(OptionSets::RISK_FACTORS),
+                'riskRule' => OptionSets::riskRule(),
+            ],
+            'draft' => $draft,
+            'savedIntakes' => $draft ? [] : IntakeDrafts::list($request->user()->id),
+            'keepDays' => IntakeDrafts::KEEP_DAYS,
+        ])->toResponse($request)->withHeaders(['Cache-Control' => 'private, no-store, max-age=0']);
     }
 
-    public function store(Request $request)
+    public function store(Request $request, CaseIntake $intake)
     {
         $this->authorize('cases.create');
-        $data = $request->validate(['first_name' => 'required|string|max:80', 'middle_name' => 'nullable|string|max:80', 'last_name' => 'required|string|max:80', 'suffix' => 'nullable|string|max:30', 'birthdate' => 'required|date|before_or_equal:today', 'sex' => 'required|in:Male,Female', 'civil_status' => 'nullable|string|max:80', 'religion' => 'nullable|string|max:120', 'ip_category' => 'nullable|string|max:120', 'education_attainment' => 'nullable|string|max:120', 'phone' => ['nullable', 'regex:/^(?:\\+63|0)9\\d{9}$/'], 'safe_contact_method' => 'nullable|string|max:100', 'safe_contact_notes' => 'nullable|string|max:1000', 'primary_caregiver_name' => 'nullable|string|max:160', 'primary_caregiver_relationship' => 'nullable|string|max:100', 'primary_caregiver_contact' => 'nullable|string|max:80', 'house_no_street' => 'nullable|string|max:255', 'permanent_house_no_street' => 'nullable|string|max:255', 'permanent_region' => 'nullable|string|max:120', 'permanent_province' => 'nullable|string|max:120', 'permanent_municipality' => 'nullable|string|max:120', 'permanent_barangay' => 'nullable|string|max:120', 'region' => 'nullable|string|max:120', 'province' => 'nullable|string|max:120', 'barangay' => 'nullable|string|max:120', 'municipality' => 'nullable|string|max:120', 'category' => 'required|in:CEFMU', 'case_type' => 'nullable|string|max:100', 'cefmu_classifications' => 'required|array|min:1', 'cefmu_classifications.*' => 'in:early_union,forced_marriage', 'union_type' => 'nullable|string|max:60', 'partner_age_band' => 'nullable|string|max:60', 'education_status_at_intake' => 'nullable|string|max:100', 'pregnancy_parenting_status' => 'nullable|string|max:100', 'cefmu_context' => 'nullable|string|max:5000', 'circumstance' => 'nullable|string|max:100', 'mode_of_admission' => 'nullable|string|max:100', 'referred_by' => 'nullable|string|max:255', 'referral_date' => 'nullable|date', 'problem_presented' => 'nullable|string|max:5000', 'initial_assessment' => 'nullable|string|max:5000', 'plan_recommendations' => 'nullable|string|max:5000', 'intake_remarks' => 'nullable|string|max:5000', 'family_members' => 'nullable|array', 'family_members.*.name' => 'nullable|string|max:160', 'family_members.*.relationship_type' => 'nullable|string|max:100', 'family_members.*.sex' => 'nullable|string|max:24', 'family_members.*.birthdate' => 'nullable|date', 'family_members.*.education' => 'nullable|string|max:160', 'family_members.*.occupation' => 'nullable|string|max:160', 'pregnancy_status' => 'nullable|string|max:100', 'disability_evidence' => 'nullable|string|max:100', 'functional_difficulty' => 'nullable|string|max:100', 'immediate_safety_concern' => 'boolean', 'initial_risk_level' => 'required|in:low,moderate,high,critical', 'risk_indicators' => 'nullable|array', 'risk_indicators.*' => 'string|max:100', 'immediate_actions' => 'nullable|string|max:5000', 'safety_plan' => 'nullable|string|max:5000', 'next_review_at' => 'nullable|date', 'privacy_notice_acknowledged' => 'accepted', 'privacy_notice_method' => 'required|in:explained_verbally,written_or_digital_notice,trusted_adult_or_guardian,deferred_emergency_next_practicable', 'priority' => 'required|in:low,normal,high,urgent', 'narrative' => 'nullable|string|max:5000']);
-        $case = DB::transaction(function () use ($data, $request) {
+        $validator = validator($request->all(), $intake->rules() + ['draft_id' => 'nullable|uuid']);
+        $validator->after(fn ($v) => $intake->after($v));
+        $data = $validator->validate();
+        $case = DB::transaction(function () use ($data, $request, $intake) {
             $lguIds = $this->lgus->activeLguIds($request->user());
-            $lguId = $lguIds[0] ?? null;
-            if ($lguId) {
-                $assignedLgu = DB::table('lgu_units')->find($lguId);
-                abort_unless($assignedLgu, 422, 'Your LGU assignment could not be resolved. Contact your administrator.');
-                $data['municipality'] = $assignedLgu->name;
-                $data['province'] = $assignedLgu->province;
-                $data['region'] = $assignedLgu->region;
+            $location = null;
+            if ($lguIds[0] ?? null) {
+                $location = DB::table('lgu_units')->find($lguIds[0]);
+                abort_unless($location, 422, 'Your LGU assignment could not be resolved. Contact your administrator.');
             }
-            $clientId = DB::table('clients')->insertGetId(collect($data)->only(['first_name', 'middle_name', 'last_name', 'suffix', 'birthdate', 'sex', 'civil_status', 'religion', 'ip_category', 'education_attainment', 'phone', 'safe_contact_method', 'safe_contact_notes', 'primary_caregiver_name', 'primary_caregiver_relationship', 'primary_caregiver_contact', 'house_no_street', 'permanent_house_no_street', 'permanent_region', 'permanent_province', 'permanent_municipality', 'permanent_barangay', 'region', 'province', 'barangay', 'municipality'])->merge(['created_at' => now(), 'updated_at' => now()])->all());
-            $reportId = empty($data['narrative']) ? null : DB::table('reports')->insertGetId(['reference_no' => $this->references->nextReport(), 'client_id' => $clientId, 'status' => 'ACCEPTED', 'narrative' => $data['narrative'], 'priority' => $data['priority'], 'submitted_at' => now(), 'created_by' => $request->user()->id, 'created_at' => now(), 'updated_at' => now()]);
-            $caseNumber = $this->references->nextCase();
-            $id = DB::table('cases')->insertGetId(['case_number' => $caseNumber, 'client_id' => $clientId, 'lgu_id' => $lguId, 'report_id' => $reportId, 'assigned_to' => $request->user()->id, 'status' => 'OPEN', 'stage' => 'intake', 'priority' => $data['priority'], 'category' => 'CEFMU', 'case_type' => $data['case_type'] ?? null, 'cefmu_classifications' => json_encode($data['cefmu_classifications']), 'union_type' => $data['union_type'] ?? null, 'partner_age_band' => $data['partner_age_band'] ?? null, 'education_status_at_intake' => $data['education_status_at_intake'] ?? null, 'pregnancy_parenting_status' => $data['pregnancy_parenting_status'] ?? null, 'cefmu_context' => $data['cefmu_context'] ?? null, 'privacy_notice_provided_at' => now(), 'privacy_notice_method' => $data['privacy_notice_method'], 'circumstance' => $data['circumstance'] ?? null, 'mode_of_admission' => $data['mode_of_admission'] ?? null, 'referred_by' => $data['referred_by'] ?? null, 'referral_date' => $data['referral_date'] ?? null, 'problem_presented' => $data['problem_presented'] ?? null, 'initial_assessment' => $data['initial_assessment'] ?? null, 'plan_recommendations' => $data['plan_recommendations'] ?? null, 'intake_remarks' => $data['intake_remarks'] ?? null, 'pregnancy_status' => $data['pregnancy_status'] ?? null, 'disability_evidence' => $data['disability_evidence'] ?? null, 'functional_difficulty' => $data['functional_difficulty'] ?? null, 'immediate_safety_concern' => $data['immediate_safety_concern'] ?? false, 'initial_risk_level' => $data['initial_risk_level'], 'risk_indicators' => json_encode($data['risk_indicators'] ?? []), 'immediate_actions' => $data['immediate_actions'] ?? null, 'safety_plan' => $data['safety_plan'] ?? null, 'next_review_at' => $data['next_review_at'] ?? null, 'intake_completed_at' => now(), 'opened_at' => now(), 'last_activity_at' => now(), 'created_at' => now(), 'updated_at' => now()]);
-            foreach ($data['family_members'] ?? [] as $member) {
-                if (!empty($member['name']) && !empty($member['relationship_type'])) {
-                    DB::table('relationships')->insert(['client_id' => $clientId, 'name' => $member['name'], 'relationship_type' => $member['relationship_type'], 'sex' => $member['sex'] ?? null, 'birthdate' => $member['birthdate'] ?? null, 'education' => $member['education'] ?? null, 'occupation' => $member['occupation'] ?? null, 'created_at' => now(), 'updated_at' => now()]);
-                }
+            [$id] = $intake->create($data, $request->user(), ['lgu_id' => $lguIds[0] ?? null, 'location' => $location, 'source' => 'online_intake']);
+            if (!empty($data['draft_id'])) {
+                IntakeDrafts::finish($data['draft_id'], $request->user()->id, $id);
             }
-            $this->identity->generateForClient($clientId, $request->user()->id);
-            DB::table('case_status_history')->insert(['case_id' => $id, 'from_status' => null, 'to_status' => 'OPEN', 'changed_by' => $request->user()->id, 'created_at' => now(), 'updated_at' => now()]);
-            $this->notifications->send($request->user()->id, 'case_assigned', 'New case assigned', 'A case has been assigned to you: ' . $caseNumber . '.', '/cases/' . $id);
-            AuditLog::insert(['user_id' => $request->user()->id, 'event' => 'case.created', 'auditable_type' => 'case', 'auditable_id' => $id, 'changes' => json_encode(['status' => 'OPEN']), 'created_at' => now(), 'updated_at' => now()]);
 
             return $id;
         });
@@ -342,7 +346,7 @@ class CaseworkController extends Controller
     {
         $record = DB::table('cases')->join('clients', 'clients.id', '=', 'cases.client_id')->leftJoin('users', 'users.id', '=', 'cases.assigned_to')->where('cases.id', $case)->whereNull('cases.deleted_at')->first([
             'cases.id', 'cases.case_number', 'cases.client_id', 'cases.assigned_to', 'cases.status', 'cases.stage', 'cases.priority',
-            'cases.category', 'cases.case_type', 'cases.cefmu_classifications', 'cases.union_type', 'cases.partner_age_band',
+            'cases.category', 'cases.case_type', 'cases.cefmu_classifications', 'cases.union_type', 'cases.partner_age_band', 'cases.union_forms', 'cases.union_status', 'cases.partner_current_age', 'cases.union_duration_months', 'cases.current_residence', 'clients.alias',
             'cases.current_risk_level', 'cases.current_risk_assessed_at',
             'cases.education_status_at_intake', 'cases.pregnancy_parenting_status', 'cases.circumstance', 'cases.mode_of_admission',
             'cases.referred_by', 'cases.referral_date', 'cases.immediate_safety_concern', 'cases.initial_risk_level', 'cases.risk_indicators',
@@ -429,9 +433,9 @@ class CaseworkController extends Controller
         abort_unless($record, 404);
         $this->authorize('cases.update');
         $this->caseAccess($request, $record);
-        $data = $request->validate(['first_name' => 'required|string|max:80', 'last_name' => 'required|string|max:80', 'birthdate' => 'nullable|date|before_or_equal:today', 'sex' => 'nullable|in:Male,Female', 'phone' => ['nullable', 'regex:/^(?:\\+63|0)9\\d{9}$/'], 'region' => 'nullable|string|max:120', 'province' => 'nullable|string|max:120', 'municipality' => 'nullable|string|max:120', 'barangay' => 'nullable|string|max:120', 'category' => 'nullable|string|max:80', 'priority' => 'required|in:low,normal,high,urgent']);
+        $data = $request->validate(['first_name' => 'required|string|max:80', 'last_name' => 'required|string|max:80', 'alias' => 'nullable|string|max:80', 'birthdate' => 'nullable|date|before_or_equal:today', 'sex' => 'nullable|in:Male,Female', 'phone' => ['nullable', 'regex:/^(?:\\+63|0)9\\d{9}$/'], 'region' => 'nullable|string|max:120', 'province' => 'nullable|string|max:120', 'municipality' => 'nullable|string|max:120', 'barangay' => 'nullable|string|max:120', 'category' => 'nullable|string|max:80', 'priority' => 'required|in:low,normal,high,urgent']);
         DB::transaction(function () use ($request, $record, $case, $data) {
-            DB::table('clients')->where('id', $record->client_id)->update(collect($data)->only(['first_name', 'last_name', 'birthdate', 'sex', 'phone', 'region', 'province', 'municipality', 'barangay'])->merge(['updated_at' => now()])->all());
+            DB::table('clients')->where('id', $record->client_id)->update(collect($data)->only(['first_name', 'last_name', 'alias', 'birthdate', 'sex', 'phone', 'region', 'province', 'municipality', 'barangay'])->merge(['updated_at' => now()])->all());
             DB::table('cases')->where('id', $case)->update(['category' => $data['category'] ?? null, 'priority' => $data['priority'], 'offline_version' => DB::raw('offline_version + 1'), 'updated_at' => now()]);
             AuditLog::insert(['user_id' => $request->user()->id, 'event' => 'case.updated', 'auditable_type' => 'case', 'auditable_id' => $case, 'changes' => json_encode(['fields' => array_keys($data)]), 'created_at' => now(), 'updated_at' => now()]);
         });

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { classificationLabels, incidenceRows, type IncidenceRecord } from '@/data/cefmu';
 import { computed, ref } from 'vue';
 import { ClipboardList, FileText, HandHeart, House, Send, ShieldCheck, UserRound, Users } from '@lucide/vue';
 import { NOTE_TYPES } from '@/utils/caseOptions';
@@ -34,7 +35,7 @@ const address = computed(() => [props.record.house_no_street, props.record.baran
 const classifications = computed(() => {
   const raw = props.record.cefmu_classifications;
   const list = Array.isArray(raw) ? raw : typeof raw === 'string' && raw.trim().startsWith('[') ? JSON.parse(raw) : raw ? [raw] : [];
-  return list.map((item: string) => titleCase(item)).join(', ');
+  return classificationLabels(list).join(', ');
 });
 
 const personal = computed(() => [
@@ -44,9 +45,9 @@ const personal = computed(() => [
   ['Education', value(props.record.education_attainment && titleCase(props.record.education_attainment))], ['Contact number', value(props.record.phone)],
 ]);
 const caseInfo = computed(() => [
-  ['CEFMU classification', value(classifications.value)], ['Form of union', value(props.record.union_type && titleCase(props.record.union_type))],
+  ['CEFMU classification', value(classifications.value)], ...incidenceRows(props.record as IncidenceRecord),
   ['Case category', value(props.record.category || props.record.case_type)], ['Circumstance', value(props.record.circumstance)],
-  ['Mode of admission', value(props.record.mode_of_admission && titleCase(props.record.mode_of_admission))], ['Referred by', value(props.record.referred_by)],
+  ['Mode of reporting', value(props.record.mode_of_admission && titleCase(props.record.mode_of_admission))], ['Referred by', value(props.record.referred_by)],
   ['Referral date', props.record.referral_date ? shortDate(props.record.referral_date) : 'Not recorded'], ['Intake completed', props.record.intake_completed_at ? shortDate(props.record.intake_completed_at) : 'Not recorded'],
   ['Opened', props.record.opened_at ? shortDate(props.record.opened_at) : 'Not recorded'], ['Case worker', value(props.record.worker_name)],
   ['Education at intake', value(props.record.education_status_at_intake && titleCase(props.record.education_status_at_intake))], ['Pregnancy or parenting', value(props.record.pregnancy_parenting_status && titleCase(props.record.pregnancy_parenting_status))],

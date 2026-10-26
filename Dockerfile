@@ -16,7 +16,10 @@ RUN npm run build
 
 FROM php:8.3-fpm-alpine
 RUN apk add --no-cache nginx envsubst postgresql-dev libzip-dev oniguruma-dev clamav clamav-libunrar \
-    && docker-php-ext-install pdo_pgsql mbstring zip
+        libpng-dev libjpeg-turbo-dev libwebp-dev freetype-dev \
+    && docker-php-ext-configure gd --with-jpeg --with-webp --with-freetype \
+    && docker-php-ext-install pdo_pgsql mbstring zip gd \
+    && printf 'upload_max_filesize=10M\npost_max_size=12M\nmemory_limit=256M\nexpose_php=Off\n' > /usr/local/etc/php/conf.d/kalinga.ini
 WORKDIR /var/www/html
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 COPY . .

@@ -6,6 +6,7 @@ use App\Http\Middleware\EnsureTwoFactorVerified;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\HandleTrustedCors;
 use App\Http\Middleware\SecurityHeaders;
+use App\Support\AuditExceptions;
 use App\Support\DatabaseFailurePrivacy;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -39,7 +40,12 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withExceptions(function (Exceptions $exceptions) {
         $exceptions->report(function (PDOException $exception) {
+            AuditExceptions::error($exception, 'system.database_error');
+
             return DatabaseFailurePrivacy::report($exception);
+        });
+        $exceptions->report(function (Throwable $exception) {
+            AuditExceptions::error($exception);
         });
         $exceptions->render(function (PDOException $exception, Request $request) {
             return DatabaseFailurePrivacy::response($request);
@@ -48,6 +54,9 @@ return Application::configure(basePath: dirname(__DIR__))
         // Inertia page visit returns to the form with the message, instead of the error page.
         // JSON/axios callers keep their status codes and JSON bodies.
         $exceptions->render(function (HttpException $exception, Request $request) {
+            if ($exception->getStatusCode() === 403) {
+                AuditExceptions::denied($request);
+            }
             if (!$request->header('X-Inertia') || !in_array($exception->getStatusCode(), [409, 422], true) || $request->isMethod('GET')) {
                 return null;
             }

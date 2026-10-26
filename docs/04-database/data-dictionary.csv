@@ -31,6 +31,14 @@ Clients and identity,clients,,,,"The child (client) of a case: identifying infor
 ,clients,identity_status,varchar(32),Yes,
 ,clients,canonical_client_id,bigint,,Links to clients
 ,clients,identity_updated_at,timestamp,,Date and time: identity updated.
+,clients,alias,varchar(80),,
+,clients,permanent_same_as_present,boolean,,Yes/no: permanent same as present.
+,clients,caregiver_same_address,boolean,,Yes/no: caregiver same address.
+,clients,caregiver_house_no_street,text,,
+,clients,caregiver_region,varchar(120),,
+,clients,caregiver_province,varchar(120),,
+,clients,caregiver_municipality,varchar(120),,
+,clients,caregiver_barangay,varchar(120),,
 Clients and identity,client_identifiers,,,,"Official identifiers recorded for a client, used for duplicate checks."
 ,client_identifiers,client_id,bigint,Yes,Links to clients
 ,client_identifiers,identifier_type,varchar(80),Yes,
@@ -108,6 +116,13 @@ Clients and identity,relationships,,,,Family members and support persons of a cl
 ,relationships,birthdate,date,,
 ,relationships,education,text,,
 ,relationships,occupation,text,,
+,relationships,civil_status,varchar(80),,
+,relationships,same_address_as_client,boolean,,Yes/no: same address as client.
+,relationships,house_no_street,text,,
+,relationships,region,varchar(120),,
+,relationships,province,varchar(120),,
+,relationships,municipality,varchar(120),,City or municipality.
+,relationships,barangay,varchar(120),,
 Clients and identity,households,,,,Households a client belongs to.
 ,households,status,varchar(32),Yes,Current status of the record.
 ,households,locality_hint,text,,
@@ -169,6 +184,13 @@ Reports and intake,reference_sequences,,,,Counters used to issue report and case
 ,reference_sequences,year,smallint,Yes,
 ,reference_sequences,last_number,bigint,Yes,
 ,reference_sequences,initialized_at,timestamp,,Date and time: initialized.
+Reports and intake,intake_drafts,,,,"Saved intakes: a paused Kalinga Intake, visible only to the case manager who started it. Answers are encrypted with the application key; deleted when the case folder is created, when discarded, or 30 days after the last change."
+,intake_drafts,user_id,bigint,Yes,Links to users
+,intake_drafts,lgu_id,bigint,,Links to lgu_units
+,intake_drafts,label,varchar(80),,Display label.
+,intake_drafts,step,smallint,Yes,
+,intake_drafts,payload,text,Yes,
+,intake_drafts,expires_at,timestamp,Yes,Date and time: expires.
 Case folder,cases,,,,"The case folder: status, stage, CEFMU classification, intake details, risk level, consent, assignment and LGU."
 ,cases,case_number,text,Yes,
 ,cases,client_id,bigint,Yes,Links to clients
@@ -220,6 +242,16 @@ Case folder,cases,,,,"The case folder: status, stage, CEFMU classification, inta
 ,cases,current_risk_level,varchar(20),,
 ,cases,current_risk_assessed_at,timestamp,,Date and time: current risk assessed.
 ,cases,lgu_id,bigint,,Links to lgu_units
+,cases,union_forms,json,,
+,cases,union_status,varchar(20),,
+,cases,partner_current_age,smallint,,
+,cases,union_duration_months,smallint,,
+,cases,current_residence,varchar(40),,
+,cases,risk_points,numeric,,
+,cases,suggested_risk_level,varchar(20),,
+,cases,risk_level_reason,varchar(1000),,
+,cases,consent_form_type,varchar(30),,
+,cases,consent_document_id,bigint,,Links to documents
 Case folder,case_status_history,,,,"Every change of case status, with who and when."
 ,case_status_history,case_id,bigint,Yes,Links to cases
 ,case_status_history,from_status,text,,
@@ -769,14 +801,14 @@ Multidisciplinary team and coordination,lgu_coordination_message_reads,,,,Read r
 ,lgu_coordination_message_reads,message_id,bigint,Yes,Links to lgu_coordination_messages
 ,lgu_coordination_message_reads,user_id,bigint,Yes,Links to users
 ,lgu_coordination_message_reads,read_at,timestamp,Yes,Date and time: read.
-Multidisciplinary team and coordination,coordination_direct_messages,,,,Participant-only online coordination messages between two currently eligible members of one LGU circle.
-,coordination_direct_messages,circle_id,bigint,Yes,Links to lgu_coordination_circles; deletion restricted.
-,coordination_direct_messages,sender_id,bigint,Yes,Links to users; sender.
-,coordination_direct_messages,recipient_id,bigint,Yes,Links to users; other participant.
-,coordination_direct_messages,parent_id,bigint,,Links to coordination_direct_messages; server validates the same pair and circle.
-,coordination_direct_messages,body,text,Yes,Coordination text; maximum 3000 characters.
-,coordination_direct_messages,is_urgent,boolean,Yes,Operational urgency flag; default false.
-,coordination_direct_messages,follow_up,boolean,Yes,Operational follow-up flag; default false.
+Multidisciplinary team and coordination,coordination_direct_messages,,,,Participant-only online coordination messages between two currently eligible members of the same LGU circle. Separate from group chat and formal case records.
+,coordination_direct_messages,circle_id,bigint,Yes,Links to lgu_coordination_circles
+,coordination_direct_messages,sender_id,bigint,Yes,Links to users
+,coordination_direct_messages,recipient_id,bigint,Yes,Links to users
+,coordination_direct_messages,parent_id,bigint,,Links to coordination_direct_messages
+,coordination_direct_messages,body,text,Yes,Text of the note or message.
+,coordination_direct_messages,is_urgent,boolean,Yes,Yes/no: is urgent.
+,coordination_direct_messages,follow_up,boolean,Yes,Yes/no: follow up.
 Records governance,record_governance,,,,Classification and retention status of a record.
 ,record_governance,case_id,bigint,Yes,Links to cases
 ,record_governance,record_type,varchar(64),Yes,Kind of record.
@@ -951,6 +983,14 @@ Users and security,audit_logs,,,,"Append-only audit trail of sign-ins, views and
 ,audit_logs,changes,json,,Details of the change (ids and codes only).
 ,audit_logs,outcome,text,Yes,
 ,audit_logs,ip_address,varchar(45),,Client network address at the time of the action.
+,audit_logs,log_type,varchar(40),,
+,audit_logs,module,varchar(60),,
+,audit_logs,action,varchar(20),,
+,audit_logs,record_ref,varchar(80),,
+,audit_logs,description,text,,
+,audit_logs,old_value,text,,
+,audit_logs,new_value,text,,
+,audit_logs,user_role,varchar(40),,
 Users and security,notifications,,,,In-app notifications to users.
 ,notifications,user_id,bigint,Yes,Links to users
 ,notifications,type,text,Yes,
@@ -987,3 +1027,6 @@ Configuration,reference_data,,,,Lists used in forms (reference values).
 ,reference_data,definition,text,,
 ,reference_data,source,text,,
 ,reference_data,active,boolean,Yes,Whether the record is in use.
+,reference_data,sort_order,integer,Yes,
+,reference_data,weight,numeric,,
+,reference_data,meta,json,,
