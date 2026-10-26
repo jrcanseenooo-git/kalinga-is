@@ -25,7 +25,7 @@ const props = defineProps<{
 const services = computed(() => props.services ?? []);
 const peso = (value: string | number | null) => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(Number(value || 0));
 const assistanceTotal = computed(() => services.value.reduce((sum, item) => sum + Number(item.amount || 0), 0));
-const emit = defineEmits<{ open: [section: 'people' | 'monitoring' | 'collaboration'] }>();
+const emit = defineEmits<{ open: [section: 'people' | 'notes'] }>();
 
 const profileTab = ref<'personal' | 'address' | 'family'>('personal');
 const value = (input: unknown) => (input === null || input === undefined || String(input).trim() === '' ? 'Not recorded' : String(input));
@@ -131,14 +131,14 @@ const when = (at: string) => (at.length === 10 ? shortDate(at) : philippineTimes
       </div>
       <ul v-if="services.length" class="mt-4 grid gap-2 sm:grid-cols-2"><li v-for="item in services.slice(0, 4)" :key="item.id" class="flex items-center justify-between gap-3 rounded-lg bg-white px-3 py-2 text-sm shadow-sm"><span class="min-w-0"><span class="block truncate font-medium text-slate-900">{{ item.service_type }}<span v-if="item.specific_detail" class="font-normal text-slate-600"> - {{ item.specific_detail }}</span></span><span class="block text-xs text-slate-600">{{ shortDate(item.date_provided) }}{{ item.provided_by ? ` - ${item.provided_by}` : '' }}</span></span><span v-if="item.amount" class="shrink-0 text-xs font-semibold text-emerald-800">{{ peso(item.amount) }}</span></li></ul>
       <p v-else class="mt-3 text-sm text-slate-600">No services recorded yet.</p>
-      <button type="button" class="ui-link mt-2 min-h-9 text-xs" @click="emit('open', 'collaboration')">{{ services.length > 4 ? `See all ${services.length} services` : 'Open Services & referrals' }}</button>
+      <button type="button" class="ui-link mt-2 min-h-9 text-xs" @click="emit('open', 'notes')">{{ services.length > 4 ? `See all ${services.length} services` : 'Open Services & referrals' }}</button>
     </section>
 
     <!-- Recent activity -->
     <section class="ui-panel p-5" aria-labelledby="case-activity-title">
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div><h2 id="case-activity-title" class="ui-section-title">Progress notes and case activity</h2><p class="ui-muted mt-0.5">Notes, visits, referrals, services and status changes, newest first.</p></div>
-        <button type="button" class="ui-button ui-button-primary min-h-10 text-sm" @click="emit('open', 'monitoring')">Add note or visit</button>
+        <button type="button" class="ui-button ui-button-primary min-h-10 text-sm" @click="emit('open', 'notes')">Add note or visit</button>
       </div>
       <ol v-if="activity.length" class="case-activity mt-4 space-y-4">
         <li v-for="item in activity.slice(0, shown)" :key="item.key" class="relative pl-8">
@@ -155,7 +155,7 @@ const when = (at: string) => (at.length === 10 ? shortDate(at) : philippineTimes
       <p v-else class="mt-4 rounded-xl bg-slate-50 p-5 text-center text-sm text-slate-600">No notes, visits or referral updates yet.</p>
       <div class="mt-3 flex flex-wrap gap-2">
         <button v-if="activity.length > shown" type="button" class="ui-button min-h-9 text-xs" @click="shown += 10">Show more activity</button>
-        <button type="button" class="ui-link min-h-9 text-xs" @click="emit('open', 'monitoring')">Open Progress notes</button>
+        <button type="button" class="ui-link min-h-9 text-xs" @click="emit('open', 'notes')">Open Progress notes</button>
       </div>
     </section>
   </div>

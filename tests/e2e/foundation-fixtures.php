@@ -75,8 +75,10 @@ try {
         $db::table('cases')->insert(['case_number' => 'SYN-UI-2026-' . str_pad((string) $index, 4, '0', STR_PAD_LEFT), 'client_id' => $uiClient, 'lgu_id' => $workerLgu, 'assigned_to' => $worker, 'status' => 'OPEN', 'stage' => 'intake', 'priority' => 'normal', 'category' => 'CEFMU', 'opened_at' => $openedAt, 'offline_version' => 1, 'created_at' => now(), 'updated_at' => now()]);
     }
 
-    // Existing province-scoped role only; no permission catalogue or role changes.
-    User::factory()->create(['name' => 'Synthetic assessment reviewer', 'email' => 'assessment-reviewer@kalinga.test', 'role' => 'fo_user', 'province' => 'Kalinga', 'active' => true, 'password' => Hash::make('password')]);
+    // Independent reviewer: the LGU Head (supervisor) of the worker's LGU. Since the Phase 3 roles,
+    // the Field Office monitors its region and no longer reviews casework.
+    $reviewerUser = User::factory()->create(['name' => 'Synthetic assessment reviewer', 'email' => 'assessment-reviewer@kalinga.test', 'role' => 'lgu_head', 'province' => 'Kalinga', 'active' => true, 'password' => Hash::make('password')]);
+    $db::table('user_lgu_assignments')->insert(['user_id' => $reviewerUser->id, 'lgu_id' => $workerLgu, 'active' => true, 'effective_from' => now()->subDay(), 'created_at' => now(), 'updated_at' => now()]);
     $assessmentCase = $db::table('cases')->where('case_number', 'SYN-UI-2026-0004')->value('id');
     $assessment = $db::table('case_assessments')->insertGetId(['case_id' => $assessmentCase, 'version' => 1, 'record_type' => 'full_revision', 'assessment_date' => today(), 'status' => 'draft', 'authored_by' => $worker, 'is_current' => false, 'created_at' => now(), 'updated_at' => now()]);
     $db::table('case_assessment_sections')->insert(['case_assessment_id' => $assessment, 'section_key' => 'presenting_situation', 'completion_state' => 'completed', 'source_type' => 'worker_observation', 'facts' => 'Synthetic verified assessment facts for responsive QA.', 'observations' => 'Synthetic source-attributed observation.', 'analysis' => 'Synthetic professional analysis.', 'restricted' => false, 'created_at' => now(), 'updated_at' => now()]);

@@ -22,6 +22,7 @@ const props = defineProps<{
     closure: { summary: string | null; ready: boolean; canApprove: boolean } | null;
     kavat?: { final_score: number; priority: string; administered_at: string; occasion: string } | null;
     forms?: Array<{ type: string; title: string; status: string; updated_at: string | null }>;
+    grants?: { total: number; count: number };
     canRemark: boolean; roleLabel: string; canOpenRecord?: boolean;
 }>();
 
@@ -106,8 +107,9 @@ const doReturn = () => giveBack.post(route('monitoring.cases.closure.return', c.
                         <div v-if="kavat" class="mt-3 rounded-xl border border-brand-200 bg-brand-50 p-3 text-sm">
                             <b>KaVAT ({{ titleCase(kavat.occasion) }}, {{ formatPh(kavat.administered_at, 'date') }}):</b> final protection score {{ kavat.final_score }} - {{ kavat.priority }}
                         </div>
+                        <p v-if="grants?.count" class="mt-3 text-sm text-slate-700">Grants released: <b>{{ new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(grants.total) }}</b> ({{ grants.count }})</p>
                         <ul v-if="forms?.length" class="mt-3 grid gap-2 sm:grid-cols-3">
-                            <li v-for="form in forms" :key="form.type" class="rounded-xl border border-slate-200 p-3 text-sm"><p class="font-semibold text-slate-900">{{ form.title }}</p><p class="text-xs text-slate-600">{{ titleCase(form.status) }}<template v-if="form.updated_at"> · {{ formatPh(form.updated_at, 'dateShort') }}</template></p></li>
+                            <li v-for="form in forms" :key="form.type" class="rounded-xl border border-slate-200 p-3 text-sm"><p class="font-semibold text-slate-900">{{ form.title }}</p><p class="text-xs text-slate-600">{{ form.status }}<template v-if="form.updated_at"> · {{ formatPh(form.updated_at, 'dateShort') }}</template></p></li>
                         </ul>
                     </section>
                     <section class="ui-panel p-5" aria-labelledby="history-title">

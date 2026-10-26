@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ageFromBirthdate, formatPh, parseStored, philippineTimestamp } from '@/utils/philippineTime';
+import { ageFromBirthdate, calendarDateLabel, formatPh, parseStored, philippineTimestamp } from '@/utils/philippineTime';
 import OptionSelect from '@/Components/UI/OptionSelect.vue';
 import { PARTNER_AGENCIES, PROFESSIONAL_ROLES, SHARING_PURPOSES } from '@/utils/caseOptions';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
@@ -7,33 +7,34 @@ import CaseMonitoringPanel from '@/Components/CaseMonitoringPanel.vue';
 import type { MonitoringVisit, ProgressNote } from '@/types/monitoring';
 import CaseWorkspaceHeader from '@/Components/CaseWorkspaceHeader.vue';
 import AppIcon from '@/Components/AppIcon.vue';
-import CaseAssessmentPanel from '@/Components/CaseAssessmentPanel.vue';
-import CaseParticipationPanel from '@/Components/CaseParticipationPanel.vue';
-import CaseSafetyPanel, { type RiskHistoryItem } from '@/Components/CaseSafetyPanel.vue';
-import { Head, Link, router, useForm } from '@inertiajs/vue3';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import CaseClientContextPanel from '@/Components/CaseClientContextPanel.vue';
 import CaseServicesPanel from '@/Components/CaseServicesPanel.vue';
 import ReferralStatusForm from '@/Components/Referrals/ReferralStatusForm.vue';
 import CaseClosurePanel from '@/Components/CaseClosurePanel.vue';
-import CasePlanGoalsPanel from '@/Components/CasePlanGoalsPanel.vue';
 import CaseProfileOverview from '@/Components/CaseProfileOverview.vue';
-import CaseReportsPanel from '@/Components/CaseReportsPanel.vue';
+import KavatPanel from '@/Components/Kavat/KavatPanel.vue';
+import CaseFormsPanel from '@/Components/Forms/CaseFormsPanel.vue';
+import GrantsPanel from '@/Components/GrantsPanel.vue';
+import RemarksThread from '@/Components/RemarksThread.vue';
 import StatusBadge from '@/Components/UI/StatusBadge.vue';
-import { useCurrentCasePlan } from '@/composables/useCurrentCasePlan';
 import { progressTone, shortDate, titleCase } from '@/utils/caseDisplay';
 import { followUp, type TrackedReferral } from '@/utils/referralTracking';
-import { FileText, Plus, ShieldCheck, Upload, UserPlus, X } from '@lucide/vue';
+import { CheckCircle2, Circle, FileText, Plus, ShieldCheck, Upload, UserPlus, Users, X } from '@lucide/vue';
 import type { ConsentEntry, SupportRelationship } from '@/types/clientContext';
 import type { CaseTask } from '@/types/casework';
+import type { Remark } from '@/types/remarks';
+import type { GrantItem } from '@/types/reports';
+import type { PageProps } from '@/types';
+import { priorityLabel, type KavatDefinition, type KavatRecord } from '@/Casework/kavat';
+import { formHasContent, type CaseForm, type FormType, type FormsDefinition, type PlanRow } from '@/Casework/caseForms';
+import { peso } from '@/utils/reportFormat';
 
 const props = defineProps<{
     caseRecord: any;
-    assessmentSummary: any | null;
-    childParticipationSummary: any | null;
     conferenceSummary?: any | null;
     conferenceActionSummary?: { total: number; pending: number; overdue: number };
-    planSummary?: { version:number; status:string; review_due_at?:string|null; goal_count:number; open_intervention_count:number } | null;
     notes: ProgressNote[];
     referrals: any[];
     referralTargets: { response_days: number; completion_days: number };
@@ -43,10 +44,16 @@ const props = defineProps<{
     hasSharingConsent?: boolean;
     visits: MonitoringVisit[];
     documents: any[];
-    legacyAssessmentSummary?: { count: number; latest: { id:number; status:string; version:number; updated_at:string } | null };
-    riskAssessments: RiskHistoryItem[];
     consents: ConsentEntry[];
     relationships: SupportRelationship[];
+    remarks: Remark[];
+    kavatDefinition: KavatDefinition;
+    kavat: KavatRecord[];
+    formsDefinition: FormsDefinition;
+    forms: Record<FormType, CaseForm>;
+    formSuggestions: Record<string, string>;
+    grants: { items: GrantItem[]; total: number; count: number; types: Record<string, string> };
+    canEditForms: boolean;
     timeline: any[];
     tasks: CaseTask[];
     transitions: string[];
@@ -54,7 +61,6 @@ const props = defineProps<{
     canAssignCase?: boolean;
     canArchive: boolean;
     canReviewClosure: boolean;
-    canAssessRisk: boolean;
     canGovernRecords: boolean;
     canManageMdt: boolean;
     canGenerateReport: boolean;
@@ -63,65 +69,57 @@ const props = defineProps<{
     mdtUsers: any[];
 }>();
 
+const page = usePage<PageProps>();
+const isCaseManager = computed(() => page.props.auth.permissions.includes('cases.update'));
 const transition = useForm({ status: '' });
 const documentUpload = useForm<{ document: File | null }>({ document: null });
 const assignment = useForm({ assigned_to: '' as string | number, expected_version: Number(props.caseRecord.offline_version) });
 const mdtAccess = useForm({ user_id: '' as string | number, professional_role: '', organization: '', purpose: '', allowed_categories: ['case_summary'], access_expires_at: '', remarks: '', lawful_basis: '' });
 const mdtAction = useForm({ mdt_access_id: '' as string | number, title: '', instructions: '', due_at: '' });
-const activeSection = ref<'overview'|'safety'|'assessment'|'participation'|'conference'|'collaboration'|'care'|'monitoring'|'people'|'closure'|'records'>('overview');
-// Sections merged into a journey step: child participation lives under Assessment,
-// case conferences under Monitoring & review. Old keys still work (alerts, links).
-watch(activeSection, section => {
-    if (section === 'participation') activeSection.value = 'assessment';
-    else if (section === 'conference') activeSection.value = 'monitoring';
-});
-watch(activeSection, async section => {
-    if (section === 'safety' || section === 'assessment' || section === 'participation' || section === 'monitoring' || section === 'people') { await nextTick(); document.getElementById(`case-panel-${section}`)?.scrollIntoView({ block: 'start' }); }
-});
+
+/**
+ * Case workspace tabs. The earlier 7-step journey, the Safety & risk,
+ * Assessment, Case plan and Services tabs were replaced: safety is the KaVAT,
+ * assessment and planning are written in the Kalinga forms, and services and
+ * referrals are recorded with the progress notes.
+ */
+const workspaceTabs = [
+    { key: 'overview', label: 'Overview' },
+    { key: 'people', label: 'Client & Intake' },
+    { key: 'kavat', label: 'KaVAT' },
+    { key: 'forms', label: 'Kalinga forms' },
+    { key: 'notes', label: 'Progress notes & referrals' },
+    { key: 'closure', label: 'Closure & aftercare' },
+    { key: 'records', label: 'Documents' },
+] as const;
+type TabKey = typeof workspaceTabs[number]['key'];
+/** Old section names still used in links and notifications. */
+const LEGACY_TABS: Record<string, TabKey> = { safety: 'kavat', assessment: 'forms', participation: 'forms', care: 'forms', collaboration: 'notes', monitoring: 'notes', conference: 'overview' };
+const activeSection = ref<TabKey>('overview');
 const showAllAlerts = ref(false);
-// Goals and interventions load only when the Case plan or Services tab is opened.
-const casePlan = useCurrentCasePlan(() => Number(props.caseRecord.id));
-watch(activeSection, section => { if ((section === 'care' || section === 'collaboration') && props.planSummary) casePlan.load(); }, { immediate: true });
 const showMdtAccessForm = ref(false);
 const showMdtActionForm = ref(false);
 const showUpload = ref(false);
 const referralDue = (item: TrackedReferral) => followUp(item, props.referralTargets);
-// The closure workspace is lazy-loaded the first time its tab is opened.
 const closureLoaded = ref(false);
 watch(activeSection, section => { if (section === 'closure') closureLoaded.value = true; }, { immediate: true });
 const documentStateTone = (state?: string | null) => state === 'cleared' || state === 'sanitized' ? 'success' : state === 'legacy_unverified' ? 'neutral' : progressTone(state);
-async function openSection(key: typeof workspaceTabs[number]['key']) {
-    activeSection.value = key;
+const resolveTab = (key: string): TabKey | null => workspaceTabs.some(tab => tab.key === key) ? key as TabKey : LEGACY_TABS[key] ?? null;
+async function openSection(key: string) {
+    const tab = resolveTab(key);
+    if (!tab) return;
+    activeSection.value = tab;
     await nextTick();
     document.getElementById('case-workspace-tabs')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
-// Case page tabs follow the 7-step CEFMU case journey (see the system review doc).
-// Deep link from suggestions and alerts: /cases/{id}?section=monitoring
+// Deep link: /cases/{id}?section=notes (old names such as "monitoring" still work).
 onMounted(() => {
-    const wanted = new URLSearchParams(window.location.search).get('section');
-    if (wanted && workspaceTabs.some(tab => tab.key === wanted)) activeSection.value = wanted as typeof activeSection.value;
+    const wanted = resolveTab(new URLSearchParams(window.location.search).get('section') ?? '');
+    if (wanted) activeSection.value = wanted;
 });
-const monitoringPanel = ref<{ compose: (kind: 'referral' | 'service_delivery') => void } | null>(null);
-/** Referrals and services are written as progress notes; open the note form on the Progress notes tab. */
-async function composeNote(kind: 'referral' | 'service_delivery') { activeSection.value = 'monitoring'; await nextTick(); monitoringPanel.value?.compose(kind); }
-const workspaceTabs = [
-    { key: 'overview', label: 'Overview', step: null },
-    { key: 'people', label: 'Client & Intake', step: 1 },
-    { key: 'safety', label: 'Safety & risk', step: 2 },
-    { key: 'assessment', label: 'Assessment', step: 3 },
-    { key: 'care', label: 'Case plan', step: 4 },
-    { key: 'collaboration', label: 'Services & referrals', step: 5 },
-    { key: 'monitoring', label: 'Progress notes', step: 6 },
-    { key: 'closure', label: 'Closure & aftercare', step: 7 },
-    { key: 'records', label: 'Documents', step: null },
-] as const;
-const nextAction = computed(() => {
-    if (props.caseRecord.status === 'CLOSED') return 'Review retained history or use the authorized reopening workflow when appropriate.';
-    if (props.caseRecord.status === 'OPEN') return 'Record the first assessment or field contact.';
-    if (props.caseRecord.status === 'FOR_FOLLOW_UP') return 'Complete the next follow-up and document the outcome.';
-    if (props.caseRecord.status === 'FOR_CLOSURE_REVIEW') return 'Complete the closure record for supervisor review.';
-    return 'Review the latest activity and continue the care plan.';
-});
+const monitoringPanel = ref<{ compose: (kind: 'referral_cpu' | 'referral_external' | 'service_delivery') => void } | null>(null);
+/** Referrals and services are written as progress notes. */
+async function composeNote(kind: 'referral_cpu' | 'referral_external' | 'service_delivery') { activeSection.value = 'notes'; await nextTick(); monitoringPanel.value?.compose(kind); }
 
 const orderedCaseTasks = computed(() => [...props.tasks].sort((left, right) => {
     const stateOrder = Number(right.status === 'open') - Number(left.status === 'open');
@@ -130,23 +128,17 @@ const orderedCaseTasks = computed(() => [...props.tasks].sort((left, right) => {
     return stateOrder || leftDue - rightDue || left.id - right.id;
 }));
 const nextRecordedTask = computed(() => props.caseRecord.status === 'CLOSED' ? null : orderedCaseTasks.value.find(task => task.status === 'open') ?? null);
-const showAllCaseTasks = ref(false);
-const visibleCaseTasks = computed(() => showAllCaseTasks.value ? orderedCaseTasks.value : orderedCaseTasks.value.slice(0, 5));
-const taskDueLabel = (value: string | null) => value ? philippineTimestamp(value) : 'No due date recorded';
-
-function caseDate(value: string | null): string {
-    if (!value) return 'Not recorded';
-    return formatPh(value, 'date', 'Date unavailable');
-}
-
 async function showCaseTasks() {
-    activeSection.value = 'care';
+    activeSection.value = 'overview';
     await nextTick();
     document.getElementById('case-open-tasks')?.focus();
     document.getElementById('case-open-tasks')?.scrollIntoView({ block: 'center' });
 }
+const showAllCaseTasks = ref(false);
+const visibleCaseTasks = computed(() => showAllCaseTasks.value ? orderedCaseTasks.value : orderedCaseTasks.value.slice(0, 5));
+const taskDueLabel = (value: string | null) => value ? philippineTimestamp(value) : 'No due date recorded';
 
-async function moveWorkspaceTab(event: KeyboardEvent, key: typeof workspaceTabs[number]['key']) {
+async function moveWorkspaceTab(event: KeyboardEvent, key: TabKey) {
     if (event.altKey || event.ctrlKey || event.metaKey) return;
     const index = workspaceTabs.findIndex(tab => tab.key === key);
     let next = index;
@@ -161,71 +153,79 @@ async function moveWorkspaceTab(event: KeyboardEvent, key: typeof workspaceTabs[
     document.getElementById(`case-tab-${activeSection.value}`)?.focus();
 }
 
+const finalKavat = computed(() => props.kavat.filter(item => item.status === 'final'));
+const latestKavat = computed(() => finalKavat.value[0] ?? null);
+const kavatDraft = computed(() => props.kavat.find(item => item.status === 'draft') ?? null);
+const openTasks = computed(() => props.tasks.filter(task => task.status === 'open'));
+const overdueTasks = computed(() => openTasks.value.filter(task => task.due_at && new Date(task.due_at) < new Date()));
+const openReferrals = computed(() => props.referrals.filter((item: any) => ['PENDING', 'SENT', 'ACCEPTED', 'IN_PROGRESS'].includes(item.status)));
+const unreadRemarks = computed(() => props.remarks.filter(remark => !remark.acknowledged_at));
+const formState = (type: FormType) => props.forms[type].status === 'final' ? 'final' : formHasContent(type, props.forms[type].content) ? 'draft' : 'not_started';
+const formsDone = computed(() => (['summary', 'plan', 'study'] as FormType[]).filter(type => formState(type) === 'final').length);
+
 const smartAlerts = computed(() => {
-    const alerts: { level: 'critical'|'warning'|'info'; text: string; tab?: string }[] = [];
-    const risk = props.caseRecord.current_risk_level;
-    if (risk === 'critical' || risk === 'high') alerts.push({ level: 'critical', text: `Risk level is ${risk} - safety review required`, tab: 'safety' });
-    if (nextRiskReview.value && riskReviewState.value === 'overdue') alerts.push({ level: 'critical', text: 'Risk reassessment is overdue', tab: 'safety' });
-    if (props.riskAssessments.length === 0 && props.caseRecord.status !== 'OPEN') alerts.push({ level: 'warning', text: 'No safety and risk assessment recorded', tab: 'safety' });
-    if (props.assessmentSummary?.status !== 'final' && props.caseRecord.status !== 'OPEN') alerts.push({ level: 'warning', text: 'No comprehensive assessment finalized', tab: 'assessment' });
-    if (!props.planSummary && !['OPEN', 'CLOSED'].includes(props.caseRecord.status)) alerts.push({ level: 'warning', text: 'No active case plan', tab: 'care' });
-    if (props.planSummary?.review_due_at && new Date(props.planSummary.review_due_at) < new Date()) alerts.push({ level: 'warning', text: 'Plan review is overdue', tab: 'care' });
-    const overdueTasks = props.tasks.filter((t: any) => t.status === 'open' && t.due_at && new Date(t.due_at) < new Date());
-    if (overdueTasks.length) alerts.push({ level: 'warning', text: `${overdueTasks.length} overdue task(s)` });
-    const pendingReferrals = props.referrals.filter((r: any) => r.status === 'PENDING' || r.status === 'SENT');
-    if (pendingReferrals.length) alerts.push({ level: 'info', text: `${pendingReferrals.length} referral(s) awaiting response` });
-    if (props.consents.length === 0) alerts.push({ level: 'info', text: 'No consent record - document lawful basis', tab: 'people' });
-    if (props.caseRecord.status === 'FOR_CLOSURE_REVIEW' && !props.caseRecord.closure_summary) alerts.push({ level: 'warning', text: 'Closure summary required before case can close', tab: 'closure' });
+    const alerts: { level: 'critical'|'warning'|'info'; text: string; tab?: TabKey }[] = [];
+    const status = props.caseRecord.status;
+    if (unreadRemarks.value.length) alerts.push({ level: 'warning', text: `${unreadRemarks.value.length} unread ${unreadRemarks.value.length === 1 ? 'remark' : 'remarks'} from your supervisor or monitors`, tab: 'overview' });
+    if (latestKavat.value?.score.priority === 'high') alerts.push({ level: 'critical', text: `KaVAT protection score ${latestKavat.value.score.final_score}: High Priority`, tab: 'kavat' });
+    if (latestKavat.value?.score.red_flags.length) alerts.push({ level: 'warning', text: `KaVAT red flag: the child refused to answer ${latestKavat.value.score.red_flags.length} ${latestKavat.value.score.red_flags.length === 1 ? 'question' : 'questions'}`, tab: 'kavat' });
+    if (!finalKavat.value.length && status !== 'CLOSED') alerts.push({ level: kavatDraft.value ? 'info' : 'warning', text: kavatDraft.value ? 'Finish the KaVAT in progress' : 'No baseline KaVAT recorded', tab: 'kavat' });
+    if (!['OPEN', 'CLOSED'].includes(status) && formState('plan') === 'not_started') alerts.push({ level: 'warning', text: 'No intervention plan written yet', tab: 'forms' });
+    if (overdueTasks.value.length) alerts.push({ level: 'warning', text: `${overdueTasks.value.length} overdue ${overdueTasks.value.length === 1 ? 'task' : 'tasks'}` });
+    const pending = props.referrals.filter((r: any) => r.status === 'PENDING' || r.status === 'SENT');
+    if (pending.length) alerts.push({ level: 'info', text: `${pending.length} ${pending.length === 1 ? 'referral' : 'referrals'} awaiting response`, tab: 'notes' });
+    if (props.consents.length === 0) alerts.push({ level: 'info', text: 'No consent record - document the lawful basis', tab: 'people' });
+    if (status === 'FOR_CLOSURE_REVIEW') alerts.push({ level: 'warning', text: 'Case is for closure review - check the closure checklist', tab: 'closure' });
     return alerts;
 });
 
-// Journey tracker. A step counts as done when its record exists; this is guidance,
-// not a gate - status changes keep their existing server rules.
-type StepState = 'done' | 'current' | 'pending';
-const journeySteps = computed(() => {
-    const status = String(props.caseRecord.status ?? '');
-    const base = [
-        { key: 'people', n: 1, label: 'Intake', done: Boolean(props.caseRecord.intake_completed_at || props.caseRecord.opened_at), next: 'Complete the child profile, safe contact and consent records.' },
-        { key: 'safety', n: 2, label: 'Safety & risk', done: props.riskAssessments.length > 0, next: 'Record a safety and risk assessment for the child.' },
-        { key: 'assessment', n: 3, label: 'Assessment', done: props.assessmentSummary?.status === 'final', next: props.assessmentSummary ? 'Finish and finalize the comprehensive assessment, including the child\'s participation.' : 'Start the comprehensive assessment and record the child\'s participation.' },
-        { key: 'care', n: 4, label: 'Case plan', done: Boolean(props.planSummary), next: 'Create the case plan: goals, interventions and a review date.' },
-        { key: 'collaboration', n: 5, label: 'Services & referrals', done: props.referrals.length > 0 || Number(props.planSummary?.open_intervention_count ?? 0) > 0, next: 'Deliver the planned services and refer to partner agencies as needed.' },
-        { key: 'monitoring', n: 6, label: 'Progress notes', done: props.visits.length > 0 || props.notes.length > 0, next: 'Record visits and progress notes; review the plan or hold a case conference when needed.' },
-        { key: 'closure', n: 7, label: 'Closure & aftercare', done: status === 'CLOSED', next: status === 'FOR_CLOSURE_REVIEW' ? 'Write the closure summary so the case can be reviewed for closure.' : status === 'CLOSED' ? 'Case closed. Follow the aftercare plan and keep the record for review.' : 'When goals are met, move the case to For Closure Review.' },
-    ] as const;
-    let currentKey: string;
-    if (status === 'CLOSED' || status === 'FOR_CLOSURE_REVIEW') currentKey = 'closure';
-    else currentKey = base.find(step => !step.done && step.key !== 'closure')?.key ?? 'monitoring';
-    const currentIndex = base.findIndex(step => step.key === currentKey);
-    return base.map((step, index) => ({ ...step, state: (step.key === currentKey && !(status === 'CLOSED')) ? 'current' as StepState : (step.done || index < currentIndex ? (step.done ? 'done' as StepState : 'pending' as StepState) : 'pending' as StepState) }));
-});
-const currentStep = computed(() => journeySteps.value.find(step => step.state === 'current') ?? journeySteps.value.at(-1)!);
-
 const tabBadges = computed(() => {
-    const badges: Record<string, { count?: number; urgent?: boolean }> = {};
-    const critAlerts = smartAlerts.value.filter(a => a.level === 'critical' && a.tab === 'safety');
-    if (critAlerts.length) badges.safety = { count: critAlerts.length, urgent: true };
-    if (props.assessmentSummary?.status !== 'final' && props.caseRecord.status !== 'OPEN') badges.assessment = { urgent: false };
-    if (props.tasks.filter((t: any) => t.status === 'open' && t.due_at && new Date(t.due_at) < new Date()).length) badges.monitoring = { count: props.tasks.filter((t: any) => t.status === 'open' && t.due_at && new Date(t.due_at) < new Date()).length, urgent: true };
-    if (props.caseRecord.status === 'FOR_CLOSURE_REVIEW' && !props.caseRecord.closure_summary) badges.closure = { urgent: true };
+    const badges: Partial<Record<TabKey, { count?: number; urgent?: boolean }>> = {};
+    if (unreadRemarks.value.length) badges.overview = { count: unreadRemarks.value.length, urgent: true };
+    if (latestKavat.value?.score.priority === 'high') badges.kavat = { urgent: true };
+    else if (kavatDraft.value) badges.kavat = { urgent: false };
+    if (overdueTasks.value.length) badges.notes = { count: overdueTasks.value.length, urgent: true };
+    if (props.caseRecord.status === 'FOR_CLOSURE_REVIEW') badges.closure = { urgent: true };
     return badges;
 });
+
+/** What to do next, in the order of the Kalinga forms. Guidance only; status changes keep their server rules. */
+const nextStep = computed(() => {
+    const status = props.caseRecord.status;
+    if (status === 'CLOSED') return { text: 'Case closed. Follow the aftercare plan; reopen through the closure workspace if needed.', tab: 'closure' as TabKey };
+    if (unreadRemarks.value.length) return { text: 'Read and answer the remarks from your supervisor or monitors.', tab: 'overview' as TabKey };
+    if (!finalKavat.value.length) return { text: kavatDraft.value ? 'Finish the baseline KaVAT with the child.' : 'Administer the baseline KaVAT with the child.', tab: 'kavat' as TabKey };
+    if (formState('summary') === 'not_started') return { text: 'Write the Case Summary Report.', tab: 'forms' as TabKey };
+    if (formState('plan') === 'not_started') return { text: 'Write the Intervention Plan with the child and family.', tab: 'forms' as TabKey };
+    if (status === 'FOR_CLOSURE_REVIEW') return { text: 'Complete the closure checklist and closure record.', tab: 'closure' as TabKey };
+    if (formState('study') !== 'final' && props.notes.length >= 3) return { text: 'Write the Social Case Study Report (final report with assessment and findings).', tab: 'forms' as TabKey };
+    return { text: 'Record progress notes, referrals, services and grants as the plan is carried out.', tab: 'notes' as TabKey };
+});
+
+/** Rows the Intervention Plan can start from: KaVAT domains rated low and refused questions. */
+const planSuggestions = computed<PlanRow[]>(() => {
+    if (!latestKavat.value) return [];
+    const rows: PlanRow[] = latestKavat.value.score.domains.filter(domain => domain.level === 0).map(domain => ({ problem: `${domain.title} (KaVAT: low)`, objective: '', activities: '', responsible: '', timeframe: '', expected_output: '' }));
+    for (const flag of latestKavat.value.score.red_flags.filter(item => item.sensitive)) rows.push({ problem: `Follow up: ${flag.title} (refused in KaVAT)`, objective: '', activities: '', responsible: '', timeframe: '', expected_output: '' });
+    return rows;
+});
+
+/** Closure checklist: guidance from the record, not a gate. */
+const closureChecklist = computed(() => [
+    { done: finalKavat.value.some(item => item.occasion === 'closure'), text: 'KaVAT administered at closure', detail: latestKavat.value ? `Latest: ${latestKavat.value.score.final_score} (${priorityLabel(latestKavat.value.score.priority)})` : 'No KaVAT yet', tab: 'kavat' as TabKey },
+    { done: formState('plan') === 'final', text: 'Intervention Plan finalized', detail: formState('plan') === 'draft' ? 'Draft' : formState('plan') === 'final' ? 'Finalized' : 'Not started', tab: 'forms' as TabKey },
+    { done: formState('study') === 'final', text: 'Social Case Study Report finalized', detail: formState('study') === 'draft' ? 'Draft' : formState('study') === 'final' ? 'Finalized' : 'Not started', tab: 'forms' as TabKey },
+    { done: openReferrals.value.length === 0, text: 'No unfinished referrals', detail: openReferrals.value.length ? `${openReferrals.value.length} still open` : 'All referrals completed or closed', tab: 'notes' as TabKey },
+    { done: openTasks.value.length === 0, text: 'No open tasks', detail: openTasks.value.length ? `${openTasks.value.length} open` : 'All tasks done', tab: 'overview' as TabKey },
+    { done: unreadRemarks.value.length === 0, text: 'All remarks read', detail: unreadRemarks.value.length ? `${unreadRemarks.value.length} unread` : 'None waiting', tab: 'overview' as TabKey },
+]);
 
 const daysSinceActivity = computed(() => {
     if (!props.caseRecord.last_activity_at) return null;
     return Math.floor((Date.now() - (parseStored(props.caseRecord.last_activity_at)?.getTime() ?? Date.now())) / 86400000);
 });
-
-const clientAge = computed(() => {
-    return ageFromBirthdate(props.caseRecord.birthdate);
-});
-const nextRiskReview = computed(() => props.riskAssessments.filter((item) => item.assessment.status === 'final' && item.assessment.next_reassessment_at).sort((a, b) => (parseStored(a.assessment.next_reassessment_at)?.getTime() ?? 0) - (parseStored(b.assessment.next_reassessment_at)?.getTime() ?? 0))[0]);
-const riskReviewState = computed(() => !nextRiskReview.value ? null : (parseStored(nextRiskReview.value.assessment.next_reassessment_at)?.getTime() ?? Infinity) < Date.now() ? 'overdue' : 'scheduled');
-const assessmentPanel = ref<InstanceType<typeof CaseAssessmentPanel> | null>(null);
-const loadComprehensive = async (id?: number) => { await nextTick(); await assessmentPanel.value?.load(id); };
-
-const participationPanel = ref<InstanceType<typeof CaseParticipationPanel> | null>(null);
-const loadParticipation = async (id?: number) => { await nextTick(); await participationPanel.value?.load(id); };
+const clientAge = computed(() => ageFromBirthdate(props.caseRecord.birthdate));
+const priorityTone = (priority: string | null | undefined) => priority === 'high' ? 'overview-card-alert' : priority === 'standard' ? 'overview-card-done' : 'overview-card-pending';
 
 const move = () => transition.patch(route('cases.transition', props.caseRecord.id));
 const uploadDocument = () => documentUpload.post(route('cases.documents.upload', props.caseRecord.id), {
@@ -258,90 +258,64 @@ const archiveCase = () => { if (window.confirm('Archive this case? The case will
                 <div class="flex flex-wrap gap-2 pb-2"><button v-for="status in transitions" :key="status" type="button" @click="transition.status = status; move()" class="ui-button text-xs">Move to {{ status.toLowerCase().replaceAll('_', ' ') }}</button></div>
             </details>
 
-
             <section id="case-workspace-tabs" class="case-workspace-nav scroll-mt-24" aria-label="Case workspace sections">
-                <div class="min-w-0 flex-1">
-                    <h2 class="sr-only">Case journey</h2>
-                    <ol class="journey" aria-label="Case journey steps">
-                        <li v-for="step in journeySteps" :key="step.key" class="journey-step" :class="`journey-${step.state}`">
-                            <button type="button" class="journey-button" :aria-current="step.state === 'current' ? 'step' : undefined" :aria-controls="`case-panel-${step.key}`" @click="openSection(step.key)">
-                                <span class="journey-dot" aria-hidden="true">{{ step.state === 'done' ? '&#10003;' : step.n }}</span>
-                                <span class="journey-label">{{ step.label }}<span class="sr-only">{{ step.state === 'done' ? ' - recorded' : step.state === 'current' ? ' - current step' : ' - not yet recorded' }}</span></span>
-                            </button>
-                        </li>
-                    </ol>
-                    <div class="mt-3 grid gap-3 lg:grid-cols-2">
-                        <div class="rounded-xl border border-brand-100 bg-brand-50 px-4 py-3">
-                            <p class="text-[11px] font-bold uppercase tracking-wider text-brand-700">Step {{ currentStep.n }} of 7 - {{ currentStep.label }}</p>
-                            <p class="mt-1 text-sm font-semibold text-slate-900">{{ currentStep.next }}</p>
-                            <button type="button" class="ui-link min-h-9 text-xs" @click="openSection(currentStep.key)">Go to {{ currentStep.label.toLowerCase() }}</button>
-                        </div>
-                        <div class="rounded-xl border border-[var(--color-line)] bg-white px-4 py-3">
-                            <p class="text-[11px] font-bold uppercase tracking-wider text-slate-600">{{ nextRecordedTask ? 'Next recorded task' : 'Workflow guidance' }}</p>
-                            <p class="mt-1 text-sm font-semibold text-slate-800">{{ nextRecordedTask?.title ?? nextAction }}</p>
-                            <p v-if="nextRecordedTask" class="text-xs text-slate-600">{{ taskDueLabel(nextRecordedTask.due_at) }}. <button type="button" class="min-h-9 px-1 font-semibold text-brand-800 underline" @click="showCaseTasks">View case tasks</button></p>
-                        </div>
+                <div class="grid w-full gap-3 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+                    <div class="rounded-xl border border-brand-100 bg-brand-50 px-4 py-3">
+                        <p class="text-[11px] font-bold uppercase tracking-wider text-brand-700">Next step</p>
+                        <p class="mt-1 text-sm font-semibold text-slate-900">{{ nextStep.text }}</p>
+                        <button type="button" class="ui-link min-h-9 text-xs" @click="openSection(nextStep.tab)">Go to {{ workspaceTabs.find(tab => tab.key === nextStep.tab)?.label }}</button>
+                        <p v-if="nextRecordedTask" class="mt-2 border-t border-brand-100 pt-2 text-xs text-slate-700"><span class="font-bold uppercase tracking-wider text-brand-700">Next recorded task:</span> {{ nextRecordedTask.title }}, {{ taskDueLabel(nextRecordedTask.due_at) }}. <button type="button" class="min-h-9 px-1 font-semibold text-brand-800 underline" @click="showCaseTasks">View case tasks</button></p>
+                    </div>
+                    <div aria-label="Case at a glance" class="grid grid-cols-3 gap-2 text-center">
+                        <button type="button" class="rounded-xl border px-2 py-2" :class="priorityTone(latestKavat?.score.priority)" @click="openSection('kavat')"><span class="block text-[11px] font-semibold text-slate-600">KaVAT</span><span class="block text-base font-bold text-slate-900">{{ latestKavat?.score.final_score ?? (kavatDraft ? 'In progress' : '-') }}</span><span class="block text-[11px] text-slate-600">{{ latestKavat ? (latestKavat.score.priority === 'high' ? 'High Priority' : 'Standard') : 'Not finalized' }}</span></button>
+                        <button type="button" class="rounded-xl border border-[var(--color-line)] bg-white px-2 py-2" @click="openSection('forms')"><span class="block text-[11px] font-semibold text-slate-600">Forms finalized</span><span class="block text-base font-bold text-slate-900">{{ formsDone }} / 3</span><span class="block text-[11px] text-slate-600">Summary, plan, SCSR</span></button>
+                        <button type="button" class="rounded-xl border border-[var(--color-line)] bg-white px-2 py-2" @click="openSection('notes')"><span class="block text-[11px] font-semibold text-slate-600">Grants</span><span class="block text-base font-bold text-slate-900">{{ peso(grants.total) }}</span><span class="block text-[11px] text-slate-600">{{ grants.count }} released</span></button>
                     </div>
                 </div>
                 <div class="case-tab-list" role="tablist" aria-label="Case record sections">
-                    <button v-for="tab in workspaceTabs" :id="`case-tab-${tab.key}`" :key="tab.key" type="button" role="tab" :tabindex="activeSection === tab.key ? 0 : -1" @keydown="moveWorkspaceTab($event, tab.key)" :aria-selected="activeSection === tab.key" :aria-controls="`case-panel-${tab.key}`" class="case-tab" :class="activeSection === tab.key ? 'case-tab-active' : ''" @click="activeSection = tab.key"><span v-if="tab.step" aria-hidden="true" class="case-tab-step">{{ tab.step }}</span>{{ tab.label }}<span v-if="tabBadges[tab.key]" class="case-tab-badge" :class="tabBadges[tab.key].urgent ? 'case-tab-badge-urgent' : 'case-tab-badge-info'">{{ tabBadges[tab.key].count || '!' }}</span></button>
+                    <button v-for="tab in workspaceTabs" :id="`case-tab-${tab.key}`" :key="tab.key" type="button" role="tab" :tabindex="activeSection === tab.key ? 0 : -1" @keydown="moveWorkspaceTab($event, tab.key)" :aria-selected="activeSection === tab.key" :aria-controls="`case-panel-${tab.key}`" class="case-tab" :class="activeSection === tab.key ? 'case-tab-active' : ''" @click="activeSection = tab.key">{{ tab.label }}<span v-if="tabBadges[tab.key]" class="case-tab-badge" :class="tabBadges[tab.key]!.urgent ? 'case-tab-badge-urgent' : 'case-tab-badge-info'">{{ tabBadges[tab.key]!.count || '!' }}</span></button>
                 </div>
             </section>
 
             <section v-if="smartAlerts.length" v-show="activeSection === 'overview'" class="ui-panel mt-5 px-4 py-3 sm:px-5" aria-labelledby="case-attention-title">
                 <div class="flex flex-wrap items-center justify-between gap-2"><h2 id="case-attention-title" class="flex items-center gap-2 text-sm font-semibold text-[var(--color-ink)]"><AppIcon name="alert" class="h-4 w-4 text-amber-600" />Needs attention<span class="ui-pill bg-amber-50 px-2 py-0.5 text-amber-800">{{ smartAlerts.length }}</span></h2><button v-if="smartAlerts.length > 3" type="button" class="ui-link min-h-9 text-xs" :aria-expanded="showAllAlerts" @click="showAllAlerts = !showAllAlerts">{{ showAllAlerts ? 'Show fewer' : `Show all ${smartAlerts.length}` }}</button></div>
                 <ul class="mt-2 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-                    <li v-for="(alert, i) in (showAllAlerts ? smartAlerts : smartAlerts.slice(0, 3))" :key="i"><button type="button" class="smart-alert w-full text-left" :class="alert.level === 'critical' ? 'smart-alert-critical' : alert.level === 'warning' ? 'smart-alert-warning' : 'smart-alert-info'" @click="alert.tab ? openSection(alert.tab as any) : undefined"><span class="smart-alert-icon">{{ alert.level === 'critical' ? '!' : alert.level === 'warning' ? '?' : 'i' }}</span><span class="min-w-0 flex-1 text-sm font-semibold">{{ alert.text }}<span v-if="alert.tab" class="mt-0.5 block text-xs font-medium">Go to {{ workspaceTabs.find(t => t.key === alert.tab)?.label }}</span></span></button></li>
+                    <li v-for="(alert, i) in (showAllAlerts ? smartAlerts : smartAlerts.slice(0, 3))" :key="i"><button type="button" class="smart-alert w-full text-left" :class="alert.level === 'critical' ? 'smart-alert-critical' : alert.level === 'warning' ? 'smart-alert-warning' : 'smart-alert-info'" @click="alert.tab ? openSection(alert.tab) : undefined"><span class="smart-alert-icon">{{ alert.level === 'critical' ? '!' : alert.level === 'warning' ? '?' : 'i' }}</span><span class="min-w-0 flex-1 text-sm font-semibold">{{ alert.text }}<span v-if="alert.tab" class="mt-0.5 block text-xs font-medium">Go to {{ workspaceTabs.find(t => t.key === alert.tab)?.label }}</span></span></button></li>
                 </ul>
             </section>
-            <div class="mt-5 grid min-w-0 grid-cols-1 gap-5" :class="activeSection === 'overview' ? 'xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]' : ''">
+
+            <div class="mt-5 grid min-w-0 grid-cols-1 gap-5" :class="['overview', 'records'].includes(activeSection) ? 'xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]' : ''">
                 <div class="min-w-0 space-y-5">
-                    <section v-show="activeSection === 'overview'" id="case-panel-overview" role="tabpanel" aria-labelledby="case-tab-overview" class="min-w-0">
-                      <CaseProfileOverview :services="servicesProvided ?? []" :record="caseRecord" :relationships="relationships" :notes="notes" :visits="visits" :referrals="referrals" :status-history="timeline" @open="openSection($event)">
-                        <div class="mt-5 grid gap-3 sm:grid-cols-3">
-                            <button type="button" class="overview-card" :class="assessmentSummary?.status === 'final' ? 'overview-card-done' : 'overview-card-pending'" @click="activeSection='assessment'; if (assessmentSummary) loadComprehensive(assessmentSummary.id)">
-                                <span class="overview-card-status">{{ assessmentSummary ? 'V' + assessmentSummary.version + ' - ' + assessmentSummary.status : 'Not started' }}</span>
-                                <span class="overview-card-title">Comprehensive assessment</span>
-                                <span v-if="assessmentSummary" class="overview-card-detail">Assessed {{ assessmentSummary.assessment_date }}</span>
-                                <span v-else class="overview-card-detail">Tap to begin</span>
-                            </button>
-                            <button type="button" class="overview-card" :class="childParticipationSummary ? 'overview-card-done' : 'overview-card-pending'" @click="activeSection='participation'; if (childParticipationSummary) loadParticipation(childParticipationSummary.id)">
-                                <span class="overview-card-status">{{ childParticipationSummary ? 'Finalized' : 'No finalized record' }}</span>
-                                <span class="overview-card-title">Child participation</span>
-                                <span v-if="childParticipationSummary" class="overview-card-detail">{{ childParticipationSummary.decision_title || 'Restricted participation record' }}</span>
-                                <span v-else class="overview-card-detail">Tap to begin</span>
-                            </button>
-                            <Link :href="route('cases.plans.workspace',caseRecord.id)" class="overview-card" :class="planSummary ? 'overview-card-done' : 'overview-card-pending'">
-                                <span class="overview-card-status">{{ planSummary ? 'V' + planSummary.version + ' - ' + planSummary.status.replaceAll('_',' ') : 'No active plan' }}</span>
-                                <span class="overview-card-title">Plan & continuity</span>
-                                <span v-if="planSummary" class="overview-card-detail">{{ planSummary.goal_count }} goal(s) · {{ planSummary.open_intervention_count }} open<span v-if="planSummary.review_due_at" :class="new Date(planSummary.review_due_at) < new Date() ? 'text-rose-600 font-bold' : ''"> · review {{ planSummary.review_due_at }}</span></span>
-                                <span v-else class="overview-card-detail">Tap to create plan</span>
-                            </Link>
-                        </div>
-
-                      </CaseProfileOverview>
-                      <CaseReportsPanel class="mt-5" :case-id="caseRecord.id" :can-print="canGenerateReport" :intake-at="caseRecord.intake_completed_at ?? caseRecord.opened_at ?? null" :note-count="notes.filter(note => note.record_type !== 'addendum').length" :last-note-at="notes[0]?.occurred_at ?? notes[0]?.created_at ?? null" :plan="planSummary" :assessment-status="assessmentSummary?.status ?? null" @open="openSection($event)" />
-                    </section>
-                    <section v-show="activeSection === 'overview' || activeSection === 'monitoring'" id="case-panel-conference" class="ui-panel p-5">
-                        <h2 class="font-bold">Case Conference</h2>
-                        <p v-if="conferenceSummary" class="mt-2 text-sm">Latest finalized: {{ conferenceSummary.conference_type }} · {{ conferenceSummary.finalized_at }} · {{ conferenceActionSummary?.pending || 0 }} pending / {{ conferenceActionSummary?.overdue || 0 }} overdue action(s)<span v-if="conferenceSummary.next_review_at"> · next review {{ conferenceSummary.next_review_at }}</span></p>
-                        <p v-else class="mt-2 text-sm text-slate-600">No finalized conference is recorded.</p>
-                        <p class="mt-2 text-xs text-slate-600">Overview excludes conference narratives, child views, and restricted health information.</p>
-                        <Link :href="route('cases.conferences.index', caseRecord.id)" class="mt-3 inline-block rounded-md border px-3 py-2 text-sm font-bold text-brand-700">Open Case Conferences</Link>
-                    </section>
-                    <section v-show="activeSection === 'assessment'" id="case-panel-assessment" role="tabpanel" aria-labelledby="case-tab-assessment" class="scroll-mt-24 rounded-lg border border-slate-200 bg-white p-5">
-                      <CaseAssessmentPanel ref="assessmentPanel" :case-id="Number(caseRecord.id)" :active="activeSection === 'assessment'" />
+                    <section v-show="activeSection === 'overview'" id="case-panel-overview" role="tabpanel" aria-labelledby="case-tab-overview" class="min-w-0 space-y-5">
+                        <section v-if="remarks.length" class="ui-panel p-5" aria-labelledby="case-remarks-title">
+                            <h2 id="case-remarks-title" class="ui-section-title">Remarks from supervisor and monitors<span v-if="unreadRemarks.length" class="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900">{{ unreadRemarks.length }} unread</span></h2>
+                            <div class="mt-3"><RemarksThread :remarks="remarks" :case-id="Number(caseRecord.id)" :can-reply="isCaseManager" /></div>
+                        </section>
+                        <CaseProfileOverview :services="servicesProvided ?? []" :record="caseRecord" :relationships="relationships" :notes="notes" :visits="visits" :referrals="referrals" :status-history="timeline" @open="openSection($event)" />
                     </section>
 
-                    <section v-show="activeSection === 'assessment'" id="case-panel-participation" aria-label="Child participation" class="scroll-mt-24 rounded-lg border border-slate-200 bg-white p-5">
-                      <p class="mb-3 text-[11px] font-bold uppercase tracking-wider text-brand-700">Step 3 - Child participation</p>
-                      <CaseParticipationPanel ref="participationPanel" :case-id="Number(caseRecord.id)" :active="activeSection === 'assessment'" />
+                    <section v-show="activeSection === 'people'" id="case-panel-people" role="tabpanel" aria-labelledby="case-tab-people" class="scroll-mt-24 rounded-lg border border-slate-200 bg-white p-5">
+                        <CaseClientContextPanel :record="caseRecord" :relationships="relationships" :consents="consents" :can-archive="canArchive" @archive="archiveCase" />
+                    </section>
+                    <section v-show="activeSection === 'overview' || activeSection === 'people'" v-if="canAssignCase" class="ui-panel p-5">
+                        <h2 class="font-bold">Assignment</h2><p class="mt-1 text-sm text-slate-600">Reassign this case using your existing assignment authority.</p><p v-if="!assignableWorkers.length" class="mt-3 text-sm text-slate-700">{{ caseRecord.lgu_id ? 'No active case workers have a current LGU assignment for this case.' : 'A verified case LGU assignment is required before reassignment. Request an authorized jurisdiction review.' }}</p><form v-else @submit.prevent="saveAssignment" class="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]"><label class="min-w-0 text-sm font-semibold text-slate-700">Assign case worker<select v-model="assignment.assigned_to" required class="mt-1 w-full rounded-md border-slate-300 text-sm"><option value="">Select worker</option><option v-for="worker in assignableWorkers" :key="worker.id" :value="worker.id">{{ worker.name }}</option></select></label><button :disabled="assignment.processing || !assignment.assigned_to" class="rounded-md bg-brand-700 px-4 py-2 text-sm font-bold text-white">Update assignment</button></form><p v-if="assignment.errors.assigned_to || assignment.errors.expected_version" role="alert" class="mt-2 text-sm text-rose-700">{{ assignment.errors.assigned_to || assignment.errors.expected_version }}</p></section>
+
+                    <section v-show="activeSection === 'kavat'" id="case-panel-kavat" role="tabpanel" aria-labelledby="case-tab-kavat" class="min-w-0">
+                        <KavatPanel :case-id="Number(caseRecord.id)" :definition="kavatDefinition" :records="kavat" :can-edit="canEditForms" />
                     </section>
 
-                    <section v-show="activeSection === 'collaboration'" id="case-panel-collaboration" role="tabpanel" aria-labelledby="case-tab-collaboration" class="min-w-0">
-                      <CaseServicesPanel :case-id="Number(caseRecord.id)" :referrals="referrals" :services="servicesProvided ?? []" @compose="composeNote" :interventions="casePlan.interventions.value" :plan-status="planSummary ? casePlan.status.value : 'ready'" :has-plan="Boolean(planSummary)" :referral-targets="referralTargets" @reload-plan="casePlan.load(true)">
-                        <template #status-form="{ referral }"><ReferralStatusForm :referral-id="referral.id" :status="referral.status" :allowed-statuses="referralTransitions?.[referral.status] ?? []" /></template>
-                        <section class="ui-panel overflow-hidden p-0" aria-labelledby="case-mdt-title">
+                    <section v-show="activeSection === 'forms'" id="case-panel-forms" role="tabpanel" aria-labelledby="case-tab-forms" class="min-w-0">
+                        <CaseFormsPanel :case-id="Number(caseRecord.id)" :definition="formsDefinition" :forms="forms" :suggestions="formSuggestions" :can-edit="canEditForms"
+                            :intake-at="caseRecord.intake_completed_at ?? caseRecord.opened_at ?? null" :note-count="notes.filter(note => note.record_type !== 'addendum').length"
+                            :last-note-at="notes[0]?.occurred_at ?? notes[0]?.created_at ?? null" :plan-suggestions="planSuggestions" @open-notes="openSection('notes')" />
+                    </section>
+
+                    <section v-show="activeSection === 'notes'" id="case-panel-notes" role="tabpanel" aria-labelledby="case-tab-notes" class="min-w-0 space-y-5">
+                        <div class="ui-panel p-4 sm:p-5"><CaseMonitoringPanel ref="monitoringPanel" :case-id="caseRecord.id" :active="activeSection === 'notes'" :visits="visits" :notes="notes" :tasks="tasks" :referrals="referrals" :services="servicesProvided ?? []" :cpu-members="cpuMembers ?? []" :referral-targets="referralTargets" :referral-transitions="referralTransitions ?? {}" :has-sharing-consent="Boolean(hasSharingConsent)" :client-names="[caseRecord.first_name, caseRecord.last_name].filter(Boolean)" /></div>
+                        <CaseServicesPanel :case-id="Number(caseRecord.id)" :referrals="referrals" :services="servicesProvided ?? []" :referral-targets="referralTargets" @compose="composeNote">
+                            <template #status-form="{ referral }"><ReferralStatusForm :referral-id="referral.id" :status="referral.status" :allowed-statuses="referralTransitions?.[referral.status] ?? []" /></template>
+                            <GrantsPanel :case-id="Number(caseRecord.id)" :grants="grants" :can-edit="canEditForms" />
+                            <section class="ui-panel overflow-hidden p-0" aria-labelledby="case-mdt-title">
                           <header class="flex flex-wrap items-start justify-between gap-3 border-b border-[var(--color-line)] px-5 py-4">
                             <div class="min-w-0"><h2 id="case-mdt-title" class="ui-section-title">MDT / CPU referral pathway</h2><p class="ui-muted mt-0.5 max-w-2xl">Grant purpose-limited, time-bound access. Membership alone does not give an MDT member access to this case.</p></div>
                             <div v-if="canManageMdt" class="flex flex-wrap gap-2">
@@ -357,35 +331,19 @@ const archiveCase = () => { if (window.confirm('Archive this case? The case will
                           </div>
                           <p v-else class="m-5 rounded-md bg-slate-50 p-4 text-sm text-slate-600">You do not have authority to manage MDT access for this case.</p>
                         </section>
-                      </CaseServicesPanel>
-                    </section>
-                    <section v-show="activeSection === 'safety'" id="case-panel-safety" role="tabpanel" aria-labelledby="case-tab-safety" class="scroll-mt-24 rounded-lg border border-slate-200 bg-white p-5">
-                        <CaseSafetyPanel :case-id="Number(caseRecord.id)" :can-assess="canAssessRisk" :current-risk="caseRecord.current_risk_level ?? null" :history="riskAssessments" :next-review="nextRiskReview?.assessment.next_reassessment_at" :review-overdue="riskReviewState === 'overdue'" />
+                        </CaseServicesPanel>
                     </section>
 
-                    <section v-show="activeSection === 'people'" id="case-panel-people" role="tabpanel" aria-labelledby="case-tab-people" class="scroll-mt-24 rounded-lg border border-slate-200 bg-white p-5">
-                        <CaseClientContextPanel :record="caseRecord" :relationships="relationships" :consents="consents" :can-archive="canArchive" @archive="archiveCase" />
-                    </section>
-
-                    <section v-show="activeSection === 'overview' || activeSection === 'people'" v-if="canAssignCase" class="ui-panel p-5">
-                        <h2 class="font-bold">Assignment</h2><p class="mt-1 text-sm text-slate-600">Reassign this case using your existing assignment authority.</p><p v-if="!assignableWorkers.length" class="mt-3 text-sm text-slate-700">{{ caseRecord.lgu_id ? 'No active case workers have a current LGU assignment for this case.' : 'A verified case LGU assignment is required before reassignment. Request an authorized jurisdiction review.' }}</p><form v-else @submit.prevent="saveAssignment" class="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]"><label class="min-w-0 text-sm font-semibold text-slate-700">Assign case worker<select v-model="assignment.assigned_to" required class="mt-1 w-full rounded-md border-slate-300 text-sm"><option value="">Select worker</option><option v-for="worker in assignableWorkers" :key="worker.id" :value="worker.id">{{ worker.name }}</option></select></label><button :disabled="assignment.processing || !assignment.assigned_to" class="rounded-md bg-brand-700 px-4 py-2 text-sm font-bold text-white">Update assignment</button></form><p v-if="assignment.errors.assigned_to || assignment.errors.expected_version" role="alert" class="mt-2 text-sm text-rose-700">{{ assignment.errors.assigned_to || assignment.errors.expected_version }}</p></section>
-
-                    <section v-show="activeSection === 'assessment' && legacyAssessmentSummary?.count" class="ui-panel p-5">
-                        <h2 class="font-bold">Earlier assessment records</h2>
-                        <p class="mt-1 text-sm text-slate-600">Use the dedicated Assessment workspace for the canonical, versioned social case assessment. Legacy generic assessments remain preserved for migration and reconciliation only.</p>
-                        <p v-if="legacyAssessmentSummary?.count" class="mt-3 rounded-md bg-slate-50 p-3 text-sm text-slate-600">{{ legacyAssessmentSummary.count }} legacy assessment record(s) retained. Latest: version {{ legacyAssessmentSummary.latest?.version }} · {{ legacyAssessmentSummary.latest?.status }}.</p>
+                    <section v-show="activeSection === 'closure'" id="case-panel-closure" role="tabpanel" aria-labelledby="case-tab-closure" class="min-w-0 space-y-5">
+                        <section class="ui-panel p-5" aria-labelledby="closure-checklist-title">
+                            <h2 id="closure-checklist-title" class="ui-section-title">Closure checklist</h2>
+                            <p class="ui-muted mt-1">Before recommending closure, make sure the case record is complete. This is guidance; the closure record below still needs review and approval.</p>
+                            <ul class="mt-3 grid gap-2 sm:grid-cols-2">
+                                <li v-for="item in closureChecklist" :key="item.text"><button type="button" class="flex w-full items-start gap-2 rounded-lg border p-3 text-left text-sm" :class="item.done ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-white'" @click="openSection(item.tab)"><component :is="item.done ? CheckCircle2 : Circle" class="mt-0.5 h-4 w-4 shrink-0" :class="item.done ? 'text-emerald-700' : 'text-slate-400'" aria-hidden="true" /><span><span class="block font-semibold text-slate-900">{{ item.text }}<span class="sr-only">{{ item.done ? ' - done' : ' - not yet' }}</span></span><span class="block text-xs text-slate-600">{{ item.detail }}</span></span></button></li>
+                            </ul>
                         </section>
-
-                    <section v-show="activeSection === 'care'" id="case-panel-care" role="tabpanel" aria-labelledby="case-tab-care" class="min-w-0">
-                        <CasePlanGoalsPanel :case-id="Number(caseRecord.id)" :summary="planSummary ?? null" :goals="casePlan.goals.value" :interventions="casePlan.interventions.value" :plan-status="planSummary ? casePlan.status.value : 'ready'" @reload-plan="casePlan.load(true)" />
-                    </section>
-
-                    <section v-show="activeSection === 'closure'" id="case-panel-closure" role="tabpanel" aria-labelledby="case-tab-closure" class="min-w-0">
                         <CaseClosurePanel v-if="closureLoaded" :case-id="Number(caseRecord.id)" @updated="router.reload()" />
                     </section>
-
-                    
-                    <section v-show="activeSection === 'monitoring'" id="case-panel-monitoring" role="tabpanel" aria-labelledby="case-tab-monitoring" class="scroll-mt-24 ui-panel p-4 sm:p-5"><CaseMonitoringPanel ref="monitoringPanel" :case-id="caseRecord.id" :active="activeSection==='monitoring'" :visits="visits" :notes="notes" :tasks="tasks" :referrals="referrals" :services="servicesProvided ?? []" :cpu-members="cpuMembers ?? []" :referral-targets="referralTargets" :referral-transitions="referralTransitions ?? {}" :has-sharing-consent="Boolean(hasSharingConsent)" :client-names="[caseRecord.first_name, caseRecord.last_name].filter(Boolean)"/></section>
 
                     <section v-show="activeSection === 'records'" id="case-panel-records" role="tabpanel" aria-labelledby="case-tab-records" class="ui-panel overflow-hidden p-0">
                         <header class="flex flex-wrap items-start justify-between gap-3 border-b border-[var(--color-line)] px-5 py-4">
@@ -412,22 +370,26 @@ const archiveCase = () => { if (window.confirm('Archive this case? The case will
                     </section>
                 </div>
 
-                <aside v-show="['overview', 'care', 'records'].includes(activeSection)" class="min-w-0 space-y-5">
+                <aside v-show="['overview', 'records'].includes(activeSection)" class="min-w-0 space-y-5">
+                    <section v-show="activeSection === 'overview'" id="case-panel-conference" class="ui-panel p-5" aria-labelledby="case-conference-title">
+                        <h2 id="case-conference-title" class="flex items-center gap-2 ui-section-title"><Users class="h-4 w-4 text-brand-700" aria-hidden="true" />Case conference</h2>
+                        <p class="ui-muted mt-1">Held when needed at any point of the case, outside the regular forms.</p>
+                        <p v-if="conferenceSummary" class="mt-2 text-sm">Latest: {{ conferenceSummary.conference_type }}, {{ formatPh(conferenceSummary.finalized_at, 'date') }}. {{ conferenceActionSummary?.pending || 0 }} pending / {{ conferenceActionSummary?.overdue || 0 }} overdue actions<span v-if="conferenceSummary.next_review_at">. Next review {{ calendarDateLabel(conferenceSummary.next_review_at) }}</span>.</p>
+                        <p v-else class="mt-2 text-sm text-slate-600">No case conference recorded.</p>
+                        <Link :href="route('cases.conferences.index', caseRecord.id)" class="ui-button mt-3 min-h-10 text-sm">Open case conferences</Link>
+                    </section>
                     <section v-show="activeSection === 'overview'" class="ui-panel p-5">
-                        <div class="flex flex-wrap items-center justify-between gap-2"><h2 class="ui-section-title">Referrals</h2></div>
+                        <div class="flex flex-wrap items-center justify-between gap-2"><h2 class="ui-section-title">Referrals</h2><button type="button" class="ui-link min-h-9 text-xs" @click="openSection('notes')">Open</button></div>
                         <div v-if="referrals.length" class="mt-3 space-y-2">
-                            <div v-for="item in referrals" :key="item.id" class="rounded-md p-3 text-sm" :class="item.status === 'COMPLETED' ? 'bg-emerald-50 border border-emerald-200' : item.status === 'PENDING' ? 'bg-amber-50 border border-amber-200' : 'bg-slate-50 border border-slate-200'">
-                                <p class="font-semibold">{{ item.provider || item.service_category }}</p>
+                            <div v-for="item in referrals.slice(0, 5)" :key="item.id" class="rounded-md p-3 text-sm" :class="item.status === 'COMPLETED' ? 'bg-emerald-50 border border-emerald-200' : item.status === 'PENDING' ? 'bg-amber-50 border border-amber-200' : 'bg-slate-50 border border-slate-200'">
+                                <p class="font-semibold">{{ item.referred_to || item.service_category }}</p>
                                 <p class="mt-1 text-xs" :class="item.status === 'COMPLETED' ? 'text-emerald-700' : item.status === 'PENDING' ? 'text-amber-700' : 'text-slate-600'">{{ item.status.replaceAll('_', ' ') }}<span v-if="item.referred_at"> · Referred {{ formatPh(item.referred_at, 'date') }}</span></p>
                                 <p v-if="referralDue(item)" class="mt-0.5 text-xs font-semibold" :class="referralDue(item)!.overdue ? 'text-rose-700' : 'text-slate-600'">{{ referralDue(item)!.label }}</p>
                             </div>
                         </div>
                         <p v-else class="mt-3 text-sm text-slate-600">No referrals recorded.</p>
                     </section>
-
-                    
-
-                    <section id="case-open-tasks" tabindex="-1" aria-labelledby="case-tasks-title" v-show="activeSection === 'overview' || activeSection === 'care'" class="ui-panel p-5">
+                    <section id="case-open-tasks" tabindex="-1" aria-labelledby="case-tasks-title" v-show="activeSection === 'overview'" class="ui-panel p-5">
                         <h2 id="case-tasks-title" class="ui-section-title">Tasks</h2>
                         <div v-if="tasks.length" id="case-task-records" class="mt-3 space-y-2">
                             <div v-for="task in visibleCaseTasks" :key="task.id" class="rounded-lg border p-2.5 text-sm" :class="task.status === 'open' && task.due_at && new Date(task.due_at) < new Date() ? 'border-rose-200 bg-rose-50' : task.status === 'completed' ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200'">
@@ -452,19 +414,6 @@ const archiveCase = () => { if (window.confirm('Archive this case? The case will
 .case-tab:hover { color:var(--color-brand-800); }
 .case-tab:focus-visible { outline:2px solid var(--color-brand-700); outline-offset:2px; }
 .case-tab-active { border-color:var(--color-brand-600); color:var(--color-brand-800); }
-.case-tab-step { display:inline-grid; place-items:center; width:1.25rem; height:1.25rem; margin-right:.3rem; border-radius:999px; background:#efedf6; color:#5a3a95; font-size:.68rem; font-weight:800; }
-.case-tab-active .case-tab-step { background:var(--color-brand-700); color:#fff; }
-.journey { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:.25rem; }
-.journey-step { position:relative; min-width:0; }
-.journey-step:not(:last-child)::after { content:''; position:absolute; top:1.05rem; left:calc(50% + 1.1rem); right:calc(-50% + 1.1rem); height:2px; background:#e7e5f0; }
-.journey-done:not(:last-child)::after { background:#7c5cd6; }
-.journey-button { display:flex; width:100%; min-height:44px; flex-direction:column; align-items:center; gap:.35rem; border:0; background:transparent; padding:0 .15rem; text-align:center; }
-.journey-dot { display:grid; place-items:center; width:2.1rem; height:2.1rem; border-radius:999px; border:2px solid #d9d5e8; background:#fff; color:#64748b; font-size:.8rem; font-weight:800; }
-.journey-done .journey-dot { border-color:#7c5cd6; background:#7c5cd6; color:#fff; }
-.journey-current .journey-dot { border-color:var(--color-brand-700); background:#f3eefe; color:var(--color-brand-800); box-shadow:0 0 0 4px #ede4ff; }
-.journey-label { font-size:.72rem; font-weight:600; line-height:1.15; color:#475569; }
-.journey-current .journey-label { color:var(--color-brand-800); font-weight:800; }
-@media (max-width:640px) { .journey-label { font-size:.6rem; } .journey-dot { width:1.75rem; height:1.75rem; } .journey-step:not(:last-child)::after { top:.9rem; } }
 .case-tab-badge { display:inline-flex; align-items:center; justify-content:center; min-width:1.1rem; height:1.1rem; margin-left:.35rem; padding:0 .3rem; border-radius:4px; font-size:.65rem; font-weight:800; line-height:1; }
 .case-tab-badge-urgent { background:#fef2f2; color:#b91c1c; }
 .case-tab-badge-info { background:var(--color-brand-50); color:var(--color-brand-700); }
@@ -484,6 +433,7 @@ const archiveCase = () => { if (window.confirm('Archive this case? The case will
 .overview-card:hover { filter:brightness(.97); transform:translateY(-1px); }
 .overview-card-done { background:#f0fdf4; border:1px solid #bbf7d0; }
 .overview-card-pending { background:#f8fafc; border:1px solid #e2e8f0; }
+.overview-card-alert { background:#fef2f2; border:1px solid #fecaca; }
 .overview-card-status { font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; }
 .overview-card-done .overview-card-status { color:#15803d; }
 .overview-card-pending .overview-card-status { color:#475569; }

@@ -325,6 +325,59 @@ Case folder,documents,,,,Uploaded case documents (stored privately; quarantined 
 ,documents,previous_document_id,bigint,,Links to documents
 ,documents,source_module,varchar(64),,
 ,documents,uploader_notes,text,,
+Case folder,case_remarks,,,,"Remarks from the LGU Head, Field Office or Project Manager on a case, the case manager's replies, and closure approvals or returns."
+,case_remarks,case_id,bigint,Yes,Links to cases
+,case_remarks,author_id,bigint,Yes,Links to users
+,case_remarks,author_role,varchar(40),Yes,
+,case_remarks,parent_id,bigint,,Links to case_remarks
+,case_remarks,kind,varchar(30),Yes,
+,case_remarks,body,text,Yes,Text of the note or message.
+,case_remarks,acknowledged_at,timestamp,,Date and time: acknowledged.
+Case folder,case_grants,,,,"Grants log per case: type, amount, date released, fund source and receiver. Wrong entries are voided with a reason, never deleted."
+,case_grants,case_id,bigint,Yes,Links to cases
+,case_grants,grant_type,varchar(60),Yes,
+,case_grants,amount,numeric,Yes,
+,case_grants,released_at,date,Yes,Date and time: released.
+,case_grants,fund_source,varchar(160),,
+,case_grants,purpose,text,,
+,case_grants,received_by,varchar(160),,
+,case_grants,recorded_by,bigint,Yes,Links to users. User who recorded the record.
+,case_grants,voided_at,timestamp,,Date and time: voided.
+,case_grants,voided_by,bigint,,Links to users. User who voided the record.
+,case_grants,void_reason,varchar(500),,
+Kalinga forms and KaVAT,kavat_assessments,,,,"Kalinga Vulnerability Assessment Tool administrations: answers (draft or final), scores, priority and red flags."
+,kavat_assessments,case_id,bigint,Yes,Links to cases
+,kavat_assessments,instrument_version,varchar(20),Yes,
+,kavat_assessments,occasion,varchar(20),Yes,
+,kavat_assessments,administered_at,date,Yes,Date and time: administered.
+,kavat_assessments,administered_by,bigint,Yes,Links to users. User who administered the record.
+,kavat_assessments,status,varchar(10),Yes,Current status of the record.
+,kavat_assessments,answers,json,Yes,
+,kavat_assessments,notes,text,,
+,kavat_assessments,part1_score,smallint,,
+,kavat_assessments,part2_score,numeric,,
+,kavat_assessments,empowerment_rate,numeric,,
+,kavat_assessments,objective_risk_rate,numeric,,
+,kavat_assessments,safety_rate,numeric,,
+,kavat_assessments,final_score,numeric,,
+,kavat_assessments,priority,varchar(10),,"Priority (low, normal, high, urgent)."
+,kavat_assessments,red_flags,json,,
+,kavat_assessments,revision,integer,Yes,
+,kavat_assessments,finalized_at,timestamp,,When the record was finalized (locked).
+Kalinga forms and KaVAT,case_forms,,,,"Working copy of each Kalinga form written by the case manager (Case Summary, Intervention Plan matrix, Social Case Study Report), with a revision number."
+,case_forms,case_id,bigint,Yes,Links to cases
+,case_forms,form_type,varchar(20),Yes,
+,case_forms,content,json,Yes,
+,case_forms,status,varchar(10),Yes,Current status of the record.
+,case_forms,revision,integer,Yes,
+,case_forms,updated_by,bigint,,Links to users. User who updated the record.
+,case_forms,finalized_at,timestamp,,When the record was finalized (locked).
+Kalinga forms and KaVAT,case_form_versions,,,,Numbered finalized copies of the Kalinga forms.
+,case_form_versions,case_id,bigint,Yes,Links to cases
+,case_form_versions,form_type,varchar(20),Yes,
+,case_form_versions,version,integer,Yes,Version number; a new version is created instead of overwriting.
+,case_form_versions,content,json,Yes,
+,case_form_versions,finalized_by,bigint,Yes,Links to users. User who finalized the record.
 Assessment,risk_assessments,,,,Safety and risk assessments.
 ,risk_assessments,case_id,bigint,Yes,Links to cases
 ,risk_assessments,assessment_type,varchar(30),Yes,
@@ -955,6 +1008,7 @@ Users and security,users,,,,"User accounts: role, position, location, 2FA settin
 ,users,two_factor_email_code,text,,
 ,users,two_factor_email_code_expires_at,timestamp,,Date and time: two factor email code expires.
 ,users,position,varchar(160),,
+,users,region_scope,json,,
 Users and security,roles,,,,Roles available in the system.
 ,roles,code,text,Yes,Short code.
 ,roles,name,text,Yes,

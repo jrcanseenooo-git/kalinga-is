@@ -6,8 +6,7 @@ test.use({timezoneId:'America/Los_Angeles'});
 async function openConferences(page: Page, number='SYN-CONTEXT-2026-0001') {
     await login(page); await page.goto('/cases?search='+encodeURIComponent(number));
     await page.getByRole('link', { name: new RegExp(number) }).first().click();
-    await page.getByRole('tab', { name: 'Progress notes', exact: true }).click();
-    await page.getByRole('link', { name: 'Open Case Conferences', exact: true }).click();
+    await page.getByRole('link', { name: 'Open case conferences', exact: true }).click();
     await expect(page.getByRole('button',{name:'New conference',exact:true})).toBeEnabled();
 }
 

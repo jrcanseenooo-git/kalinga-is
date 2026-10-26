@@ -66,7 +66,7 @@ abstract class TestCase extends BaseTestCase
                 if ($cases->isNotEmpty()) {
                     $user->forceFill(['role' => 'lgu_head', 'municipality' => null, 'province' => null])->save();
                     foreach ($cases as $case) {
-                        $lgu = $case->lgu_id ?: $this->testLgu((string) $case->municipality, (string) $case->province, (string) ($case->region ?: 'CAR'));
+                        $lgu = $case->lgu_id ?: $this->fixtureLgu((string) $case->municipality, (string) $case->province, (string) ($case->region ?: 'CAR'));
                         if (!$case->lgu_id) {
                             DB::table('cases')->where('id', $case->id)->update(['lgu_id' => $lgu]);
                         }
@@ -80,7 +80,7 @@ abstract class TestCase extends BaseTestCase
     }
 
     /** The synthetic LGU used by legacy fixtures for a municipality (one per place). */
-    protected function test_lgu(string $municipality, string $province, string $region): int
+    protected function fixtureLgu(string $municipality, string $province, string $region): int
     {
         $municipality = trim($municipality) ?: 'Tabuk City';
         $province = trim($province) ?: 'Kalinga';
@@ -123,7 +123,7 @@ abstract class TestCase extends BaseTestCase
         $municipality = trim((string) ($user->municipality ?: $caseLocation?->municipality ?: 'Tabuk City'));
         $province = trim((string) ($user->province ?: $caseLocation?->province ?: 'Kalinga'));
         $region = trim((string) ($user->region ?: $caseLocation?->region ?: 'CAR'));
-        $lgu = $this->testLgu($municipality, $province, $region);
+        $lgu = $this->fixtureLgu($municipality, $province, $region);
 
         DB::table('user_lgu_assignments')->insert([
             'user_id' => $user->id, 'lgu_id' => $lgu, 'effective_from' => now()->subDay(),

@@ -18,7 +18,8 @@ for (const width of [360, 1280]) {
         await page.getByRole('link', { name: /DEMO-KLG-2026-0001/ }).first().click();
         await expect(page).toHaveURL(/\/cases\/\d+$/);
         const caseUrl = page.url();
-        await expect(page.getByRole('heading', { name: 'Case reports' })).toBeVisible();
+        await page.getByRole('tab', { name: /^Kalinga forms/ }).click();
+        await expect(page.getByRole('list', { name: 'Order of the Kalinga forms' }).getByRole('listitem')).toHaveCount(5);
         for (const [label, heading] of REPORTS) {
             await page.goto(caseUrl);
             const menu = page.getByRole('button', { name: 'Reports' });

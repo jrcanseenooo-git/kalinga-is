@@ -16,6 +16,7 @@ for (const width of [360, 768, 1440]) test(`referral from a progress note follow
     await expect(page).toHaveURL(/\/cases\/\d+$/);
     await page.getByRole('tab', { name: /Progress notes/ }).first().click();
     await page.getByRole('button', { name: 'Refer', exact: true }).click();
+    await page.getByRole('radio', { name: 'Referral to external agency' }).check();
     const form = page.locator('form[aria-labelledby="note-entry-title"]');
     await expect(form.getByRole('heading', { name: 'Refer the child' })).toBeVisible();
     await form.locator('#note-ref-to').selectOption("Public Attorney's Office (PAO)");

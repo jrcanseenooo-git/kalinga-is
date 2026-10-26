@@ -4,7 +4,7 @@ import { login, expectNoHorizontalOverflow } from './helpers';
 
 async function openPlanning(page:Page, number='SYN-UI-2026-0004') {
  await login(page);await page.goto(`/cases?search=${encodeURIComponent(number)}`);await page.getByRole('link',{name:new RegExp(number)}).first().click();await expect(page).toHaveURL(/\/cases\/\d+$/);
- await page.getByRole('link',{name:/Plan & continuity/}).first().click();await expect(page.getByRole('navigation',{name:'Plan versions',exact:true})).toBeVisible();if(!await page.getByRole('heading',{name:'Start a plan cycle',exact:true}).isVisible())await page.getByRole('button',{name:'Start a new cycle',exact:true}).click();await expect(page.getByRole('heading',{name:'Start a plan cycle',exact:true})).toBeVisible();
+ await page.goto(page.url().replace(/\/cases\/(\d+).*/,'/cases/$1/plan-workspace'));await expect(page.getByRole('navigation',{name:'Plan versions',exact:true})).toBeVisible();if(!await page.getByRole('heading',{name:'Start a plan cycle',exact:true}).isVisible())await page.getByRole('button',{name:'Start a new cycle',exact:true}).click();await expect(page.getByRole('heading',{name:'Start a plan cycle',exact:true})).toBeVisible();
 }
 async function confirm(page:Page){await page.getByRole('dialog').locator('#generic-submit-confirm').click();}
 async function createDraft(page:Page,objective:string){

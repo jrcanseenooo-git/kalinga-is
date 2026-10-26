@@ -177,6 +177,11 @@ export const REFERRAL_PURPOSES: Record<string, string[]> = {
   NCMF: ['Coordination with Muslim religious leaders', 'Shari\'a court coordination', 'Community intervention'],
   'NGO / civil society organization': ['Psychosocial support', 'Educational assistance', 'Livelihood / skills training', 'Shelter / temporary placement'],
 };
+/** CPU (LGU Child Protection Unit) recipients; everything else is an external agency. */
+export const CPU_RECIPIENTS = REFERRAL_RECIPIENTS[0].options;
+export const EXTERNAL_RECIPIENTS = REFERRAL_RECIPIENTS.slice(1).flatMap((group) => group.options);
+export const isCpuReferral = (referral: { lgu_cpu_member_id?: number | null; referred_to?: string | null }) =>
+  Boolean(referral.lgu_cpu_member_id) || CPU_RECIPIENTS.includes(referral.referred_to ?? '');
 export const purposesFor = (recipient?: string | null): string[] => (recipient && REFERRAL_PURPOSES[recipient]) || DEFAULT_PURPOSES;
 
 /** Services given to the child or family (earlier Kalinga "Services provided"). */
@@ -197,7 +202,7 @@ export const SERVICE_TYPES: (Option & { amount: boolean; detail: string })[] = [
 export const NOTE_TYPES: Option[] = [
   { value: 'contact', label: 'Contact / home visit' },
   { value: 'monitoring', label: 'Monitoring' },
-  { value: 'referral', label: 'Referral to CPU member / agency' },
+  { value: 'referral', label: 'Referral' },
   { value: 'service_delivery', label: 'Service provided' },
   { value: 'coordination', label: 'Coordination' },
   { value: 'case_review', label: 'Case review' },

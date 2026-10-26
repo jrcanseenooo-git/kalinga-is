@@ -1,28 +1,25 @@
 <script setup lang="ts">
-import { Link, usePage } from '@inertiajs/vue3';
+import { usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
-import { HandHeart, RefreshCw, Send } from '@lucide/vue';
+import { Building2, HandHeart, Send, Users } from '@lucide/vue';
 import StatusBadge from '@/Components/UI/StatusBadge.vue';
 import ReferralTracker from '@/Components/Referrals/ReferralTracker.vue';
 import { followUp, type ReferralTargets, type TrackedReferral } from '@/utils/referralTracking';
-import { progressTone, referralTone, shortDate, titleCase } from '@/utils/caseDisplay';
-import type { PlanIntervention } from '@/types/planning';
+import { referralTone, shortDate, titleCase } from '@/utils/caseDisplay';
+import { isCpuReferral } from '@/utils/caseOptions';
 import type { PageProps } from '@/types';
 
-type CaseReferral = TrackedReferral & { referred_to?: string | null; purpose?: string | null };
+type CaseReferral = TrackedReferral & { referred_to?: string | null; purpose?: string | null; lgu_cpu_member_id?: number | null };
 type ServiceItem = { id: number; service_type: string; specific_detail: string | null; amount: string | number | null; date_provided: string; provided_by: string | null; recorded_by_name?: string | null };
 const props = defineProps<{
   caseId: number;
   referrals: CaseReferral[];
-  interventions: PlanIntervention[];
-  planStatus: 'idle' | 'loading' | 'ready' | 'denied' | 'failed';
-  hasPlan: boolean;
   referralTargets: ReferralTargets;
   services?: ServiceItem[];
 }>();
 const opened = ref<number | null>(null);
 const due = (item: CaseReferral) => followUp(item, props.referralTargets);
-const emit = defineEmits<{ reloadPlan: []; compose: [kind: 'referral' | 'service_delivery'] }>();
+const emit = defineEmits<{ compose: [kind: 'referral_cpu' | 'referral_external' | 'service_delivery'] }>();
 const services = computed(() => props.services ?? []);
 const peso = (value: string | number | null) => value === null || value === '' ? '-' : new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(Number(value));
 const assistanceTotal = computed(() => services.value.reduce((sum, item) => sum + Number(item.amount || 0), 0));
@@ -30,6 +27,10 @@ const byType = computed(() => { const map = new Map<string, number>(); for (cons
 const page = usePage<PageProps>();
 const canRefer = computed(() => page.props.auth.permissions.includes('referrals.create'));
 const sortedReferrals = computed(() => [...props.referrals].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))));
+const groups = computed(() => [
+  { key: 'cpu' as const, title: 'Referrals to CPU members', hint: 'Offices and members of the LGU Child Protection Unit. Members with a Kalinga account get access to this case for the referral only.', icon: Users, compose: 'referral_cpu' as const, button: 'Refer to CPU member', items: sortedReferrals.value.filter(item => isCpuReferral(item)) },
+  { key: 'external' as const, title: 'Referrals to external agencies', hint: 'Partner agencies outside the CPU, such as WCPU, PNP, PAO, DepEd, NCIP or NGOs.', icon: Building2, compose: 'referral_external' as const, button: 'Refer to external agency', items: sortedReferrals.value.filter(item => !isCpuReferral(item)) },
+]);
 const lastUpdate = (item: CaseReferral) => item.completed_at || item.accepted_at || item.referred_at || item.created_at;
 </script>
 
@@ -49,22 +50,22 @@ const lastUpdate = (item: CaseReferral) => item.completed_at || item.accepted_at
       <p v-else class="px-5 py-6 text-sm text-slate-600">No services recorded yet. Record each service given, such as medical, financial, transport or educational help.</p>
     </section>
 
-    <!-- Referrals -->
-    <section class="ui-panel overflow-hidden p-0" aria-labelledby="case-referrals-title">
+    <!-- Referrals: CPU members and external agencies are tracked separately -->
+    <section v-for="group in groups" :key="group.key" class="ui-panel overflow-hidden p-0" :aria-labelledby="`case-referrals-${group.key}`">
       <header class="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-line)] px-5 py-4">
-        <div>
-          <h2 id="case-referrals-title" class="ui-section-title">Referrals</h2>
-          <p class="ui-muted mt-0.5">Referrals are written as progress notes, so the reason stays with the referral. Track and update each one here or from its note.</p>
+        <div class="flex min-w-0 items-start gap-3">
+          <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl" :class="group.key === 'cpu' ? 'bg-brand-100 text-brand-800' : 'bg-sky-100 text-sky-800'"><component :is="group.icon" class="h-5 w-5" aria-hidden="true" /></span>
+          <div class="min-w-0"><h2 :id="`case-referrals-${group.key}`" class="ui-section-title">{{ group.title }} ({{ group.items.length }})</h2><p class="ui-muted mt-0.5 max-w-2xl">{{ group.hint }}</p></div>
         </div>
-        <button v-if="canRefer" type="button" class="ui-button ui-button-primary min-h-10 gap-1.5 text-sm" @click="emit('compose', 'referral')"><Send class="h-4 w-4" aria-hidden="true" />New referral</button>
+        <button v-if="canRefer" type="button" class="ui-button min-h-10 gap-1.5 text-sm" @click="emit('compose', group.compose)"><Send class="h-4 w-4" aria-hidden="true" />{{ group.button }}</button>
       </header>
-      <table v-if="sortedReferrals.length" class="ui-table ui-table-stack">
+      <table v-if="group.items.length" class="ui-table ui-table-stack">
         <thead><tr><th scope="col">Date</th><th scope="col">Referred to</th><th scope="col">Purpose</th><th scope="col">Status</th><th scope="col">Remarks</th><th scope="col"><span class="sr-only">Tracking</span></th></tr></thead>
         <tbody>
-          <template v-for="item in sortedReferrals" :key="item.id">
+          <template v-for="item in group.items" :key="item.id">
           <tr>
             <td data-label="Date" class="whitespace-nowrap">{{ shortDate(lastUpdate(item)) }}</td>
-            <td data-label="Referred to" class="font-medium text-slate-800">{{ item.referred_to || item.provider || 'Not selected' }}</td>
+            <td data-label="Referred to" class="font-medium text-slate-800">{{ item.referred_to || 'Not selected' }}</td>
             <td data-label="Purpose">{{ item.purpose || item.service_category }}</td>
             <td data-label="Status"><div><StatusBadge :label="titleCase(item.status)" :tone="referralTone(item.status)" dot /><span v-if="due(item)" class="mt-1 block text-xs font-medium" :class="due(item)!.overdue ? 'text-rose-700' : due(item)!.tone === 'warning' ? 'text-amber-800' : 'text-slate-600'">{{ due(item)!.label }}</span></div></td>
             <td data-label="Remarks" class="max-w-xs"><span class="line-clamp-2 break-words text-slate-600" :title="item.reason ?? ''">{{ item.reason || '-' }}</span></td>
@@ -74,40 +75,7 @@ const lastUpdate = (item: CaseReferral) => item.completed_at || item.accepted_at
           </template>
         </tbody>
       </table>
-      <p v-if="!sortedReferrals.length" class="px-5 py-6 text-sm text-slate-600">No referrals recorded for this case.</p>
-    </section>
-
-    <!-- Interventions -->
-    <section class="ui-panel overflow-hidden p-0" aria-labelledby="case-interventions-title">
-      <header class="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-line)] px-5 py-4">
-        <div>
-          <h2 id="case-interventions-title" class="ui-section-title">Interventions and services</h2>
-          <p class="ui-muted mt-0.5">Services planned under the current case plan. Add or update them in the case plan.</p>
-        </div>
-        <div class="flex gap-2">
-          <button v-if="planStatus === 'failed'" type="button" class="ui-button min-h-10 gap-1.5 text-sm" @click="emit('reloadPlan')"><RefreshCw class="h-4 w-4" aria-hidden="true" />Retry</button>
-          <Link :href="route('cases.plans.workspace', caseId)" class="ui-button min-h-10 text-sm">{{ hasPlan ? 'Manage in case plan' : 'Open case plan' }}</Link>
-        </div>
-      </header>
-      <p v-if="planStatus === 'loading' || planStatus === 'idle'" role="status" class="px-5 py-6 text-sm text-slate-600">Loading interventions...</p>
-      <p v-else-if="planStatus === 'denied'" class="px-5 py-6 text-sm text-slate-600">Interventions are available in the case plan workspace for authorized staff.</p>
-      <p v-else-if="planStatus === 'failed'" role="alert" class="px-5 py-6 text-sm text-rose-800">Interventions could not be loaded. Check your connection and retry.</p>
-      <template v-else>
-        <table v-if="interventions.length" class="ui-table ui-table-stack">
-          <thead><tr><th scope="col">Service type</th><th scope="col">Activity</th><th scope="col">Provider / responsible</th><th scope="col">Target</th><th scope="col">Status</th><th scope="col">Next action</th></tr></thead>
-          <tbody>
-            <tr v-for="item in interventions" :key="item.id">
-              <td data-label="Service" class="font-medium text-slate-800">{{ item.service_category }}</td>
-              <td data-label="Activity" class="max-w-xs"><span class="line-clamp-2 break-words">{{ item.activity || '-' }}</span></td>
-              <td data-label="Provider">{{ item.provider_name || item.responsible_office || '-' }}</td>
-              <td data-label="Target" class="whitespace-nowrap">{{ shortDate(item.target_date) || '-' }}</td>
-              <td data-label="Status"><StatusBadge :label="titleCase(item.progress)" :tone="progressTone(item.progress)" dot /></td>
-              <td data-label="Next action" class="max-w-xs"><span class="line-clamp-2 break-words text-slate-600">{{ item.next_action || '-' }}</span></td>
-            </tr>
-          </tbody>
-        </table>
-        <p v-if="!interventions.length" class="px-5 py-6 text-sm text-slate-600">{{ hasPlan ? 'No interventions in the current case plan yet.' : 'No case plan yet. Interventions are planned in the case plan.' }}</p>
-      </template>
+      <p v-else class="px-5 py-5 text-sm text-slate-600">None yet.</p>
     </section>
 
     <slot />

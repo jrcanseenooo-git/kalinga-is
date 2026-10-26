@@ -1,6 +1,6 @@
 # Data dictionary - Kalinga CEFMU Case Management Information System
 
-Generated from the PostgreSQL schema by scripts/generate_data_dictionary.py. 95 tables. PK = primary key; FK = references another table.
+Generated from the PostgreSQL schema by scripts/generate_data_dictionary.py. 100 tables. PK = primary key; FK = references another table.
 
 ## Clients and identity
 
@@ -540,6 +540,106 @@ Uploaded case documents (stored privately; quarantined until scanned).
 | previous_document_id | bigint | Yes | FK documents | Link to the document record (documents). |
 | source_module | varchar(64) | Yes |  | Source module. |
 | uploader_notes | text | Yes |  | Uploader notes. |
+
+### case_remarks
+
+Remarks from the LGU Head, Field Office or Project Manager on a case, the case manager's replies, and closure approvals or returns.
+
+| Column | Type | Null | Key | Description |
+|---|---|---|---|---|
+| id | bigint | No | PK | Unique record number. |
+| case_id | bigint | No | FK cases | Link to the case record (cases). |
+| author_id | bigint | No | FK users | Link to the user record (users). |
+| author_role | varchar(40) | No |  | Author role. |
+| parent_id | bigint | Yes | FK case_remarks | Link to the case remark record (case_remarks). |
+| kind | varchar(30) | No |  | Kind. |
+| body | text | No |  | Text of the note or message. |
+| acknowledged_at | timestamp | Yes |  | Date and time: acknowledged. |
+| created_at | timestamp | Yes |  | When the record was created. |
+| updated_at | timestamp | Yes |  | When the record was last changed. |
+
+### case_grants
+
+Grants log per case: type, amount, date released, fund source and receiver. Wrong entries are voided with a reason, never deleted.
+
+| Column | Type | Null | Key | Description |
+|---|---|---|---|---|
+| id | bigint | No | PK | Unique record number. |
+| case_id | bigint | No | FK cases | Link to the case record (cases). |
+| grant_type | varchar(60) | No |  | Grant type. |
+| amount | numeric | No |  | Amount. |
+| released_at | date | No |  | Date and time: released. |
+| fund_source | varchar(160) | Yes |  | Fund source. |
+| purpose | varchar(255) | Yes |  | Purpose. |
+| received_by | varchar(160) | Yes |  | Received by. |
+| recorded_by | bigint | No | FK users | User who recorded the record. |
+| voided_at | timestamp | Yes |  | Date and time: voided. |
+| voided_by | bigint | Yes | FK users | User who voided the record. |
+| void_reason | varchar(500) | Yes |  | Void reason. |
+| created_at | timestamp | Yes |  | When the record was created. |
+| updated_at | timestamp | Yes |  | When the record was last changed. |
+
+## Kalinga forms and KaVAT
+
+### kavat_assessments
+
+Kalinga Vulnerability Assessment Tool administrations: answers (draft or final), scores, priority and red flags.
+
+| Column | Type | Null | Key | Description |
+|---|---|---|---|---|
+| id | bigint | No | PK | Unique record number. |
+| case_id | bigint | No | FK cases | Link to the case record (cases). |
+| instrument_version | varchar(20) | No |  | Instrument version. |
+| occasion | varchar(20) | No |  | Occasion. |
+| administered_at | date | No |  | Date and time: administered. |
+| administered_by | bigint | No | FK users | User who administered the record. |
+| status | varchar(10) | No |  | Current status of the record. |
+| answers | json | No |  | Answers. |
+| notes | text | Yes |  | Notes. |
+| part1_score | smallint | Yes |  | Part1 score. |
+| part2_score | numeric | Yes |  | Part2 score. |
+| empowerment_rate | numeric | Yes |  | Empowerment rate. |
+| objective_risk_rate | numeric | Yes |  | Objective risk rate. |
+| safety_rate | numeric | Yes |  | Safety rate. |
+| final_score | numeric | Yes |  | Final score. |
+| priority | varchar(10) | Yes |  | Priority (low, normal, high, urgent). |
+| red_flags | json | Yes |  | Red flags. |
+| revision | integer | No |  | Revision. |
+| finalized_at | timestamp | Yes |  | When the record was finalized (locked). |
+| created_at | timestamp | Yes |  | When the record was created. |
+| updated_at | timestamp | Yes |  | When the record was last changed. |
+
+### case_forms
+
+Working copy of each Kalinga form written by the case manager (Case Summary, Intervention Plan matrix, Social Case Study Report), with a revision number.
+
+| Column | Type | Null | Key | Description |
+|---|---|---|---|---|
+| id | bigint | No | PK | Unique record number. |
+| case_id | bigint | No | FK cases | Link to the case record (cases). |
+| form_type | varchar(20) | No |  | Form type. |
+| content | json | No |  | Content. |
+| status | varchar(10) | No |  | Current status of the record. |
+| revision | integer | No |  | Revision. |
+| updated_by | bigint | Yes | FK users | User who updated the record. |
+| finalized_at | timestamp | Yes |  | When the record was finalized (locked). |
+| created_at | timestamp | Yes |  | When the record was created. |
+| updated_at | timestamp | Yes |  | When the record was last changed. |
+
+### case_form_versions
+
+Numbered finalized copies of the Kalinga forms.
+
+| Column | Type | Null | Key | Description |
+|---|---|---|---|---|
+| id | bigint | No | PK | Unique record number. |
+| case_id | bigint | No | FK cases | Link to the case record (cases). |
+| form_type | varchar(20) | No |  | Form type. |
+| version | integer | No |  | Version number; a new version is created instead of overwriting. |
+| content | json | No |  | Content. |
+| finalized_by | bigint | No | FK users | User who finalized the record. |
+| created_at | timestamp | Yes |  | When the record was created. |
+| updated_at | timestamp | Yes |  | When the record was last changed. |
 
 ## Assessment
 
@@ -1673,6 +1773,7 @@ User accounts: role, position, location, 2FA settings and status.
 | two_factor_email_code | text | Yes |  | Two factor email code. |
 | two_factor_email_code_expires_at | timestamp | Yes |  | Date and time: two factor email code expires. |
 | position | varchar(160) | Yes |  | Position. |
+| region_scope | json | Yes |  | Region scope. |
 
 ### roles
 

@@ -5,7 +5,10 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Services\CaseAssignmentEligibility;
 use App\Services\CaseClosureHistory;
+use App\Services\CaseForms;
+use App\Services\CaseGrants;
 use App\Services\CaseRemarks;
+use App\Services\Kavat;
 use App\Services\MonitoringScope;
 use App\Services\RolePermissions;
 use App\Support\AuditLog;
@@ -127,6 +130,12 @@ class MonitoringController extends Controller
             ],
             'activity' => DB::table('case_status_history')->where('case_id', $case)->latest('created_at')->limit(10)->get(['from_status', 'to_status', 'created_at']),
             'remarks' => $this->remarks->thread($case),
+            // Scores and form status only: monitors never receive the answers or the narrative text.
+            'kavat' => ($kavat = DB::table('kavat_assessments')->where('case_id', $case)->where('status', 'final')->orderByDesc('administered_at')->orderByDesc('id')->first(['final_score', 'priority', 'administered_at', 'occasion']))
+                ? ['final_score' => (float) $kavat->final_score, 'priority' => Kavat::priorityLabel($kavat->priority), 'administered_at' => $kavat->administered_at, 'occasion' => $kavat->occasion] : null,
+            'forms' => collect(CaseForms::forCase($case))->map(fn ($form) => ['type' => $form['type'], 'title' => $form['title'],
+                'status' => $form['status'] === 'final' ? 'Finalized v' . ($form['versions'][0]->version ?? 1) : ($form['status'] === 'draft' ? 'Draft' : 'Not started'), 'updated_at' => $form['updated_at']])->values(),
+            'grants' => ['total' => CaseGrants::forCase($case)['total'], 'count' => CaseGrants::forCase($case)['count']],
             'closure' => $record->status === 'FOR_CLOSURE_REVIEW' ? [
                 'summary' => $record->closure_summary, 'ready' => !empty($record->closure_summary),
                 'canApprove' => $user->hasPermission('closure.approve'),

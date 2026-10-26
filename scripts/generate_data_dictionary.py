@@ -38,7 +38,8 @@ GROUPS = [
         'client_identity_merge_field_decisions', 'client_identity_merge_identifier_conflicts', 'identity_duplicate_candidates', 'identity_review_decisions',
         'relationships', 'households', 'household_memberships']),
     ('Reports and intake', ['reports', 'reference_sequences', 'intake_drafts']),
-    ('Case folder', ['cases', 'case_status_history', 'case_lifecycle_policies', 'case_notes', 'monitoring_visits', 'tasks', 'consents', 'documents']),
+    ('Case folder', ['cases', 'case_status_history', 'case_lifecycle_policies', 'case_notes', 'monitoring_visits', 'tasks', 'consents', 'documents', 'case_remarks', 'case_grants']),
+    ('Kalinga forms and KaVAT', ['kavat_assessments', 'case_forms', 'case_form_versions']),
     ('Assessment', ['risk_assessments', 'risk_assessment_factors', 'case_assessments', 'case_assessment_sections', 'case_assessment_workflow_events', 'assessments',
         'legacy_assessment_reconciliations', 'child_participation_records', 'child_participation_workflow_events']),
     ('Planning and services', ['case_plans', 'case_plan_goals', 'case_plan_history', 'case_plan_reviews', 'interventions', 'services_provided', 'service_providers',
@@ -56,6 +57,11 @@ GROUPS = [
 ]
 
 TABLES = {
+    'case_remarks': 'Remarks from the LGU Head, Field Office or Project Manager on a case, the case manager\'s replies, and closure approvals or returns.',
+    'case_grants': 'Grants log per case: type, amount, date released, fund source and receiver. Wrong entries are voided with a reason, never deleted.',
+    'kavat_assessments': 'Kalinga Vulnerability Assessment Tool administrations: answers (draft or final), scores, priority and red flags.',
+    'case_forms': 'Working copy of each Kalinga form written by the case manager (Case Summary, Intervention Plan matrix, Social Case Study Report), with a revision number.',
+    'case_form_versions': 'Numbered finalized copies of the Kalinga forms.',
     'clients': 'The child (client) of a case: identifying information, address, safe contact and primary caregiver.',
     'client_identifiers': 'Official identifiers recorded for a client, used for duplicate checks.',
     'client_identity_links': 'Links between client records confirmed as the same person.',

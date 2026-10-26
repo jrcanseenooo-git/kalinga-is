@@ -1,0 +1,730 @@
+{
+    "version": "2026-pilot",
+    "answers": {
+        "yes": "Oo (Yes)",
+        "maybe": "Hindi Sigurado (Maybe)",
+        "no": "Hindi (No)"
+    },
+    "bandLabels": [
+        "Mababa (Low)",
+        "Katamtaman (Moderate)",
+        "Mataas (High)"
+    ],
+    "domains": [
+        {
+            "code": "I",
+            "title": "Child's Rights, Legal Awareness, and Empowerment",
+            "items": [
+                1,
+                2,
+                3,
+                4
+            ],
+            "bands": [
+                12,
+                16
+            ],
+            "interpretations": [
+                "Limitado ang kaalaman, posibleng vulnerable sa abuse o exploitation.",
+                "May kaalaman ngunit kailangan pa ng pagpapalakas.",
+                "Malinaw na nauunawaan at naipapakita ang empowerment at karapatan."
+            ],
+            "statements": [
+                {
+                    "number": 1,
+                    "text": "Kaya kong ipaliwanag ang aking mga karapatan bilang isang bata, kabilang ang aking karapatang maging ligtas mula sa child, early and forced marriage\/union.",
+                    "reversed": false
+                },
+                {
+                    "number": 2,
+                    "text": "Alam ko na may mga batas at polisiya na nagpoprotekta sa mga bata laban sa child, early and forced marriage\/union at iba pang uri ng pang-aabuso o pagsasamantala.",
+                    "reversed": false
+                },
+                {
+                    "number": 3,
+                    "text": "Alam ko kung saan at kanino ako maaaring lumapit kung may lumalabag sa aking mga karapatan o kung hindi ako ligtas.",
+                    "reversed": false
+                },
+                {
+                    "number": 4,
+                    "text": "Pakiramdam ko ay wala akong kakayahan na magsabi ng aking saloobin at gumawa ng mga desisyon tungkol sa mga bagay na may epekto sa aking buhay.",
+                    "reversed": true
+                }
+            ]
+        },
+        {
+            "code": "II",
+            "title": "Safety, Protection, and Freedom from Violence",
+            "items": [
+                5,
+                6,
+                7,
+                8
+            ],
+            "bands": [
+                12,
+                16
+            ],
+            "interpretations": [
+                "Kinakailangan ng masinsinang counseling at guidance \/ mataas ang panganib.",
+                "May kaalaman ngunit kailangan pa ng dagdag na suporta.",
+                "Malinaw ang kaalaman at kakayahan sa pag-iwas at paghingi ng proteksyon."
+            ],
+            "statements": [
+                {
+                    "number": 5,
+                    "text": "Nakakaramdam ako na hindi ligtas sa aking tahanan, sa aking relasyon o pagsasama, at sa aking komunidad.",
+                    "reversed": true
+                },
+                {
+                    "number": 6,
+                    "text": "Ako ay may ganap na kalayaan at kontrol sa aking mga desisyon, nang walang anumang pamimilit, pagbabanta, o pagtatangkang kumontrol mula sa ibang tao.",
+                    "reversed": false
+                },
+                {
+                    "number": 7,
+                    "text": "Kapag may hindi magandang nangyayari sa akin, may isang taong mapagkakatiwalaan kong malalapitan para sa tulong at proteksyon.",
+                    "reversed": false
+                },
+                {
+                    "number": 8,
+                    "text": "Alam ko kung paano humingi ng tulong kung ako ay nakaranas o nanganganib na makaranas ng pananakit, pang-aabuso, pagbabanta, o sapilitang pagsasama.",
+                    "reversed": false
+                }
+            ]
+        },
+        {
+            "code": "III",
+            "title": "Relationship, Marriage\/Union, and Decision-Making",
+            "items": [
+                9,
+                10,
+                11,
+                12
+            ],
+            "bands": [
+                12,
+                16
+            ],
+            "interpretations": [
+                "Limitado ang kakayahang magdesisyon at malayang magpahayag ng kagustuhan.",
+                "May kakayahang magdesisyon ngunit may kaunting pressure o limitasyon.",
+                "Malaya at pantay na nakapagdedesisyon sa relasyon nang walang pamimilit."
+            ],
+            "statements": [
+                {
+                    "number": 9,
+                    "text": "Hindi ko malayang naipapahayag ang aking kagustuhan tungkol sa pakikipagrelasyon, pagsasama, o pagpapakasal.",
+                    "reversed": true
+                },
+                {
+                    "number": 10,
+                    "text": "Nakakapagdesisyon ako tungkol sa aking pakikipag-relasyon o pagsasama nang walang pamimilit o matinding pressure mula sa ibang tao.",
+                    "reversed": false
+                },
+                {
+                    "number": 11,
+                    "text": "Pakiramdam ko ay pantay ang aking boses at kakayahang magdesisyon sa aking relasyon o pagsasama.",
+                    "reversed": false
+                },
+                {
+                    "number": 12,
+                    "text": "May mga pagkakataong hindi ko magawa ang gusto ko o hindi ako makapagdesisyon para sa aking sarili dahil sa aking relasyon o pagsasama.",
+                    "reversed": false
+                }
+            ]
+        },
+        {
+            "code": "IV",
+            "title": "Health, Sexual and Reproductive Health",
+            "items": [
+                13,
+                14,
+                15,
+                16
+            ],
+            "bands": [
+                12,
+                16
+            ],
+            "interpretations": [
+                "Mataas ang panganib sa kalusugan, nahihirapang mag-access ng libreng health services.",
+                "May potensyal ngunit kailangan pang palakasin ang kaalaman at access.",
+                "Aktibo at mahusay sa paggamit ng health services at gawi para sa kalusugan."
+            ],
+            "statements": [
+                {
+                    "number": 13,
+                    "text": "Nakakakuha ako ng tamang impormasyon tungkol sa aking kalusugan, sexual and reproductive health, at mga paraan upang mapangalagaan ang aking sarili.",
+                    "reversed": false
+                },
+                {
+                    "number": 14,
+                    "text": "Hindi madali para sa akin ang pag-access\/paglapit sa libreng health services at counseling o pakikipag-usap sa propesyonal or eksperto sa mental health na angkop sa aking edad at pangangailangan.",
+                    "reversed": true
+                },
+                {
+                    "number": 15,
+                    "text": "Alam ko kung saan maaaring humingi ng tulong para sa mga alalahanin tungkol sa aking pisikal, sexual, at reproductive health.",
+                    "reversed": false
+                },
+                {
+                    "number": 16,
+                    "text": "Nahihiya o natatakot akong humingi ng tulong o magtanong tungkol sa aking kalusugan at sexual and reproductive health.",
+                    "reversed": false
+                }
+            ]
+        },
+        {
+            "code": "V",
+            "title": "Education, Skills, and Economic Empowerment",
+            "items": [
+                17,
+                18,
+                19,
+                20
+            ],
+            "bands": [
+                12,
+                16
+            ],
+            "interpretations": [
+                "Posibleng walang malinaw na plano, kinakailangan ng mentoring at suporta.",
+                "Nangangailangan ng guidance at access sa opportunities.",
+                "May malinaw na plano, suporta, at motibasyon para sa edukasyon at kabuhayan."
+            ],
+            "statements": [
+                {
+                    "number": 17,
+                    "text": "Kasalukuyan akong nakakapag-aral o may malinaw na pagkakataong maipagpatuloy ang aking edukasyon o pagsasanay.",
+                    "reversed": false
+                },
+                {
+                    "number": 18,
+                    "text": "Ang aking relasyon, pagsasama, o mga responsibilidad sa bahay ay hindi nakahahadlang sa pagpapatuloy ng aking pag-aaral o pagsasanay.",
+                    "reversed": true
+                },
+                {
+                    "number": 19,
+                    "text": "May access ako sa mga programa o oportunidad na makatutulong sa akin na magkaroon ng mga kasanayan para sa trabaho o kabuhayan sa hinaharap.",
+                    "reversed": false
+                },
+                {
+                    "number": 20,
+                    "text": "May sapat akong pinansyal na suporta upang matustusan ang aking mga pangunahing pangangailangan at maipagpatuloy ang aking pag-aaral o iba pang plano para sa hinaharap.",
+                    "reversed": false
+                }
+            ]
+        },
+        {
+            "code": "VI",
+            "title": "Family and Community Support",
+            "items": [
+                21,
+                22,
+                23
+            ],
+            "bands": [
+                8,
+                12
+            ],
+            "interpretations": [
+                "Kulang ang suporta, maaaring nakararanas ng diskriminasyon o isolation.",
+                "May suporta ngunit hindi laging sapat.",
+                "Malakas ang suporta mula sa pamilya at komunidad."
+            ],
+            "statements": [
+                {
+                    "number": 21,
+                    "text": "May mga miyembro ng aking pamilya o ibang taong malapit sa akin na sumusuporta at gumagalang sa aking mga desisyon at kapakanan.",
+                    "reversed": false
+                },
+                {
+                    "number": 22,
+                    "text": "Hindi ako nakakaranas ng panghuhusga, paninisi, diskriminasyon, o negatibong pagtrato dahil sa aking relasyon, pagsasama, o sitwasyon.",
+                    "reversed": true
+                },
+                {
+                    "number": 23,
+                    "text": "May access ako sa mga serbisyo at programa sa aking komunidad na maaaring makatulong sa aking sitwasyon.",
+                    "reversed": false
+                }
+            ]
+        },
+        {
+            "code": "VII",
+            "title": "Psychosocial Well-being and Future Outlook",
+            "items": [
+                24,
+                25
+            ],
+            "bands": [
+                5,
+                8
+            ],
+            "interpretations": [
+                "Mababa ang kakayahang i-regulate ang emosyon, nakakaramdam ng matinding takot\/alalahanin.",
+                "Katamtaman ang emotional stability, may pangangailangan pa sa psychosocial support.",
+                "Maayos ang pag-iisip, matatag sa emosyon, at may positibong pananaw sa hinaharap."
+            ],
+            "statements": [
+                {
+                    "number": 24,
+                    "text": "Madalas akong nakakaramdam ng takot, matinding pag-aalala, lungkot, o pagkalito tungkol sa aking kasalukuyang sitwasyon at kinabukasan.",
+                    "reversed": true
+                },
+                {
+                    "number": 25,
+                    "text": "Naniniwala akong may mga pagkakataon at suporta upang makamit ko ang mga plano at pangarap ko para sa aking kinabukasan.",
+                    "reversed": false
+                }
+            ]
+        }
+    ],
+    "sections": [
+        {
+            "number": 1,
+            "title": "Living Arrangement",
+            "sensitive": false,
+            "questions": [
+                {
+                    "key": "living_arrangement",
+                    "text": "Sino ang kasalukuyan mong kasama sa bahay?",
+                    "max": 10,
+                    "options": [
+                        {
+                            "code": "1",
+                            "label": "Child has no living parent and no stable primary caregiver \/ orphan",
+                            "points": 10,
+                            "detail": null
+                        },
+                        {
+                            "code": "2",
+                            "label": "Living with a guardian\/relative and neither parent provides regular support",
+                            "points": 7,
+                            "detail": null
+                        },
+                        {
+                            "code": "3",
+                            "label": "Living with a partner or partner's family",
+                            "points": 5,
+                            "detail": null
+                        },
+                        {
+                            "code": "4",
+                            "label": "Living with at least one parent who provides regular support",
+                            "points": 0,
+                            "detail": null
+                        },
+                        {
+                            "code": "rta",
+                            "label": "Refused to Answer",
+                            "points": 5,
+                            "detail": null
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "number": 2,
+            "title": "Parental\/Family Support",
+            "sensitive": false,
+            "questions": [
+                {
+                    "key": "family_support",
+                    "text": "May regular ka bang natatanggap na suporta mula sa iyong magulang o pamilya para sa iyong pangangailangan, pag-aaral, kalusugan, at iba pang pangangailangan?",
+                    "max": 10,
+                    "options": [
+                        {
+                            "code": "1",
+                            "label": "No meaningful family support",
+                            "points": 10,
+                            "detail": null
+                        },
+                        {
+                            "code": "2",
+                            "label": "Irregular\/limited support",
+                            "points": 5,
+                            "detail": null
+                        },
+                        {
+                            "code": "3",
+                            "label": "Adequate regular support",
+                            "points": 0,
+                            "detail": null
+                        },
+                        {
+                            "code": "rta",
+                            "label": "Refused to Answer",
+                            "points": 5,
+                            "detail": null
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "number": 3,
+            "title": "Presence of Children\/Dependent",
+            "sensitive": false,
+            "questions": [
+                {
+                    "key": "dependents",
+                    "text": "Ikaw ba ay may anak o iba pang taong ikaw ang pangunahing nag-aalaga o sumusuporta?",
+                    "max": 10,
+                    "options": [
+                        {
+                            "code": "1",
+                            "label": "The child has a child\/dependent and is the primary caregiver",
+                            "points": 10,
+                            "detail": null
+                        },
+                        {
+                            "code": "2",
+                            "label": "With child\/dependent and with shared caregiving responsibility",
+                            "points": 5,
+                            "detail": null
+                        },
+                        {
+                            "code": "3",
+                            "label": "No child\/dependent",
+                            "points": 0,
+                            "detail": null
+                        },
+                        {
+                            "code": "rta",
+                            "label": "Refused to Answer",
+                            "points": 5,
+                            "detail": null
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "number": 4,
+            "title": "Current Education Status",
+            "sensitive": false,
+            "questions": [
+                {
+                    "key": "education",
+                    "text": "Kasalukuyan ka bang nag-aaral o sumasailalim sa anumang education\/training program?",
+                    "max": 10,
+                    "options": [
+                        {
+                            "code": "1",
+                            "label": "Out of school and not enrolled in any alternative education\/training",
+                            "points": 10,
+                            "detail": null
+                        },
+                        {
+                            "code": "2",
+                            "label": "Temporarily stopped from schooling\/training for the current school year",
+                            "points": 7,
+                            "detail": null
+                        },
+                        {
+                            "code": "3",
+                            "label": "Enrolled but irregular attendance",
+                            "points": 4,
+                            "detail": null
+                        },
+                        {
+                            "code": "4",
+                            "label": "Regularly attending",
+                            "points": 0,
+                            "detail": "Type of education"
+                        },
+                        {
+                            "code": "rta",
+                            "label": "Refused to Answer",
+                            "points": 5,
+                            "detail": null
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "number": 5,
+            "title": "Personal\/Household Economic Support",
+            "sensitive": false,
+            "questions": [
+                {
+                    "key": "economic_support",
+                    "text": "May regular bang pinagkukunan ng pera para sa iyong pangunahing pangangailangan?",
+                    "max": 5,
+                    "options": [
+                        {
+                            "code": "1",
+                            "label": "No reliable financial support",
+                            "points": 5,
+                            "detail": null
+                        },
+                        {
+                            "code": "2",
+                            "label": "Irregular\/inadequate support",
+                            "points": 3,
+                            "detail": null
+                        },
+                        {
+                            "code": "3",
+                            "label": "Adequate and reliable support",
+                            "points": 0,
+                            "detail": null
+                        },
+                        {
+                            "code": "rta",
+                            "label": "Refused to Answer",
+                            "points": 2.5,
+                            "detail": null
+                        }
+                    ]
+                },
+                {
+                    "key": "breadwinner",
+                    "text": "Ikaw ba ay breadwinner sa pamilya?",
+                    "max": 5,
+                    "options": [
+                        {
+                            "code": "yes",
+                            "label": "Yes \/ Oo",
+                            "points": 5,
+                            "detail": "Since when"
+                        },
+                        {
+                            "code": "no",
+                            "label": "No \/ Hindi",
+                            "points": 0,
+                            "detail": null
+                        },
+                        {
+                            "code": "rta",
+                            "label": "Refused to Answer",
+                            "points": 2.5,
+                            "detail": null
+                        }
+                    ]
+                },
+                {
+                    "key": "income",
+                    "text": "May pinagkukunan ka ba ng kita sa kasalukuyan?",
+                    "max": 3,
+                    "options": [
+                        {
+                            "code": "yes",
+                            "label": "Yes \/ Oo",
+                            "points": 3,
+                            "detail": "Specify"
+                        },
+                        {
+                            "code": "no",
+                            "label": "No \/ Hindi",
+                            "points": 0,
+                            "detail": null
+                        },
+                        {
+                            "code": "rta",
+                            "label": "Refused to Answer",
+                            "points": 1.5,
+                            "detail": null
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "number": 6,
+            "title": "Age Difference Between Child and Partner",
+            "sensitive": true,
+            "questions": [
+                {
+                    "key": "partner_age_gap",
+                    "text": "Ilang taon ang iyong partner\/asawa\/ka-union?",
+                    "max": 10,
+                    "options": [
+                        {
+                            "code": "1",
+                            "label": "Partner is 10 years older or more",
+                            "points": 10,
+                            "detail": null
+                        },
+                        {
+                            "code": "2",
+                            "label": "5-9 years older",
+                            "points": 7,
+                            "detail": null
+                        },
+                        {
+                            "code": "3",
+                            "label": "1-4 years older",
+                            "points": 3,
+                            "detail": null
+                        },
+                        {
+                            "code": "4",
+                            "label": "Same age",
+                            "points": 1,
+                            "detail": null
+                        },
+                        {
+                            "code": "5",
+                            "label": "Partner is younger",
+                            "points": 3,
+                            "detail": null
+                        },
+                        {
+                            "code": "rta",
+                            "label": "Refused to Answer",
+                            "points": 10,
+                            "detail": null
+                        }
+                    ]
+                },
+                {
+                    "key": "age_at_union",
+                    "text": "Ilang taon ka noong nagsimula ang inyong relasyon o pagsasama?",
+                    "max": 5,
+                    "options": [
+                        {
+                            "code": "minor",
+                            "label": "Minor",
+                            "points": 5,
+                            "detail": "Age"
+                        },
+                        {
+                            "code": "adult",
+                            "label": "Adult",
+                            "points": 0,
+                            "detail": "Age"
+                        },
+                        {
+                            "code": "rta",
+                            "label": "Refused to Answer",
+                            "points": 5,
+                            "detail": null
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "number": 7,
+            "title": "Child's Participation in the Decision to Enter\/Continue the Union",
+            "sensitive": true,
+            "questions": [
+                {
+                    "key": "decision",
+                    "text": "Nakapagdesisyon ka ba nang malaya tungkol sa pagsisimula o pagpapatuloy ng inyong relasyon\/pagsasama?",
+                    "max": 10,
+                    "options": [
+                        {
+                            "code": "1",
+                            "label": "Child reports no meaningful choice \/ was forced",
+                            "points": 10,
+                            "detail": null
+                        },
+                        {
+                            "code": "2",
+                            "label": "There was strong pressure from family\/partner\/community",
+                            "points": 7,
+                            "detail": null
+                        },
+                        {
+                            "code": "3",
+                            "label": "Decision was influenced but child had some choice",
+                            "points": 3,
+                            "detail": null
+                        },
+                        {
+                            "code": "4",
+                            "label": "Child reports meaningful participation in the decision",
+                            "points": 0,
+                            "detail": null
+                        },
+                        {
+                            "code": "rta",
+                            "label": "Refused to Answer",
+                            "points": 10,
+                            "detail": null
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "number": 8,
+            "title": "History or Current Experience of Violence\/Abuse",
+            "sensitive": true,
+            "questions": [
+                {
+                    "key": "violence",
+                    "text": "Naranasan mo na ba o kasalukuyan ka bang nakakaranas ng pananakit, sexual abuse, emotional\/psychological abuse, pagbabanta, o iba pang anyo ng karahasan?",
+                    "max": 10,
+                    "options": [
+                        {
+                            "code": "yes",
+                            "label": "Yes \/ Oo",
+                            "points": 10,
+                            "detail": "What"
+                        },
+                        {
+                            "code": "no",
+                            "label": "No \/ Hindi",
+                            "points": 0,
+                            "detail": null
+                        },
+                        {
+                            "code": "rta",
+                            "label": "Refused to Answer",
+                            "points": 10,
+                            "detail": null
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "number": 9,
+            "title": "Current Safety Concern",
+            "sensitive": true,
+            "questions": [
+                {
+                    "key": "safety",
+                    "text": "Sa kasalukuyan, nararamdaman mo ba na hindi ka ligtas sa iyong tahanan, relasyon\/pagsasama, o komunidad?",
+                    "max": 10,
+                    "options": [
+                        {
+                            "code": "yes",
+                            "label": "Yes \/ Oo",
+                            "points": 10,
+                            "detail": null
+                        },
+                        {
+                            "code": "no",
+                            "label": "No \/ Hindi",
+                            "points": 0,
+                            "detail": null
+                        },
+                        {
+                            "code": "rta",
+                            "label": "Refused to Answer",
+                            "points": 10,
+                            "detail": null
+                        }
+                    ]
+                }
+            ]
+        }
+    ],
+    "part1Max": 125,
+    "part2Max": 98,
+    "threshold": 70,
+    "occasions": {
+        "baseline": "Baseline (start of case management)",
+        "review": "Review",
+        "closure": "At closure",
+        "other": "Other"
+    }
+}

@@ -37,7 +37,7 @@ class KalingaConnectDemoSeeder extends Seeder
                 $this->userIds !== null,
                 fn ($query) => $query->whereIn('id', $this->userIds),
                 fn ($query) => $query->whereIn('email', ['worker@kalinga.test', 'supervisor@kalinga.test', 'cpu@kalinga.test']),
-            )->where('active', true)->whereIn('role', ['social_worker', 'cpu_member'])->get();
+            )->where('active', true)->whereIn('role', ['social_worker', 'lgu_head', 'cpu_member'])->get();
 
             foreach ($users as $user) {
                 $lgus = DB::table('user_lgu_assignments as assignment')
@@ -65,7 +65,7 @@ class KalingaConnectDemoSeeder extends Seeder
                     }
                     DB::table('lgu_coordination_members')->insert([
                         'circle_id' => $circle->id, 'user_id' => $user->id,
-                        'membership_role' => $user->role === 'cpu_member' ? 'cpu_member' : 'case_manager',
+                        'membership_role' => ['cpu_member' => 'cpu_member', 'lgu_head' => 'lgu_head'][$user->role] ?? 'case_manager',
                         'joined_at' => $now, 'created_at' => $now, 'updated_at' => $now,
                     ]);
                     AuditLog::insert(['event' => 'demo.cpu_chat.member_configured', 'auditable_type' => 'user', 'auditable_id' => $user->id, 'changes' => json_encode(['circle_id' => $circle->id])]);

@@ -41,7 +41,7 @@ test('case manager follows the integrated case helping-process workspace', async
     await expect(page).toHaveURL(/\/cases$/);
     await page.getByRole('link', { name: /DEMO-KLG-2026-0001/ }).click();
     await expect(page.getByRole('tab', { name: 'Client & Intake' })).toBeVisible();
-    for (const tab of ['Safety & risk', 'Assessment', 'Case plan', 'Services & referrals', 'Progress notes', 'Closure & aftercare', 'Documents']) {
+    for (const tab of ['KaVAT', 'Kalinga forms', 'Progress notes & referrals', 'Closure & aftercare', 'Documents']) {
         await page.getByRole('tab', { name: tab }).click();
         await expect(page.getByRole('tab', { name: tab })).toHaveAttribute('aria-selected', 'true');
     }

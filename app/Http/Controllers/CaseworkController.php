@@ -6,12 +6,15 @@ use App\Models\User;
 use App\Services\CaseAccessScope;
 use App\Services\CaseAssignmentEligibility;
 use App\Services\CaseClosureHistory;
+use App\Services\CaseForms;
+use App\Services\CaseGrants;
 use App\Services\CaseIntake;
 use App\Services\CaseLifecyclePolicy;
 use App\Services\CaseRemarks;
 use App\Services\CaseVersionGuard;
 use App\Services\IdentityIntegrity;
 use App\Services\IntakeDrafts;
+use App\Services\Kavat;
 use App\Services\LguAssignmentScope;
 use App\Services\NoteReferrals;
 use App\Services\OperationalNotification;
@@ -420,6 +423,10 @@ class CaseworkController extends Controller
             // Detailed plans are fetched only by the dedicated scoped workspace.
             'consents' => DB::table('consents')->where('case_id', $case)->latest('granted_at')->get(), 'relationships' => DB::table('relationships')->where('client_id', $record->client_id)->latest()->get(),
             'remarks' => app(CaseRemarks::class)->thread($case),
+            'kavatDefinition' => Kavat::definition(), 'kavat' => CaseFormController::kavatHistory($case),
+            'formsDefinition' => CaseForms::definition(), 'forms' => CaseForms::forCase($case), 'formSuggestions' => CaseForms::suggestions($record, $record),
+            'grants' => CaseGrants::forCase($case) + ['types' => CaseGrants::TYPES],
+            'canEditForms' => $request->user()->hasPermission('cases.update') && $record->status !== 'CLOSED',
             'timeline' => DB::table('audit_logs')->where('auditable_type', 'case')->where('auditable_id', $case)->where('event', '!=', 'case.viewed')->latest()->limit(30)->get(['id', 'event', 'changes', 'outcome', 'created_at']),
             'tasks' => app(WorkerTasks::class)->withIsoDates(DB::table('tasks')->where('case_id', $case)->orderBy('due_at')->get()),
             'canGenerateReport' => $request->user()->can('reports.social.generate'),

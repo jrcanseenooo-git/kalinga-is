@@ -2,14 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\CaseForms;
 use App\Services\CaseIntake;
 use App\Services\IdentityIntegrity;
+use App\Services\Kavat;
 use App\Services\LguAssignmentScope;
 use App\Services\OperationalNotification;
 use App\Services\ReferenceNumberService;
 use App\Support\AuditLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class OfflineSyncController extends Controller
 {
@@ -24,20 +27,22 @@ class OfflineSyncController extends Controller
     {
         $user = $request->user();
         abort_unless($user->hasPermission('offline.use'), 403);
-        $data = $request->validate(['offline_id' => 'required|uuid', 'resource' => 'required|in:case_note,monitoring_visit,report_intake,case_intake', 'operation' => 'required|in:create,update', 'payload' => 'required|array', 'base_version' => 'nullable|integer|min:1']);
+        $data = $request->validate(['offline_id' => 'required|uuid', 'resource' => 'required|in:case_note,monitoring_visit,report_intake,case_intake,case_form,kavat', 'operation' => 'required|in:create,update', 'payload' => 'required|array', 'base_version' => 'nullable|integer|min:1']);
 
         return DB::transaction(function () use ($data, $request) {
             // Serialize retries from the same account before checking the UUID.
             // The existing unique offline_id constraint remains the final guard.
             DB::table('users')->where('id', $request->user()->id)->lockForUpdate()->first();
             $this->requireActiveDevice($request);
-            abort_unless($data['operation'] === 'create', 422, 'This offline resource supports creation only.');
+            $document = in_array($data['resource'], ['case_form', 'kavat'], true);
+            abort_unless($data['operation'] === ($document ? 'update' : 'create'), 422, $document ? 'Kalinga forms and the KaVAT are saved as updates.' : 'This offline resource supports creation only.');
             $existing = DB::table('offline_sync_items')->where('offline_id', $data['offline_id'])->first();
             if ($existing) {
                 abort_unless((int) $existing->user_id === (int) $request->user()->id, 403);
-                abort_unless($existing->resource === $data['resource'] && $this->samePayload(json_decode($existing->payload, true), $data['payload']), 422, 'This offline identifier belongs to a different operation.');
+                $same = $document ? (json_decode($existing->payload, true)['sha256'] ?? null) === $this->digest($data['payload']) : $this->samePayload(json_decode($existing->payload, true), $data['payload']);
+                abort_unless($existing->resource === $data['resource'] && $same, 422, 'This offline identifier belongs to a different operation.');
             }
-            if (in_array($data['resource'], ['case_note', 'monitoring_visit'], true)) {
+            if (in_array($data['resource'], ['case_note', 'monitoring_visit', 'case_form', 'kavat'], true)) {
                 // A case id must be a positive whole number; anything else (arrays, text) is refused before querying.
                 $caseId = filter_var($data['payload']['case_id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
                 abort_if($caseId === false, 422, 'The case identifier is not valid.');
@@ -51,6 +56,9 @@ class OfflineSyncController extends Controller
             }
             if ($existing && $existing->status === 'synced') {
                 return response()->json(['status' => 'synced', 'offline_id' => $data['offline_id'], 'id' => $existing->id]);
+            }
+            if ($document) {
+                return $this->syncDocument($data, $case, $request);
             }
             if ($data['resource'] === 'case_intake') {
                 abort_unless($data['operation'] === 'create', 422, 'Offline case intakes can only be created.');
@@ -116,6 +124,80 @@ class OfflineSyncController extends Controller
 
             return response()->json(['status' => 'synced', 'offline_id' => $data['offline_id'], 'case_id' => $case->id]);
         });
+    }
+
+    /**
+     * A Kalinga form or KaVAT written in field mode. Saved only when the
+     * device edited the latest revision; otherwise the item becomes a
+     * conflict for the case manager to review (nothing is overwritten).
+     */
+    private function syncDocument(array $data, object $case, Request $request)
+    {
+        abort_unless($request->user()->hasPermission('cases.update'), 403);
+        abort_if($case->status === 'CLOSED', 422, 'This case is closed. Reopen it before changing its forms.');
+        $payload = $data['payload'];
+        $mark = fn (string $status, ?string $reason = null) => DB::table('offline_sync_items')->updateOrInsert(['offline_id' => $data['offline_id']],
+            ['user_id' => $request->user()->id, 'resource' => $data['resource'], 'payload' => json_encode(['case_id' => $case->id, 'form_type' => $payload['form_type'] ?? null, 'sha256' => $this->digest($payload)]),
+                'status' => $status, 'conflict_reason' => $reason, 'updated_at' => now(), 'created_at' => now()]);
+        $conflict = function (int $current) use ($mark, $case, $data, $request) {
+            $mark('conflict', 'Changed on another device while this was offline.');
+            AuditLog::insert(['user_id' => $request->user()->id, 'event' => 'offline.sync_conflict', 'auditable_type' => 'case', 'auditable_id' => $case->id,
+                'changes' => json_encode(['resource' => $data['resource'], 'offline_id' => $data['offline_id']]), 'outcome' => 'failure']);
+
+            return response()->json(['message' => 'This was changed on another device. Review it in field mode.', 'current_revision' => $current], 409);
+        };
+
+        if ($data['resource'] === 'case_form') {
+            $form = validator($payload, ['form_type' => ['required', Rule::in(array_keys(CaseForms::TYPES))], 'revision' => 'required|integer|min:0', 'content' => 'required|array'])->validate();
+            $result = CaseForms::save($case->id, $form['form_type'], $form['content'], (int) $form['revision'], $request->user()->id);
+            if (!$result['saved']) {
+                return $conflict($result['revision']);
+            }
+            $mark('synced');
+
+            return response()->json(['status' => 'synced', 'offline_id' => $data['offline_id'], 'case_id' => $case->id, 'form_type' => $form['form_type'], 'revision' => $result['revision']]);
+        }
+
+        $kavat = validator($payload, ['kavat_id' => 'nullable|integer|min:1', 'revision' => 'required|integer|min:0', 'answers' => 'required|array', 'notes' => 'nullable|string|max:5000',
+            'occasion' => ['required', Rule::in(array_keys(Kavat::OCCASIONS))], 'administered_at' => 'required|date|before_or_equal:today'])->validate();
+        $answers = Kavat::cleanAnswers($kavat['answers']);
+        $id = $kavat['kavat_id'] ?? null;
+        if (!$id) {
+            // Started in field mode: becomes the case's draft unless one was started elsewhere meanwhile.
+            $draft = DB::table('kavat_assessments')->where('case_id', $case->id)->where('status', 'draft')->value('id');
+            if ($draft) {
+                return $conflict(0);
+            }
+            $id = DB::table('kavat_assessments')->insertGetId(['case_id' => $case->id, 'instrument_version' => Kavat::VERSION, 'occasion' => $kavat['occasion'], 'administered_at' => $kavat['administered_at'],
+                'administered_by' => $request->user()->id, 'status' => 'draft', 'answers' => json_encode($answers), 'notes' => $kavat['notes'] ?? null, 'revision' => 1, 'created_at' => now(), 'updated_at' => now()]);
+            AuditLog::record('kavat.created', 'case', $case->id, ['case_id' => $case->id, 'occasion' => $kavat['occasion'], 'offline' => true], $request->user()->id, 'success', ['description' => 'KaVAT started in field mode']);
+            $result = ['saved' => true, 'revision' => 1];
+        } else {
+            $result = CaseFormController::applyKavatSave($case->id, (int) $id, $answers, (int) $kavat['revision'], ['notes' => $kavat['notes'] ?? null, 'occasion' => $kavat['occasion'], 'administered_at' => $kavat['administered_at']]);
+            if (!$result['saved']) {
+                return $conflict($result['revision']);
+            }
+        }
+        $mark('synced');
+
+        return response()->json(['status' => 'synced', 'offline_id' => $data['offline_id'], 'case_id' => $case->id, 'kavat_id' => $id, 'revision' => $result['revision']]);
+    }
+
+    /** Fingerprint of a field-mode document, so a retry is recognized without keeping the narrative twice. */
+    private function digest(array $payload): string
+    {
+        $sort = function ($value) use (&$sort) {
+            if (!is_array($value)) {
+                return $value;
+            }
+            if (!array_is_list($value)) {
+                ksort($value);
+            }
+
+            return array_map($sort, $value);
+        };
+
+        return hash('sha256', json_encode($sort($payload)));
     }
 
     private function samePayload(array $stored, array $incoming): bool
