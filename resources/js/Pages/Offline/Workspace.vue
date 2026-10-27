@@ -17,12 +17,20 @@ import { useConnectivity } from '@/Offline/connectivity';
 import type { IntakeDraft } from '@/Offline/intakeDraft';
 import { loadIntakeDrafts, saveIntakeDraft, promoteIntakeDraft, addOperation, configured, deviceId, loadPack, loadQueue, lock, savePack, updateOperation, removeOperation, recordSyncResult, setPassphrase, unlock, clearSecureWorkspace, workspaceOwnerId } from '@/Offline/secureStore';
 import { formatPh, parseStored } from '@/utils/philippineTime';
+import KavatPanel from '@/Components/Kavat/KavatPanel.vue';
+import CaseFormEditor from '@/Components/Forms/CaseFormEditor.vue';
+import { emptyKavatAnswers, scoreKavat, type KavatAnswers, type KavatDefinition, type KavatRecord } from '@/Casework/kavat';
+import type { CaseForm, FormContent, FormType, FormsDefinition } from '@/Casework/caseForms';
 
 const props = defineProps<{ intakeOptions?: IntakeOptions }>();
 /** Risk factor options come with the page; a device that has never loaded them uses the defaults. */
 const intakeOptions = computed<IntakeOptions>(() => props.intakeOptions?.riskFactors?.length ? props.intakeOptions : DEFAULT_INTAKE_OPTIONS);
-type OfflineCase = { id:number; case_number:string; status:string; priority:string; category?:string; offline_version:number; first_name:string; last_name:string; region?:string; province?:string; municipality?:string; barangay?:string };
-type OfflinePack = { generated_at:string; expires_at?:string; user_id:number; cases:OfflineCase[] };
+/** A Kalinga form or the KaVAT in progress, as carried in the encrypted pack. "dirty" = edited on this device and not yet queued. */
+type PackForm = { content:FormContent; revision:number; status:string; dirty?:boolean };
+type PackKavat = { id:number|null; revision:number; answers:KavatAnswers; notes:string|null; occasion:string; administered_at:string; dirty?:boolean; awaiting_id?:boolean };
+type OfflineCase = { id:number; case_number:string; status:string; priority:string; category?:string; offline_version:number; first_name:string; last_name:string; region?:string; province?:string; municipality?:string; barangay?:string;
+  forms?:Record<FormType, PackForm>|null; kavat_draft?:PackKavat|null; kavat_count?:number };
+type OfflinePack = { generated_at:string; expires_at?:string; user_id:number; cases:OfflineCase[]; kavatDefinition?:KavatDefinition; formsDefinition?:FormsDefinition };
 type DeviceRecord = { id:number; device_id:string; device_name:string|null; last_seen_at:string; pack_expires_at:string|null; revoked_at:string|null; created_at:string };
 
 const passphrase = ref(''); const confirmPassphrase = ref(''); const isConfigured = ref(false); const isUnlocked = ref(false);
@@ -205,7 +213,7 @@ async function prepareFieldWorkspace() {
   } finally { preparingFieldApp.value = false; }
 }
 
-async function downloadPack() { if (!online.value) return; error.value = ''; try { await readOwnedQueue(); const response = await axios.get<OfflinePack>('/offline-workspace/pack', { headers: { 'X-Kalinga-Device-ID': await deviceId() } }); assertWorkspaceOwner(response.data, page.props.auth.user.id); await savePack(response.data); await refreshSecureData(); await verifyFieldAppCache(); checkPackExpiry(); await recoverIntakeDrafts(); message.value = `${response.data.cases.length} authorized case record(s) encrypted on this device.`; } catch { error.value = 'Could not download the offline case pack. Confirm the original account, stay online and try again.'; } }
+async function downloadPack() { if (!online.value) return; error.value = ''; try { await readOwnedQueue(); await flushDocuments(); const response = await axios.get<OfflinePack>('/offline-workspace/pack', { headers: { 'X-Kalinga-Device-ID': await deviceId() } }); assertWorkspaceOwner(response.data, page.props.auth.user.id); overlayQueuedDocuments(response.data, (await readOwnedQueue()).queue); await savePack(response.data); await refreshSecureData(); await verifyFieldAppCache(); checkPackExpiry(); await recoverIntakeDrafts(); message.value = `${response.data.cases.length} authorized case record(s) encrypted on this device.`; } catch { error.value = 'Could not download the offline case pack. Confirm the original account, stay online and try again.'; } }
 
 function checkPackExpiry() {
   if (!pack.value?.expires_at) { packExpiryWarning.value = ''; return; }
@@ -284,21 +292,115 @@ async function saveIntake() {
 
 let syncSession = 0;
 
+/* ---- Kalinga forms and KaVAT in field mode ----
+ * Edits save into the encrypted pack as the case manager types. At sync (or
+ * before a fresh pack replaces this one) each edited document becomes one
+ * queued update carrying the revision it was based on, so the server never
+ * overwrites a newer copy: it answers with a conflict to review instead.
+ */
+const caseWork = ref<'update'|'kavat'|'forms'>('update');
+const openForm = ref<FormType | null>(null);
+const ownCase = computed(() => Boolean(selectedCase.value?.forms));
+const nowIso = () => new Date().toISOString();
+async function persistPack(): Promise<boolean> { if (!pack.value) return false; try { await savePack(JSON.parse(JSON.stringify(pack.value))); return true; } catch { error.value = 'Could not save on this device. Keep this page open, free device storage, then retry.'; return false; } }
+function packForm(type: FormType): CaseForm | null {
+  const item = selectedCase.value?.forms?.[type]; const definition = pack.value?.formsDefinition;
+  return item && definition ? { type, title: definition.types[type], content: item.content, status: item.status as CaseForm['status'], revision: item.revision, updated_at: null, versions: [] } : null;
+}
+const formSaver = (type: FormType) => async (content: FormContent) => { const item = selectedCase.value?.forms?.[type]; if (!item) return false; item.content = content; item.dirty = true; return persistPack(); };
+const kavatRecords = computed<KavatRecord[]>(() => {
+  const draft = selectedCase.value?.kavat_draft; const definition = pack.value?.kavatDefinition;
+  return draft && definition ? [{ id: draft.id ?? 0, occasion: draft.occasion, administered_at: draft.administered_at, administered_by: null, status: 'draft', revision: draft.revision, answers: draft.answers, notes: draft.notes, finalized_at: null, score: scoreKavat(definition, draft.answers) }] : [];
+});
+async function saveKavatLocally(answers: KavatAnswers, notes: string | null) { const draft = selectedCase.value?.kavat_draft; if (!draft) return false; draft.answers = answers; draft.notes = notes; draft.dirty = true; return persistPack(); }
+async function startKavatLocally(value: { occasion: string; administered_at: string }) {
+  if (!selectedCase.value || selectedCase.value.kavat_draft) return;
+  selectedCase.value.kavat_draft = { id: null, revision: 0, answers: emptyKavatAnswers(), notes: null, occasion: value.occasion, administered_at: value.administered_at, dirty: true };
+  await persistPack();
+}
+/** Turns edited documents into queued updates (one per document). */
+async function flushDocuments() {
+  if (!pack.value || !isUnlocked.value) return;
+  let changed = false;
+  for (const record of pack.value.cases) {
+    for (const [type, form] of Object.entries(record.forms ?? {}) as [FormType, PackForm][]) {
+      if (!form.dirty) continue;
+      await addOperation({ local_id: crypto.randomUUID(), entity_type: 'case_form', operation: 'update', payload: { case_id: record.id, form_type: type, revision: form.revision, content: form.content }, sync_status: 'pending', retry_count: 0, created_offline_at: nowIso() });
+      form.revision += 1; form.dirty = false; changed = true;
+    }
+    const draft = record.kavat_draft;
+    // A KaVAT started here gets its server number at its first sync; later edits wait for it.
+    if (draft?.dirty && !draft.awaiting_id) {
+      await addOperation({ local_id: crypto.randomUUID(), entity_type: 'kavat', operation: 'update', payload: { case_id: record.id, kavat_id: draft.id, revision: draft.revision, answers: draft.answers, notes: draft.notes, occasion: draft.occasion, administered_at: draft.administered_at }, sync_status: 'pending', retry_count: 0, created_offline_at: nowIso() });
+      if (draft.id) draft.revision += 1; else draft.awaiting_id = true;
+      draft.dirty = false; changed = true;
+    }
+  }
+  if (changed) await persistPack();
+}
+async function applyDocumentAcknowledgements(items: Record<string, any>[]) {
+  if (!pack.value || !items.length) return;
+  for (const ack of items) {
+    const record = pack.value.cases.find(item => item.id === Number(ack.case_id)); if (!record) continue;
+    if (ack.entity_type === 'case_form' && record.forms?.[ack.form_type as FormType]) { const form = record.forms[ack.form_type as FormType]; if (!form.dirty) form.revision = Math.max(form.revision, Number(ack.revision)); }
+    if (ack.entity_type === 'kavat' && record.kavat_draft) { record.kavat_draft.id = Number(ack.kavat_id); record.kavat_draft.awaiting_id = false; if (!record.kavat_draft.dirty) record.kavat_draft.revision = Number(ack.revision); }
+  }
+  await persistPack();
+}
+/** Keeps queued document edits visible after a fresh pack replaces this one. */
+function overlayQueuedDocuments(fresh: OfflinePack, queue: OfflineOperation[]) {
+  for (const item of queue.filter(op => ['pending', 'failed'].includes(op.sync_status) && ['case_form', 'kavat'].includes(op.entity_type))) {
+    const record = fresh.cases.find(c => c.id === Number(item.payload.case_id)); if (!record) continue;
+    if (item.entity_type === 'case_form' && record.forms) { const form = record.forms[item.payload.form_type as FormType]; if (form && form.revision === Number(item.payload.revision)) { form.content = item.payload.content as FormContent; form.revision += 1; } }
+    if (item.entity_type === 'kavat') {
+      if (!item.payload.kavat_id && !record.kavat_draft) record.kavat_draft = { id: null, revision: 0, answers: item.payload.answers as KavatAnswers, notes: (item.payload.notes as string) ?? null, occasion: String(item.payload.occasion), administered_at: String(item.payload.administered_at), awaiting_id: true };
+      else if (record.kavat_draft && record.kavat_draft.id === item.payload.kavat_id && record.kavat_draft.revision === Number(item.payload.revision)) { record.kavat_draft.answers = item.payload.answers as KavatAnswers; record.kavat_draft.revision += 1; }
+    }
+  }
+}
+/**
+ * A form or KaVAT changed on another device. "Keep mine" sends this copy again
+ * over the newer one (after downloading it); "Use the newer copy" discards it.
+ */
+async function resolveDocumentConflict(item: OfflineOperation, keepMine: boolean) {
+  if (!online.value || syncing.value) { error.value = 'Connect to the internet to resolve this.'; return; }
+  if (!window.confirm(keepMine ? 'Replace the newer copy on the server with the one saved on this device?' : 'Discard the copy saved on this device and keep the newer one?')) return;
+  try {
+    await removeOperation(item.local_id);
+    await downloadPack();
+    if (keepMine && pack.value) {
+      const record = pack.value.cases.find(c => c.id === Number(item.payload.case_id));
+      if (!record) throw new Error('missing');
+      if (item.entity_type === 'case_form' && record.forms) { const form = record.forms[item.payload.form_type as FormType]; form.content = item.payload.content as FormContent; form.dirty = true; }
+      if (item.entity_type === 'kavat') {
+        if (!record.kavat_draft) throw new Error('missing');
+        record.kavat_draft.answers = item.payload.answers as KavatAnswers; record.kavat_draft.notes = (item.payload.notes as string) ?? null; record.kavat_draft.dirty = true;
+      }
+      await persistPack();
+      await sync();
+    }
+    await refreshSecureData();
+  } catch { error.value = 'This could not be resolved now. The case may no longer be in your pack, or a KaVAT was started elsewhere; open the case page online.'; }
+}
+
 async function sync() {
   if (!online.value || !isUnlocked.value || syncing.value || revocationDetected.value) return;
   const session = syncSession;
   syncing.value = true; error.value = ''; message.value = '';
   try {
+    await flushDocuments();
+    const acknowledged: Record<string, any>[] = [];
     const result = await synchronizeQueue({
       load: async () => (await readOwnedQueue()).queue,
       active: () => isUnlocked.value && !revocationDetected.value && session === syncSession,
-      send: async item => (await axios.post('/sync', {
+      send: async item => { const data = (await axios.post('/sync', {
         offline_id:item.local_id, resource:item.entity_type, operation:item.operation,
         payload:item.payload, base_version:item.base_version,
-      }, { headers: { 'X-Kalinga-Device-ID': await deviceId() } })).data,
+      }, { headers: { 'X-Kalinga-Device-ID': await deviceId() } })).data; if (['case_form', 'kavat'].includes(item.entity_type)) acknowledged.push({ ...data, entity_type:item.entity_type, form_type:item.payload.form_type }); return data; },
       record: recordSyncResult,
     });
     if (!isUnlocked.value || session !== syncSession) return;
+    await applyDocumentAcknowledgements(acknowledged);
     await refreshSecureData();
     message.value = `Sync finished: ${result.synced} acknowledged, ${result.failed} retained for retry, ${result.conflicts} need review. New entries remain queued for the next sync.`;
     try { const now = new Date().toISOString(); localStorage.setItem('kalinga_offline_last_sync', now); lastSyncedAt.value = now; } catch { /* optional */ }
@@ -554,7 +656,10 @@ watch(intakeInProgress, busy => { if (!busy && deferredSync.value) void autoSync
           </ul>
           <p v-if="!offlineIntakes.length" class="p-5 text-sm text-slate-600">No intakes saved in field mode yet.</p>
         </section>
-        <section v-if="pack" id="field-cases" class="mt-6 grid scroll-mt-24 gap-6 lg:grid-cols-[19rem_1fr]"><aside class="overflow-hidden rounded-2xl border bg-white"><div class="border-b p-4"><h2 class="font-bold">Downloaded case pack</h2><p class="mt-1 text-xs text-slate-500">Updated {{ formatPh(pack.generated_at, 'dateTimeShort') }}</p></div><button v-for="item in pack.cases" :key="item.id" type="button" class="block w-full border-b p-4 text-left hover:bg-brand-50" :class="selectedCaseId === item.id ? 'bg-brand-50' : ''" @click="selectedCaseId = item.id"><p class="font-bold text-slate-900">{{ item.first_name }} {{ item.last_name }}</p><p class="mt-1 text-xs text-slate-500">{{ item.case_number }} · {{ item.status }}</p></button><p v-if="!pack.cases.length" class="p-5 text-sm text-slate-500">No authorized cases were included in this pack.</p></aside><article class="rounded-2xl border bg-white p-6"><template v-if="selectedCase"><p class="text-sm font-bold text-brand-700">{{ selectedCase.case_number }}</p><h2 class="mt-1 text-2xl font-extrabold">{{ selectedCase.first_name }} {{ selectedCase.last_name }}</h2><p class="mt-2 text-sm text-slate-500">{{ [selectedCase.barangay, selectedCase.municipality, selectedCase.province, selectedCase.region].filter(Boolean).join(', ') || 'Location not recorded' }}</p><div class="mt-6 border-t pt-6"><h3 class="font-bold">Record field update</h3><div class="mt-4 grid gap-4 sm:grid-cols-2"><label class="text-sm font-bold">Update type<select v-model="activity" class="mt-2 w-full rounded-xl border-slate-300"><option value="case_note">Case note</option><option value="monitoring_visit">Monitoring visit</option></select></label><label v-if="activity === 'monitoring_visit'" class="text-sm font-bold">Visit location<OptionSelect v-model="location" :options="VISIT_LOCATIONS" /></label></div><label class="mt-4 block text-sm font-bold">{{ activity === 'case_note' ? 'Case note' : 'Observations' }}<textarea v-model="body" rows="7" class="mt-2 w-full rounded-xl border-slate-300" placeholder="Record factual field observations only…" /></label><button type="button" class="mt-4 rounded-xl bg-brand-700 px-4 py-3 text-sm font-bold text-white disabled:opacity-50" :disabled="fieldSaving || !body.trim()" @click="saveActivity">Save encrypted update on this device</button></div></template><p v-else class="text-slate-500">Select a case from the encrypted offline pack.</p></article></section>
+        <section v-if="pack" id="field-cases" class="mt-6 grid scroll-mt-24 gap-6 lg:grid-cols-[19rem_1fr]"><aside class="overflow-hidden rounded-2xl border bg-white"><div class="border-b p-4"><h2 class="font-bold">Downloaded case pack</h2><p class="mt-1 text-xs text-slate-500">Updated {{ formatPh(pack.generated_at, 'dateTimeShort') }}</p></div><button v-for="item in pack.cases" :key="item.id" type="button" class="block w-full border-b p-4 text-left hover:bg-brand-50" :class="selectedCaseId === item.id ? 'bg-brand-50' : ''" @click="selectedCaseId = item.id"><p class="font-bold text-slate-900">{{ item.first_name }} {{ item.last_name }}</p><p class="mt-1 text-xs text-slate-500">{{ item.case_number }} · {{ item.status }}</p></button><p v-if="!pack.cases.length" class="p-5 text-sm text-slate-500">No authorized cases were included in this pack.</p></aside><article class="rounded-2xl border bg-white p-6"><template v-if="selectedCase"><p class="text-sm font-bold text-brand-700">{{ selectedCase.case_number }}</p><h2 class="mt-1 text-2xl font-extrabold">{{ selectedCase.first_name }} {{ selectedCase.last_name }}</h2><p class="mt-2 text-sm text-slate-500">{{ [selectedCase.barangay, selectedCase.municipality, selectedCase.province, selectedCase.region].filter(Boolean).join(', ') || 'Location not recorded' }}</p><nav v-if="ownCase" class="mt-5 flex flex-wrap gap-2" aria-label="Field work for this case"><button v-for="option in ([['update','Note or visit'],['kavat','KaVAT'],['forms','Kalinga forms']] as const)" :key="option[0]" type="button" class="min-h-11 rounded-xl border px-4 text-sm font-bold" :class="caseWork === option[0] ? 'border-brand-600 bg-brand-50 text-brand-800' : 'border-slate-200'" :aria-current="caseWork === option[0] ? 'page' : undefined" @click="caseWork = option[0]">{{ option[1] }}</button></nav>
+<div v-if="ownCase && caseWork === 'kavat' && pack?.kavatDefinition" class="mt-6 border-t pt-6"><KavatPanel :case-id="selectedCase.id" :definition="pack.kavatDefinition" :records="kavatRecords" :can-edit="canCollectOffline" :saver="saveKavatLocally" @start="startKavatLocally" /><p v-if="selectedCase.kavat_count" class="mt-3 text-xs text-slate-600">{{ selectedCase.kavat_count }} finalized KaVAT on record; see the history on the case page.</p></div>
+<div v-else-if="ownCase && caseWork === 'forms' && pack?.formsDefinition" class="mt-6 space-y-4 border-t pt-6"><p class="text-sm text-slate-600">Write here while offline. Your writing is encrypted on this device and sent at the next sync. Finalize the forms from the case page when you are online.</p><div class="flex flex-wrap gap-2"><button v-for="(title, type) in pack.formsDefinition.types" :key="type" type="button" class="min-h-11 rounded-xl border px-3 text-sm font-semibold" :class="openForm === type ? 'border-brand-600 bg-brand-50 text-brand-800' : 'border-slate-200'" @click="openForm = openForm === type ? null : type">{{ title }}<span v-if="selectedCase.forms?.[type]?.dirty" class="ml-1 text-xs text-amber-700">(unsent)</span></button></div><CaseFormEditor v-if="openForm && packForm(openForm)" :key="`${selectedCase.id}-${openForm}`" :case-id="selectedCase.id" :form="packForm(openForm)!" :definition="pack.formsDefinition" :suggestions="{}" :can-edit="canCollectOffline" :saver="formSaver(openForm)" /></div>
+<div v-else class="mt-6 border-t pt-6"><h3 class="font-bold">Record field update</h3><div class="mt-4 grid gap-4 sm:grid-cols-2"><label class="text-sm font-bold">Update type<select v-model="activity" class="mt-2 w-full rounded-xl border-slate-300"><option value="case_note">Case note</option><option value="monitoring_visit">Monitoring visit</option></select></label><label v-if="activity === 'monitoring_visit'" class="text-sm font-bold">Visit location<OptionSelect v-model="location" :options="VISIT_LOCATIONS" /></label></div><label class="mt-4 block text-sm font-bold">{{ activity === 'case_note' ? 'Case note' : 'Observations' }}<textarea v-model="body" rows="7" class="mt-2 w-full rounded-xl border-slate-300" placeholder="Record factual field observations only…" /></label><button type="button" class="mt-4 rounded-xl bg-brand-700 px-4 py-3 text-sm font-bold text-white disabled:opacity-50" :disabled="fieldSaving || !body.trim()" @click="saveActivity">Save encrypted update on this device</button></div></template><p v-else class="text-slate-500">Select a case from the encrypted offline pack.</p></article></section>
         <section v-else id="field-cases" class="mt-6 scroll-mt-24 rounded-2xl border border-dashed p-8 text-center text-sm text-slate-600">Case updates need a current authorized pack. Connect securely and download a fresh pack. New intakes still work without it, and existing encrypted drafts are retained.</section>
 
         <section v-if="operations.length" id="encrypted-operation-queue" aria-labelledby="operation-queue-title" :aria-busy="syncing" class="mt-6 overflow-hidden rounded-2xl border bg-white"><div class="border-b p-4"><h2 id="operation-queue-title" class="font-bold">Local encrypted queue</h2></div><div v-for="item in operations" :key="item.local_id" class="flex flex-col items-start justify-between gap-3 border-b p-4 last:border-0 sm:flex-row"><div><p class="font-bold">{{ item.entity_type.replaceAll('_', ' ') }} · <span :class="{'text-emerald-700': item.sync_status === 'synced', 'text-amber-700': item.sync_status === 'pending' || item.sync_status === 'syncing', 'text-rose-700': item.sync_status === 'failed', 'text-violet-700': item.sync_status === 'conflict'}">{{ item.sync_status }}</span></p><p class="mt-1 text-sm text-slate-500">Saved {{ formatPh(item.created_offline_at, 'dateTimeShort') }}<span v-if="item.retry_count > 0"> · {{ item.retry_count }} attempt(s)</span><span v-if="item.error_message"> · {{ item.error_message }}</span></p></div><div v-if="item.sync_status === 'failed'" class="flex shrink-0 gap-2"><button type="button" class="min-h-11 rounded-lg border px-3 py-1.5 text-xs font-bold text-brand-700 hover:bg-brand-50" @click="retryOperation(item.local_id)">Retry now</button><button type="button" class="min-h-11 rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-50" @click="discardOperation(item.local_id)">Discard</button></div></div></section>
@@ -579,7 +684,7 @@ watch(intakeInProgress, busy => { if (!busy && deferredSync.value) void autoSync
                   <span v-if="d.pack_expires_at"> · Pack {{ new Date(d.pack_expires_at) > new Date() ? 'expires' : 'expired' }} {{ formatPh(d.pack_expires_at, 'dateTimeShort') }}</span>
                 </p>
               </div>
-              <div class="flex shrink-0 gap-2">
+              <div class="flex shrink-0 flex-wrap gap-2">
                 <template v-if="d.revoked_at">
                   <span class="rounded-lg bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-700">Revoked {{ formatPh(d.revoked_at, 'date') }}</span>
                 </template>
@@ -625,7 +730,8 @@ watch(intakeInProgress, busy => { if (!busy && deferredSync.value) void autoSync
                 </div>
               </div>
               <div class="flex shrink-0 gap-2">
-                <button v-if="item.sync_status === 'conflict'" type="button" :disabled="syncing" class="min-h-11 rounded-lg border border-brand-200 px-3 py-1.5 text-xs font-bold text-brand-700 hover:bg-brand-50 disabled:opacity-50" @click="openConflictReview(item)">Review and retry</button>
+                <template v-if="item.sync_status === 'conflict' && ['case_form', 'kavat'].includes(item.entity_type)"><button type="button" :disabled="syncing || !online" class="min-h-11 rounded-lg border border-brand-200 px-3 py-1.5 text-xs font-bold text-brand-700 hover:bg-brand-50 disabled:opacity-50" @click="resolveDocumentConflict(item, true)">Keep mine</button><button type="button" :disabled="syncing || !online" class="min-h-11 rounded-lg border px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50" @click="resolveDocumentConflict(item, false)">Use the newer copy</button></template>
+                <button v-else-if="item.sync_status === 'conflict'" type="button" :disabled="syncing" class="min-h-11 rounded-lg border border-brand-200 px-3 py-1.5 text-xs font-bold text-brand-700 hover:bg-brand-50 disabled:opacity-50" @click="openConflictReview(item)">Review and retry</button>
                 <button v-else type="button" :disabled="syncing" class="min-h-11 rounded-lg border border-brand-200 px-3 py-1.5 text-xs font-bold text-brand-700 hover:bg-brand-50 disabled:opacity-50" @click="retryOperation(item.local_id)">Retry</button>
                 <button type="button" class="min-h-11 rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-50" @click="discardOperation(item.local_id)">Discard</button>
               </div>

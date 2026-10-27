@@ -80,10 +80,10 @@ const roleGaps = computed(() => {
 </script>
 
 <template>
-  <Head title="LGU profile & signatories" />
+  <Head title="Office profile & signatories" />
   <AuthenticatedLayout>
     <div class="space-y-5">
-      <PageHeader eyebrow="Settings" title="LGU profile and signatories" description="Office details, logo and the people who sign Kalinga reports. The office head signs the Social Case Study Report and Case Summary as reviewer.">
+      <PageHeader eyebrow="Settings" title="Office profile and signatories" description="Office details, logo and the people who sign Kalinga reports. The office head signs the Social Case Study Report and Case Summary as reviewer.">
         <template #actions>
           <label v-if="lgus.length > 1" class="text-sm font-medium text-slate-700">
             <span class="sr-only">LGU</span>

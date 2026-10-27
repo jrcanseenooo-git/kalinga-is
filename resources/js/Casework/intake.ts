@@ -7,7 +7,7 @@ import { MARRIAGE_CLASSIFICATIONS } from '@/data/cefmu';
 import { isLowerThan, suggestRisk, type IntakeOptions, type RiskLevel } from '@/Casework/intakeRules';
 
 export { intakeFieldId, intakeStepForField, isLowerThan, suggestRisk } from '@/Casework/intakeRules';
-export type { IntakeOptions, RiskFactor, RiskLevel, RiskRule } from '@/Casework/intakeRules';
+export type { CustomField, IntakeOptions, RiskFactor, RiskLevel, RiskRule } from '@/Casework/intakeRules';
 
 export const INTAKE_STEPS = ['Privacy notice', 'Child & safe contact', 'Case details', 'Safety triage'] as const;
 
@@ -56,6 +56,7 @@ export function emptyIntake(location?: AssignedLocation) {
         education_status_at_intake: 'not_recorded', pregnancy_parenting_status: 'not_recorded',
         mode_of_admission: '', referred_by: '', referral_date: '', priority: 'normal',
         risk_indicators: [] as string[], initial_risk_level: '' as RiskLevel | '', risk_level_reason: '',
+        custom_fields: {} as Record<string, string>,
     };
 }
 export type IntakeData = ReturnType<typeof emptyIntake>;

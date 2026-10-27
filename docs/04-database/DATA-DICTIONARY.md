@@ -1,6 +1,6 @@
 # Data dictionary - Kalinga CEFMU Case Management Information System
 
-Generated from the PostgreSQL schema by scripts/generate_data_dictionary.py. 95 tables. PK = primary key; FK = references another table.
+Generated from the PostgreSQL schema by scripts/generate_data_dictionary.py. 107 tables. PK = primary key; FK = references another table.
 
 ## Clients and identity
 
@@ -404,6 +404,7 @@ The case folder: status, stage, CEFMU classification, intake details, risk level
 | risk_level_reason | varchar(1000) | Yes |  | Risk level reason. |
 | consent_form_type | varchar(30) | Yes |  | Consent form type. |
 | consent_document_id | bigint | Yes | FK documents | Link to the document record (documents). |
+| custom_fields | json | Yes |  | Custom fields. |
 
 ### case_status_history
 
@@ -502,6 +503,36 @@ Calendar activities and follow-ups (visits, conferences, deadlines).
 | location | varchar(255) | Yes |  | Location. |
 | details | text | Yes |  | Details. |
 
+### task_participants
+
+People invited to a calendar activity, with their reply (pending, going, not going).
+
+| Column | Type | Null | Key | Description |
+|---|---|---|---|---|
+| id | bigint | No | PK | Unique record number. |
+| task_id | bigint | No | FK tasks | Link to the task record (tasks). |
+| user_id | bigint | No | FK users | Link to the user record (users). |
+| response | varchar(12) | No |  | Response. |
+| invited_by | bigint | No | FK users | User who invited the record. |
+| responded_at | timestamp | Yes |  | Date and time: responded. |
+| created_at | timestamp | Yes |  | When the record was created. |
+| updated_at | timestamp | Yes |  | When the record was last changed. |
+
+### task_history
+
+Change history of a calendar activity: rescheduling and cancellation with the reason given.
+
+| Column | Type | Null | Key | Description |
+|---|---|---|---|---|
+| id | bigint | No | PK | Unique record number. |
+| task_id | bigint | No | FK tasks | Link to the task record (tasks). |
+| event | varchar(20) | No |  | Event name. |
+| actor_id | bigint | No | FK users | Link to the user record (users). |
+| from_due_at | timestamp | Yes |  | Date and time: from due. |
+| to_due_at | timestamp | Yes |  | Date and time: to due. |
+| reason | varchar(500) | Yes |  | Reason given. |
+| created_at | timestamp | No |  | When the record was created. |
+
 ### consents
 
 Consent and lawful basis for processing and sharing case information.
@@ -540,6 +571,106 @@ Uploaded case documents (stored privately; quarantined until scanned).
 | previous_document_id | bigint | Yes | FK documents | Link to the document record (documents). |
 | source_module | varchar(64) | Yes |  | Source module. |
 | uploader_notes | text | Yes |  | Uploader notes. |
+
+### case_remarks
+
+Remarks from the LGU Head, Field Office or Project Manager on a case, the case manager's replies, and closure approvals or returns.
+
+| Column | Type | Null | Key | Description |
+|---|---|---|---|---|
+| id | bigint | No | PK | Unique record number. |
+| case_id | bigint | No | FK cases | Link to the case record (cases). |
+| author_id | bigint | No | FK users | Link to the user record (users). |
+| author_role | varchar(40) | No |  | Author role. |
+| parent_id | bigint | Yes | FK case_remarks | Link to the case remark record (case_remarks). |
+| kind | varchar(30) | No |  | Kind. |
+| body | text | No |  | Text of the note or message. |
+| acknowledged_at | timestamp | Yes |  | Date and time: acknowledged. |
+| created_at | timestamp | Yes |  | When the record was created. |
+| updated_at | timestamp | Yes |  | When the record was last changed. |
+
+### case_grants
+
+Grants log per case: type, amount, date released, fund source and receiver. Wrong entries are voided with a reason, never deleted.
+
+| Column | Type | Null | Key | Description |
+|---|---|---|---|---|
+| id | bigint | No | PK | Unique record number. |
+| case_id | bigint | No | FK cases | Link to the case record (cases). |
+| grant_type | varchar(60) | No |  | Grant type. |
+| amount | numeric | No |  | Amount. |
+| released_at | date | No |  | Date and time: released. |
+| fund_source | varchar(160) | Yes |  | Fund source. |
+| purpose | varchar(255) | Yes |  | Purpose. |
+| received_by | varchar(160) | Yes |  | Received by. |
+| recorded_by | bigint | No | FK users | User who recorded the record. |
+| voided_at | timestamp | Yes |  | Date and time: voided. |
+| voided_by | bigint | Yes | FK users | User who voided the record. |
+| void_reason | varchar(500) | Yes |  | Void reason. |
+| created_at | timestamp | Yes |  | When the record was created. |
+| updated_at | timestamp | Yes |  | When the record was last changed. |
+
+## Kalinga forms and KaVAT
+
+### kavat_assessments
+
+Kalinga Vulnerability Assessment Tool administrations: answers (draft or final), scores, priority and red flags.
+
+| Column | Type | Null | Key | Description |
+|---|---|---|---|---|
+| id | bigint | No | PK | Unique record number. |
+| case_id | bigint | No | FK cases | Link to the case record (cases). |
+| instrument_version | varchar(20) | No |  | Instrument version. |
+| occasion | varchar(20) | No |  | Occasion. |
+| administered_at | date | No |  | Date and time: administered. |
+| administered_by | bigint | No | FK users | User who administered the record. |
+| status | varchar(10) | No |  | Current status of the record. |
+| answers | json | No |  | Answers. |
+| notes | text | Yes |  | Notes. |
+| part1_score | smallint | Yes |  | Part1 score. |
+| part2_score | numeric | Yes |  | Part2 score. |
+| empowerment_rate | numeric | Yes |  | Empowerment rate. |
+| objective_risk_rate | numeric | Yes |  | Objective risk rate. |
+| safety_rate | numeric | Yes |  | Safety rate. |
+| final_score | numeric | Yes |  | Final score. |
+| priority | varchar(10) | Yes |  | Priority (low, normal, high, urgent). |
+| red_flags | json | Yes |  | Red flags. |
+| revision | integer | No |  | Revision. |
+| finalized_at | timestamp | Yes |  | When the record was finalized (locked). |
+| created_at | timestamp | Yes |  | When the record was created. |
+| updated_at | timestamp | Yes |  | When the record was last changed. |
+
+### case_forms
+
+Working copy of each Kalinga form written by the case manager (Case Summary, Intervention Plan matrix, Social Case Study Report), with a revision number.
+
+| Column | Type | Null | Key | Description |
+|---|---|---|---|---|
+| id | bigint | No | PK | Unique record number. |
+| case_id | bigint | No | FK cases | Link to the case record (cases). |
+| form_type | varchar(20) | No |  | Form type. |
+| content | json | No |  | Content. |
+| status | varchar(10) | No |  | Current status of the record. |
+| revision | integer | No |  | Revision. |
+| updated_by | bigint | Yes | FK users | User who updated the record. |
+| finalized_at | timestamp | Yes |  | When the record was finalized (locked). |
+| created_at | timestamp | Yes |  | When the record was created. |
+| updated_at | timestamp | Yes |  | When the record was last changed. |
+
+### case_form_versions
+
+Numbered finalized copies of the Kalinga forms.
+
+| Column | Type | Null | Key | Description |
+|---|---|---|---|---|
+| id | bigint | No | PK | Unique record number. |
+| case_id | bigint | No | FK cases | Link to the case record (cases). |
+| form_type | varchar(20) | No |  | Form type. |
+| version | integer | No |  | Version number; a new version is created instead of overwriting. |
+| content | json | No |  | Content. |
+| finalized_by | bigint | No | FK users | User who finalized the record. |
+| created_at | timestamp | Yes |  | When the record was created. |
+| updated_at | timestamp | Yes |  | When the record was last changed. |
 
 ## Assessment
 
@@ -1387,6 +1518,49 @@ Participant-only online coordination messages between two currently eligible mem
 | created_at | timestamp | Yes |  | When the record was created. |
 | updated_at | timestamp | Yes |  | When the record was last changed. |
 
+### connect_threads
+
+Project team chat conversations: direct (two people) or named groups such as Region VIII.
+
+| Column | Type | Null | Key | Description |
+|---|---|---|---|---|
+| id | bigint | No | PK | Unique record number. |
+| kind | varchar(10) | No |  | Kind. |
+| title | varchar(120) | Yes |  | Title. |
+| created_by | bigint | No | FK users | User who created the record. |
+| last_message_at | timestamp | Yes |  | Date and time: last message. |
+| created_at | timestamp | Yes |  | When the record was created. |
+| updated_at | timestamp | Yes |  | When the record was last changed. |
+
+### connect_thread_members
+
+Members of a project team chat conversation and when each last read it.
+
+| Column | Type | Null | Key | Description |
+|---|---|---|---|---|
+| id | bigint | No | PK | Unique record number. |
+| thread_id | bigint | No | FK connect_threads | Link to the connect thread record (connect_threads). |
+| user_id | bigint | No | FK users | Link to the user record (users). |
+| role | varchar(10) | No |  | Role. |
+| last_read_message_id | bigint | Yes |  | Number of the related last read message. |
+| left_at | timestamp | Yes |  | Date and time: left. |
+| created_at | timestamp | Yes |  | When the record was created. |
+| updated_at | timestamp | Yes |  | When the record was last changed. |
+
+### connect_messages
+
+Messages in a project team chat conversation.
+
+| Column | Type | Null | Key | Description |
+|---|---|---|---|---|
+| id | bigint | No | PK | Unique record number. |
+| thread_id | bigint | No | FK connect_threads | Link to the connect thread record (connect_threads). |
+| sender_id | bigint | No | FK users | Link to the user record (users). |
+| body | text | No |  | Text of the note or message. |
+| is_urgent | boolean | No |  | Yes/no: is urgent. |
+| created_at | timestamp | Yes |  | When the record was created. |
+| updated_at | timestamp | Yes |  | When the record was last changed. |
+
 ## Records governance
 
 ### record_governance
@@ -1673,6 +1847,7 @@ User accounts: role, position, location, 2FA settings and status.
 | two_factor_email_code | text | Yes |  | Two factor email code. |
 | two_factor_email_code_expires_at | timestamp | Yes |  | Date and time: two factor email code expires. |
 | position | varchar(160) | Yes |  | Position. |
+| region_scope | json | Yes |  | Region scope. |
 
 ### roles
 
@@ -1773,6 +1948,41 @@ In-app notifications to users.
 | created_at | timestamp | Yes |  | When the record was created. |
 | updated_at | timestamp | Yes |  | When the record was last changed. |
 
+### push_subscriptions
+
+Phone and browser push endpoints a user turned on for notifications. Removed when the endpoint expires.
+
+| Column | Type | Null | Key | Description |
+|---|---|---|---|---|
+| id | bigint | No | PK | Unique record number. |
+| user_id | bigint | No | FK users | Link to the user record (users). |
+| endpoint_hash | varchar(64) | No |  | Endpoint hash. |
+| endpoint | text | No |  | Endpoint. |
+| device_label | varchar(80) | Yes |  | Device label. |
+| last_sent_at | timestamp | Yes |  | Date and time: last sent. |
+| created_at | timestamp | Yes |  | When the record was created. |
+| updated_at | timestamp | Yes |  | When the record was last changed. |
+
+### user_feedback
+
+Suggestions and problem reports sent with the Send feedback button, with status and the reply.
+
+| Column | Type | Null | Key | Description |
+|---|---|---|---|---|
+| id | bigint | No | PK | Unique record number. |
+| user_id | bigint | No | FK users | Link to the user record (users). |
+| category | varchar(20) | No |  | Category. |
+| subject | varchar(160) | No |  | Subject. |
+| message | text | No |  | Message. |
+| page | varchar(160) | Yes |  | Page. |
+| rating | smallint | Yes |  | Rating. |
+| status | varchar(20) | No |  | Current status of the record. |
+| response | text | Yes |  | Response. |
+| responded_by | bigint | Yes | FK users | User who responded the record. |
+| responded_at | timestamp | Yes |  | Date and time: responded. |
+| created_at | timestamp | Yes |  | When the record was created. |
+| updated_at | timestamp | Yes |  | When the record was last changed. |
+
 ## Offline field mode
 
 ### offline_devices
@@ -1825,6 +2035,8 @@ Extra form fields configured by the administrator.
 | sort_order | integer | No |  | Sort order. |
 | created_at | timestamp | Yes |  | When the record was created. |
 | updated_at | timestamp | Yes |  | When the record was last changed. |
+| help_text | varchar(255) | Yes |  | Help text. |
+| active | boolean | No |  | Whether the record is in use. |
 
 ### reference_data
 

@@ -35,8 +35,9 @@ class RoleAuthorizationTest extends TestCase
     {
         $administrator = User::factory()->create(['role' => 'system_admin']);
 
+        // The administrator's dashboard is a to-do list with no casework.
         $this->actingAs($administrator)->get(route('dashboard'))
-            ->assertRedirect(route('management.dashboard'));
+            ->assertOk()->assertInertia(fn (Assert $page) => $page->component('Dashboard')->where('metrics.activeCases', null)->has('actionQueue', 0)->missing('cases'));
         $this->actingAs($administrator)->get(route('admin.overview'))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page->component('Admin/Overview')->has('metrics')->missing('cases')->missing('clients'));

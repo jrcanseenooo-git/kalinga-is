@@ -3,9 +3,10 @@ import { formatPh } from '@/utils/philippineTime';
 import ConnectionStatus from '@/Components/UI/ConnectionStatus.vue';
 import { accessCheckPending } from '@/Security/browserHistory';
 import Breadcrumbs from '@/Components/UI/Breadcrumbs.vue';
+import FeedbackDialog from '@/Components/FeedbackDialog.vue';
 import NotificationPanel from '@/Components/UI/NotificationPanel.vue';
 import type { PageProps } from '@/types';
-import { Link, router, usePage } from '@inertiajs/vue3'; import AppIcon from '@/Components/AppIcon.vue'; import SubmissionConfirmation from '@/Components/SubmissionConfirmation.vue'; import MidnightSessionGuard from '@/Components/MidnightSessionGuard.vue'; import { Bell, CalendarDays, ChevronDown, CircleHelp, LogOut, Menu, Plus, Search, UserRound } from '@lucide/vue';
+import { Link, router, usePage } from '@inertiajs/vue3'; import AppIcon from '@/Components/AppIcon.vue'; import SubmissionConfirmation from '@/Components/SubmissionConfirmation.vue'; import MidnightSessionGuard from '@/Components/MidnightSessionGuard.vue'; import { Bell, CalendarDays, ChevronDown, CircleHelp, LogOut, Menu, MessageSquareText, Plus, Search, UserRound } from '@lucide/vue';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import Modal from '@/Components/Modal.vue';
 import FlashToast from '@/Components/FlashToast.vue';
@@ -15,41 +16,49 @@ const desktop = ref(false);
 const navigationCollapsed = computed(() => desktop.value && collapsed.value);
 const menuButton = ref<HTMLButtonElement | null>(null);
 const sidebar = ref<HTMLElement | null>(null);
-const userMenuOpen = ref(false); const userMenu = ref<HTMLElement | null>(null); const searchTerm = ref('');
+const userMenuOpen = ref(false); const feedbackOpen = ref(false); const userMenu = ref<HTMLElement | null>(null); const searchTerm = ref('');
 const open = ref(false); const collapsed = ref(false); const confirmLogout = ref(false); const notificationsOpen = ref(false); const connectionOnline = ref(navigator.onLine); const page = usePage<PageProps>(); const unreadAlerts = computed(() => Number(page.props.unreadNotifications ?? 0)); const notificationPreview = computed(() => page.props.notificationPreview ?? []);
 const permissions = computed(() => new Set<string>(page.props.auth.permissions ?? []));
 const can = (permission: string) => permissions.value.has(permission);
 const isActive = (link: NavigationLink) => link.match.some((name) => route().current(name));
-const homeLink = computed(() => can('management.dashboard.view')
-  ? { label:'National overview', icon:'home', route:'management.dashboard', match:['management.dashboard','management.section'] }
-  : (page.props.auth.user.role === 'cpu_member'
-    ? { label:'My referred cases', icon:'home', route:'mdt.collaboration.index', match:['mdt.collaboration.index','mdt.workspace'] }
-    : { label:'Dashboard', icon:'home', route:'dashboard', match:['dashboard'] }));
+// The dashboard is everyone's to-do list; CPU members start from their referred cases.
+const homeLink = computed(() => page.props.auth.user.role === 'cpu_member'
+  ? { label:'My referred cases', icon:'home', route:'mdt.collaboration.index', match:['mdt.collaboration.index','mdt.workspace'] }
+  : { label:'Dashboard', icon:'home', route:'dashboard', match:['dashboard'] });
 const navCounts = computed(() => (page.props as unknown as { navCounts?: { activeCases: number | null; calendarDue: number | null } | null }).navCounts ?? null);
 const groups = computed<{ title: string; links: NavigationLink[] }[]>(() => [
   { title:'', links:[homeLink.value] },
   { title:'Case work', links:[
-    ...(can('cases.view') ? [{ label:'Cases', icon:'cases', route:'cases.index', match:['cases.index','cases.show','cases.plans.workspace','cases.conferences.index','reports.index','identity.review.index'], badge: navCounts.value?.activeCases, badgeTone: 'brand' as const }] : []),
+    ...(can('cases.create') ? [{ label:'Cases', icon:'cases', route:'cases.index', match:['cases.index','cases.show','cases.plans.workspace','cases.conferences.index','reports.index','identity.review.index'], badge: navCounts.value?.activeCases, badgeTone: 'brand' as const }]
+      : can('cases.monitor') ? [{ label:'Cases', icon:'cases', route:'monitoring.cases.index', match:['monitoring.cases.index','monitoring.cases.show'] }] : []),
     ...(can('cases.create') ? [{ label:'Case intake', icon:'intake', route:'cases.create', match:['cases.create'] }] : []),
     ...(can('activities.manage') ? [{ label:'Calendar', icon:'calendar', route:'calendar.index', match:['calendar.index','tasks.index'], badge: navCounts.value?.calendarDue, badgeTone: 'alert' as const }] : []),
   ]},
   { title:'Coordination', links:[
     ...(can('cpu.chat.view') ? [{ label:'Kalinga Connect', icon:'connect', route:'cpu.coordination.index', match:['cpu.coordination.index'] }] : []),
+    ...(can('connect.network') || can('cases.monitor') || can('cases.update') ? [{ label:'Project team chat', icon:'connect', route:'connect.network', match:['connect.network'] }] : []),
   ]},
   ...(can('analytics.view') || can('analytics.quarterly') ? [{ title:'Insights', links:[
     { label:'Analytics', icon:'bars', route:'analytics.index', match:['analytics.index','analytics.quarterly'] },
+    ...(can('management.dashboard.view') ? [{ label:'Management overview', icon:'home', route:'management.dashboard', match:['management.dashboard','management.section'] }] : []),
   ]}] : []),
-  { title:'Settings', links:[
-    ...(can('lgu.profile.view') ? [{ label:'LGU profile & signatories', icon:'building', route:'lgu-profile.show', match:['lgu-profile.show'] }] : []),
-    ...(can('admin.manage') ? [{ label:'Administration', icon:'settings', route:'admin.overview', match:['admin.overview','admin.index','admin.lgus.index','admin.audits','admin.forms','providers.index'] }] : []),
+  { title: can('admin.manage') ? 'Settings' : 'Management', links:[
+    ...(can('admin.manage') ? [{ label:'Administration', icon:'settings', route:'admin.overview', match:['admin.overview','admin.index','admin.lgus.index','admin.audits','admin.forms','admin.options','admin.feedback'] }] : [
+      ...(can('users.approve') ? [{ label:'Users & approvals', icon:'settings', route:'admin.index', match:['admin.index'] }] : []),
+      ...(can('lgu.registry.view') ? [{ label:'LGU registry', icon:'building', route:'admin.lgus.index', match:['admin.lgus.index'] }] : []),
+      ...(can('options.manage') ? [{ label:'Form options', icon:'settings', route:'admin.options', match:['admin.options'] }] : []),
+      ...(can('feedback.review') ? [{ label:'User feedback', icon:'bell', route:'admin.feedback', match:['admin.feedback'] }] : []),
+    ]),
+    ...(can('lgu.profile.view') ? [{ label:'Office profile & signatories', icon:'building', route:'lgu-profile.show', match:['lgu-profile.show'] }] : []),
   ]},
 ].filter(group => group.links.length));
-const mobileLinks = computed(()=>[homeLink.value,...groups.value.flatMap(group=>group.links).filter(link=>['cases.index','cases.create','calendar.index','cpu.coordination.index'].includes(link.route))].slice(0,5));
+const mobileLinks = computed(()=>[homeLink.value,...groups.value.flatMap(group=>group.links).filter(link=>['cases.index','monitoring.cases.index','cases.create','calendar.index','cpu.coordination.index','analytics.index'].includes(link.route))].slice(0,5));
 const offlinePending = ref(0);
 function readOfflinePending(){ try { offlinePending.value = Number(localStorage.getItem('kalinga_offline_pending') ?? 0) || 0; } catch { offlinePending.value = 0; } }
 const initials = computed(() => String(page.props.auth.user.name).split(' ').map((part:string) => part[0]).slice(0,2).join(''));
-const roleLabel = computed(() => String(page.props.auth.user.role).replaceAll('_',' ').replace(/\b\w/g,(letter:string)=>letter.toUpperCase()));
-function submitSearch(){ const term=searchTerm.value.trim(); router.get(route('cases.index'), term?{search:term}:{}); }
+const ROLE_LABELS: Record<string, string> = { system_admin:'System Administrator', project_manager:'Project Manager', fo_user:'Field Office', lgu_head:'LGU Head', social_worker:'Case Manager', cpu_member:'CPU Member' };
+const roleLabel = computed(() => ROLE_LABELS[String(page.props.auth.user.role)] ?? String(page.props.auth.user.role).replaceAll('_',' '));
+function submitSearch(){ const term=searchTerm.value.trim(); router.get(route(can('cases.create') ? 'cases.index' : 'monitoring.cases.index'), term?{search:term}:{}); }
 function onDocumentClick(event: MouseEvent){ if(userMenuOpen.value && userMenu.value && !userMenu.value.contains(event.target as Node)) userMenuOpen.value=false; }
 const today = computed(() => formatPh(new Date(), 'weekdayDate'));
 const pageTitle = computed(() => {
@@ -63,10 +72,12 @@ const pageTitle = computed(() => {
   if (route().current('identity.review.index')) return 'Cases · Identity review';
   
   if (route().current('calendar.index')) return 'Calendar';
-  if (route().current('lgu-profile.show')) return 'Settings · LGU profile';
+  if (route().current('lgu-profile.show')) return 'Settings · Office profile';
   if (route().current('analytics.index')) return 'Analytics · Reports';
   if (route().current('analytics.quarterly')) return 'Analytics · Quarterly monitoring';
-  if (route().current('management.dashboard')) return 'National overview';
+  if (route().current('monitoring.cases.index')) return 'Cases · Monitoring';
+  if (route().current('monitoring.cases.show')) return 'Cases · Case monitoring';
+  if (route().current('management.dashboard')) return 'Overview';
   if (route().current('management.section')) return 'National overview · Management';
   if (route().current('cpu.coordination.index')) return 'Kalinga Connect · CPU group chat';
   if (route().current('mdt.collaboration.index')) return 'MDT Coordination · CPU referral pathway';
@@ -74,12 +85,12 @@ const pageTitle = computed(() => {
   if (route().current('notifications.index')) return 'Alerts';
   if (route().current('help.guide')) return 'Help & guides';
   if (route().current('offline.workspace')) return 'Offline workspace';
-  if (route().current('providers.index')) return 'Administration · Providers';
   if (route().current('admin.overview')) return 'Administration';
   if (route().current('admin.lgus.index')) return 'Administration · LGU registry';
   if (route().current('admin.index')) return 'Administration · Users';
   if (route().current('admin.audits')) return 'Administration · Audit logs';
-  if (route().current('admin.forms')) return 'Administration · Form builder';
+  if (route().current('admin.options')) return 'Administration - Form options';
+  if (route().current('admin.feedback')) return 'Administration - Feedback';
   return 'Kalinga IS';
 });
 function toggleSidebar(){ if(!desktop.value){ open.value=!open.value; return; } collapsed.value=!collapsed.value; try { localStorage.setItem('kalinga_sidebar_collapsed',String(collapsed.value)); } catch { /* Optional layout preference may be blocked by the browser. */ } }
@@ -119,7 +130,7 @@ onUnmounted(()=>{ removeEventListener('storage', readOfflinePending); removeEven
   <header :inert="open" class="workspace-header" :class="navigationCollapsed?'shell-collapsed':''">
    <div class="flex min-w-0 flex-1 items-center gap-3">
     <button ref="menuButton" type="button" aria-controls="workspace-navigation" :aria-expanded="desktop?!navigationCollapsed:open" class="ui-button h-11 w-11 shrink-0 border-0 bg-transparent px-0 hover:bg-slate-100" :aria-label="desktop?(navigationCollapsed?'Expand navigation':'Collapse navigation'):(open?'Close navigation':'Open navigation')" @click="toggleSidebar"><Menu class="h-5 w-5"/></button>
-    <form v-if="can('cases.view')" role="search" data-skip-generic-confirm="true" class="relative hidden w-full max-w-md min-[768px]:block" @submit.prevent="submitSearch"><label for="workspace-search" class="sr-only">Search authorized cases</label><Search aria-hidden="true" class="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500"/><input id="workspace-search" v-model="searchTerm" type="search" autocomplete="off" placeholder="Search case number or client name..." class="h-11 w-full rounded-xl border-transparent bg-[#f3f2f8] pl-10 pr-3 text-sm text-slate-800 placeholder:text-slate-500 focus:bg-white"/></form>
+    <form v-if="can('cases.view') || can('cases.monitor')" role="search" data-skip-generic-confirm="true" class="relative hidden w-full max-w-md min-[768px]:block" @submit.prevent="submitSearch"><label for="workspace-search" class="sr-only">Search authorized cases</label><Search aria-hidden="true" class="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500"/><input id="workspace-search" v-model="searchTerm" type="search" autocomplete="off" :placeholder="can('cases.create') ? 'Search case number or client name...' : 'Search case number or alias...'" class="h-11 w-full rounded-xl border-transparent bg-[#f3f2f8] pl-10 pr-3 text-sm text-slate-800 placeholder:text-slate-500 focus:bg-white"/></form>
     <div :class="can('cases.view')?'min-[768px]:sr-only':''"><Breadcrumbs :items="[{label:pageTitle}]" /></div>
    </div>
    <div class="flex shrink-0 items-center gap-1 sm:gap-2">
@@ -128,11 +139,12 @@ onUnmounted(()=>{ removeEventListener('storage', readOfflinePending); removeEven
     <button type="button" class="ui-button relative h-11 w-11 border-0 bg-transparent px-0 hover:bg-slate-100" aria-label="Open notifications" aria-controls="notification-panel" :aria-expanded="notificationsOpen" @click="notificationsOpen=!notificationsOpen"><Bell class="h-5 w-5"/><span v-if="unreadAlerts" class="absolute right-1 top-1 grid min-h-4 min-w-4 place-items-center rounded-full bg-rose-600 px-1 text-[10px] font-semibold text-white">{{unreadAlerts>9?'9+':unreadAlerts}}</span></button>
     <div ref="userMenu" class="relative">
      <button type="button" class="flex min-h-11 items-center gap-2 rounded-xl px-1.5 hover:bg-slate-100 sm:px-2" aria-haspopup="menu" :aria-expanded="userMenuOpen" aria-controls="user-menu" @click.stop="userMenuOpen=!userMenuOpen"><span class="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-100 text-xs font-bold text-brand-800">{{initials}}</span><span class="hidden min-w-0 text-left min-[1024px]:block"><span class="block max-w-40 truncate text-sm font-semibold text-slate-900">{{page.props.auth.user.name}}</span><span class="block max-w-40 truncate text-xs text-slate-600">{{roleLabel}}</span></span><ChevronDown aria-hidden="true" class="hidden h-4 w-4 text-slate-500 min-[1024px]:block"/></button>
-     <div v-if="userMenuOpen" id="user-menu" role="menu" class="absolute right-0 top-12 z-50 w-56 overflow-hidden rounded-xl border border-[var(--color-line)] bg-white py-1 shadow-lg"><div class="border-b border-slate-100 px-4 py-3 min-[1024px]:hidden"><p class="truncate text-sm font-semibold text-slate-900">{{page.props.auth.user.name}}</p><p class="truncate text-xs text-slate-600">{{roleLabel}}</p></div><Link role="menuitem" :href="route('profile.edit')" class="flex min-h-11 items-center gap-3 px-4 text-sm text-slate-700 hover:bg-slate-50" @click="userMenuOpen=false"><UserRound aria-hidden="true" class="h-4 w-4"/>Profile and security</Link><Link role="menuitem" :href="route('help.guide')" class="flex min-h-11 items-center gap-3 px-4 text-sm text-slate-700 hover:bg-slate-50" @click="userMenuOpen=false"><CircleHelp aria-hidden="true" class="h-4 w-4"/>Help and guides</Link><button role="menuitem" type="button" class="flex min-h-11 w-full items-center gap-3 border-t border-slate-100 px-4 text-left text-sm text-rose-700 hover:bg-rose-50" @click="userMenuOpen=false;logout()"><LogOut aria-hidden="true" class="h-4 w-4"/>Sign out</button></div>
+     <div v-if="userMenuOpen" id="user-menu" role="menu" class="absolute right-0 top-12 z-50 w-56 overflow-hidden rounded-xl border border-[var(--color-line)] bg-white py-1 shadow-lg"><div class="border-b border-slate-100 px-4 py-3 min-[1024px]:hidden"><p class="truncate text-sm font-semibold text-slate-900">{{page.props.auth.user.name}}</p><p class="truncate text-xs text-slate-600">{{roleLabel}}</p></div><button type="button" role="menuitem" class="flex min-h-11 w-full items-center gap-3 px-4 text-left text-sm text-slate-700 hover:bg-slate-50" @click="userMenuOpen=false; feedbackOpen=true"><MessageSquareText aria-hidden="true" class="h-4 w-4"/>Send feedback</button><Link role="menuitem" :href="route('profile.edit')" class="flex min-h-11 items-center gap-3 px-4 text-sm text-slate-700 hover:bg-slate-50" @click="userMenuOpen=false"><UserRound aria-hidden="true" class="h-4 w-4"/>Profile and security</Link><Link role="menuitem" :href="route('help.guide')" class="flex min-h-11 items-center gap-3 px-4 text-sm text-slate-700 hover:bg-slate-50" @click="userMenuOpen=false"><CircleHelp aria-hidden="true" class="h-4 w-4"/>Help and guides</Link><button role="menuitem" type="button" class="flex min-h-11 w-full items-center gap-3 border-t border-slate-100 px-4 text-left text-sm text-rose-700 hover:bg-rose-50" @click="userMenuOpen=false;logout()"><LogOut aria-hidden="true" class="h-4 w-4"/>Sign out</button></div>
     </div>
     <Link v-if="can('cases.create')" :href="route('cases.create')" aria-label="Create new case" class="ui-button ui-button-primary ml-1"><Plus class="h-4 w-4"/><span class="hidden sm:inline">New case</span></Link>
    </div>
   </header>
+  <FeedbackDialog v-if="feedbackOpen" @close="feedbackOpen=false" />
   <NotificationPanel v-if="notificationsOpen" :items="notificationPreview" :unread="unreadAlerts" @close="notificationsOpen=false" @read-all="markAllAlertsRead" />
   <aside id="workspace-navigation" ref="sidebar" :inert="!desktop&&!open" :role="!desktop&&open?'dialog':undefined" :aria-modal="!desktop&&open?true:undefined" aria-label="Workspace navigation" class="workspace-sidebar" :class="{'sidebar-open':open,'sidebar-collapsed':navigationCollapsed}">
    <button v-if="open" type="button" class="ui-button m-3 justify-start lg:hidden" @click="closeNavigation">Close navigation</button>

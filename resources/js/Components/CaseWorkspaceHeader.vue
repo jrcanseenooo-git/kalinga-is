@@ -15,13 +15,13 @@ const props = defineProps<{
 
 const clientName = computed(() => [props.caseRecord.first_name, props.caseRecord.last_name].filter(Boolean).join(' ') || 'Client name not recorded');
 const initials = computed(() => [props.caseRecord.first_name, props.caseRecord.last_name].filter(Boolean).map(part => String(part)[0]).join('').toUpperCase() || '?');
-/** Printable reports (App\\Services\\CaseReports::TYPES), in case-management order. */
+/** Printable reports (App\\Services\\CaseReports::TYPES), in the order of the Kalinga forms. */
 const REPORTS = [
     { type: 'intake', label: 'Kalinga Intake Sheet' },
+    { type: 'summary', label: 'Case Summary Report' },
     { type: 'notes', label: 'Progress Notes' },
     { type: 'plan', label: 'Intervention Plan' },
     { type: 'study', label: 'Social Case Study Report' },
-    { type: 'summary', label: 'Case Summary Report' },
 ];
 const menuOpen = ref(false);
 const menu = ref<HTMLElement | null>(null);

@@ -4,7 +4,7 @@ import { login, expectNoHorizontalOverflow } from './helpers';
 test.use({timezoneId:'America/Los_Angeles'});
 
 async function openMonitoring(page:Page){
- await login(page);await page.goto('/cases?search=SYN-MONITOR-2026-0001');await page.getByRole('link',{name:/SYN-MONITOR-2026-0001/}).first().click();await expect(page).toHaveURL(/\/cases\/\d+$/);const tab=page.getByRole('tab',{name:/^Progress notes/});await expect(tab).toBeVisible();await tab.click();const panel=page.locator('#case-panel-monitoring');await panel.getByRole('button',{name:/^Visit records/}).click();await panel.getByRole('button',{name:'Add visit',exact:true}).click();return panel;
+ await login(page);await page.goto('/cases?search=SYN-MONITOR-2026-0001');await page.getByRole('link',{name:/SYN-MONITOR-2026-0001/}).first().click();await expect(page).toHaveURL(/\/cases\/\d+$/);const tab=page.getByRole('tab',{name:/^Progress notes/});await expect(tab).toBeVisible();await tab.click();const panel=page.locator('#case-panel-notes');await panel.getByRole('button',{name:/^Visit records/}).click();await panel.getByRole('button',{name:'Add visit',exact:true}).click();return panel;
 }
 test('monitoring has a dedicated labelled visit workflow and preserves recorded context',async({page})=>{
  const panel=await openMonitoring(page);await expect(panel.getByRole('heading',{name:'Progress notes & monitoring',exact:true})).toBeVisible();await expect(panel.locator('#monitor-visit-date')).toHaveAccessibleName('Visit date');await expect(panel.getByText('Synthetic recorded risk requiring review.',{exact:true})).toBeVisible();await expect(panel.getByText('Synthetic recorded next professional step.',{exact:true})).toBeVisible();
@@ -25,7 +25,7 @@ test('progress note addendum and explicit follow-up retain Philippine time on an
 });
 
 test('unfinished monitoring work survives section switching and cancelled page navigation',async({page})=>{
- const panel=await openMonitoring(page);const url=page.url();await panel.getByRole('textbox',{name:'Observations',exact:true}).fill('Synthetic unfinished visit observations.');await page.getByRole('tab',{name:/^Case plan/}).click();await page.getByRole('tab',{name:/^Progress notes/}).click();await expect(panel.getByRole('textbox',{name:'Observations',exact:true})).toHaveValue('Synthetic unfinished visit observations.');
+ const panel=await openMonitoring(page);const url=page.url();await panel.getByRole('textbox',{name:'Observations',exact:true}).fill('Synthetic unfinished visit observations.');await page.getByRole('tab',{name:/^KaVAT/}).click();await page.getByRole('tab',{name:/^Progress notes/}).click();await expect(panel.getByRole('textbox',{name:'Observations',exact:true})).toHaveValue('Synthetic unfinished visit observations.');
  let prompted=false;page.once('dialog',async dialog=>{prompted=true;await dialog.dismiss();});await page.getByRole('link',{name:'Back to case registry',exact:true}).click();await expect.poll(()=>prompted).toBe(true);await expect(page).toHaveURL(url);await expect(panel.getByRole('textbox',{name:'Observations',exact:true})).toHaveValue('Synthetic unfinished visit observations.');
 });
 

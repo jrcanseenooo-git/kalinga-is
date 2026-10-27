@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Routing\Middleware\ThrottleRequests;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
@@ -47,9 +48,11 @@ class CaseRouteAccessSweepTest extends TestCase
         $case = DB::table('cases')->insertGetId(['case_number' => 'KLG-SWEEP-1', 'client_id' => $client, 'lgu_id' => $lgu, 'assigned_to' => $owner->id, 'status' => 'IN_PROGRESS',
             'priority' => 'normal', 'category' => 'CEFMU', 'opened_at' => now(), 'offline_version' => 1, 'created_at' => now(), 'updated_at' => now()]);
         $before = DB::table('cases')->where('id', $case)->first();
-        $counts = fn () => collect(['case_notes', 'referrals', 'tasks', 'documents', 'consents', 'risk_assessments', 'case_plans'])->mapWithKeys(fn ($t) => [$t => DB::table($t)->count()])->all();
+        $counts = fn () => collect(['case_notes', 'referrals', 'tasks', 'documents', 'consents', 'risk_assessments', 'case_plans', 'kavat_assessments', 'case_forms', 'case_grants', 'case_remarks'])->mapWithKeys(fn ($t) => [$t => DB::table($t)->count()])->all();
         $initial = $counts();
 
+        // Rate limits are not authorization; with this many case routes they would answer 429 first.
+        $this->withoutMiddleware(ThrottleRequests::class);
         $checked = 0;
         $leaks = [];
         foreach (Route::getRoutes() as $route) {

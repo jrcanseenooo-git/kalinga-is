@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Services\OperationalNotification;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -79,15 +80,7 @@ class DispatchDeadlineAlerts extends Command
             return 0;
         }
 
-        DB::table('notifications')->insert([
-            'user_id' => $userId,
-            'type' => $type,
-            'title' => $title,
-            'body' => $body,
-            'action_url' => $actionUrl,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        app(OperationalNotification::class)->send($userId, $type, $title, $body, $actionUrl);
 
         return 1;
     }

@@ -87,14 +87,23 @@ class LguProfileAndCalendarTest extends TestCase
         $this->assertDatabaseMissing('lgu_cpu_members', ['id' => $member->id]);
     }
 
-    public function test_field_office_user_views_lgus_in_their_province_without_editing(): void
+    public function test_field_office_user_views_lgus_in_their_region_without_editing_and_a_project_manager_manages_them(): void
     {
-        $inProvince = $this->lgu('TEST-LGU-4', 'Synthetic City', 'Province A');
-        $this->lgu('TEST-LGU-5', 'Far Town', 'Province B');
-        $fo = User::factory()->create(['role' => 'fo_user', 'province' => 'Province A']);
+        $inRegion = $this->lgu('TEST-LGU-4', 'Synthetic City', 'Province A');
+        $far = $this->lgu('TEST-LGU-5', 'Far Town', 'Province B');
+        DB::table('lgu_units')->where('id', $inRegion)->update(['region' => 'Region A']);
+        DB::table('lgu_units')->where('id', $far)->update(['region' => 'Region B']);
+        $fo = User::factory()->create(['role' => 'fo_user', 'region' => 'Region A']);
         $this->actingAs($fo)->get(route('lgu-profile.show'))->assertOk()->assertInertia(fn (Assert $page) => $page
-            ->has('lgus', 1)->where('selectedLguId', $inProvince)->where('canManage', false));
-        $this->put(route('lgu-profile.update', $inProvince), $this->profilePayload())->assertForbidden();
+            ->has('lgus', 1)->where('selectedLguId', $inRegion)->where('canManage', false));
+        $this->put(route('lgu-profile.update', $inRegion), $this->profilePayload())->assertForbidden();
+
+        $national = User::factory()->create(['role' => 'project_manager', 'region_scope' => ['*']]);
+        $this->actingAs($national)->get(route('lgu-profile.show'))->assertOk()->assertInertia(fn (Assert $page) => $page->has('lgus', 2)->where('canManage', true));
+        $this->put(route('lgu-profile.update', $far), $this->profilePayload())->assertRedirect();
+        $focal = User::factory()->create(['role' => 'project_manager', 'region_scope' => ['Region A']]);
+        $this->actingAs($focal)->get(route('lgu-profile.show'))->assertOk()->assertInertia(fn (Assert $page) => $page->has('lgus', 1));
+        $this->put(route('lgu-profile.update', $far), $this->profilePayload())->assertForbidden();
     }
 
     public function test_calendar_events_keep_type_place_and_details_and_show_case_dates(): void
@@ -115,7 +124,7 @@ class LguProfileAndCalendarTest extends TestCase
 
         $this->post(route('tasks.store'), ['title' => 'Bad', 'event_type' => 'party'])->assertSessionHasErrors('event_type');
 
-        $this->patch(route('tasks.update', $task->id), ['title' => 'Home visit moved', 'event_type' => 'home_visit', 'due_at' => now()->addDays(4)->format('Y-m-d\TH:i')])->assertRedirect();
+        $this->patch(route('tasks.update', $task->id), ['title' => 'Home visit moved', 'event_type' => 'home_visit', 'due_at' => now()->addDays(4)->format('Y-m-d\TH:i'), 'reason' => 'Family asked to move it.'])->assertRedirect();
         $this->assertDatabaseHas('tasks', ['id' => $task->id, 'title' => 'Home visit moved']);
 
         $this->get(route('calendar.index'))->assertOk()->assertInertia(fn (Assert $page) => $page

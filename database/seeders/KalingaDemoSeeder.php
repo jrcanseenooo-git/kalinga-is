@@ -13,6 +13,7 @@ class KalingaDemoSeeder extends Seeder
         $now = now();
         $users = DB::table('users')->pluck('id', 'email');
         $worker = $users['worker@kalinga.test'];
+        // The supervisor is the LGU Head: monitors the LGU's cases and holds none.
         $supervisor = $users['supervisor@kalinga.test'];
         $admin = $users['admin@kalinga.test'];
         $cpu = $users['cpu@kalinga.test'];
@@ -46,27 +47,17 @@ class KalingaDemoSeeder extends Seeder
         (new KalingaConnectDemoScopeSeeder)->setContainer(app())->forUsers($demoUsers)->run();
         (new KalingaConnectDemoSeeder)->setContainer(app())->forUsers($demoUsers)->run();
 
-        $providers = [
-            ['name' => 'DEMO Kalinga Provincial Health Office', 'service_type' => 'Health services', 'contact_person' => 'Demo Health Coordinator', 'phone' => 'DEMO-0001', 'region' => 'Cordillera Administrative Region (CAR)', 'province' => 'Kalinga', 'municipality' => 'City of Tabuk', 'barangay' => 'Bulanao Centro'],
-            ['name' => 'DEMO Kalinga Child Protection Network', 'service_type' => 'Protection and psychosocial support', 'contact_person' => 'Demo Protection Officer', 'phone' => 'DEMO-0002', 'region' => 'Cordillera Administrative Region (CAR)', 'province' => 'Kalinga', 'municipality' => 'City of Tabuk', 'barangay' => 'Dagupan Centro'],
-            ['name' => 'DEMO Community Learning Center', 'service_type' => 'Education support', 'contact_person' => 'Demo Learning Focal', 'phone' => 'DEMO-0003', 'region' => 'Cordillera Administrative Region (CAR)', 'province' => 'Kalinga', 'municipality' => 'Rizal', 'barangay' => 'Rizal Centro'],
-        ];
-        foreach ($providers as $provider) {
-            DB::table('service_providers')->updateOrInsert(['name' => $provider['name']], $provider + ['active' => true, 'created_at' => $now, 'updated_at' => $now]);
-        }
-        $providerIds = DB::table('service_providers')->whereLike('name', 'DEMO%')->pluck('id', 'name');
-
         $records = [
             ['first' => 'Demo', 'last' => 'Aglibut', 'sex' => 'Female', 'birth' => '2012-04-18', 'municipality' => 'City of Tabuk', 'barangay' => 'Bulanao Centro', 'status' => 'IN_PROGRESS', 'priority' => 'high', 'category' => 'Child protection', 'worker' => $worker],
             ['first' => 'Demo', 'last' => 'Balay', 'sex' => 'Male', 'birth' => '2014-08-09', 'municipality' => 'City of Tabuk', 'barangay' => 'Dagupan Centro', 'status' => 'FOR_FOLLOW_UP', 'priority' => 'normal', 'category' => 'Education support', 'worker' => $worker],
             ['first' => 'Demo', 'last' => 'Chawis', 'sex' => 'Female', 'birth' => '2010-01-27', 'municipality' => 'Rizal', 'barangay' => 'Rizal Centro', 'status' => 'AWAITING_REFERRAL', 'priority' => 'high', 'category' => 'Health and nutrition', 'worker' => $worker],
             ['first' => 'Demo', 'last' => 'Dumlao', 'sex' => 'Male', 'birth' => '2015-12-03', 'municipality' => 'Pinukpuk', 'barangay' => 'Apatan', 'status' => 'OPEN', 'priority' => 'normal', 'category' => 'Child protection', 'worker' => $worker],
-            ['first' => 'Demo', 'last' => 'Eway', 'sex' => 'Female', 'birth' => '2011-06-21', 'municipality' => 'Tinglayan', 'barangay' => 'Buscalan', 'status' => 'IN_PROGRESS', 'priority' => 'urgent', 'category' => 'Protection and safety', 'worker' => $supervisor],
+            ['first' => 'Demo', 'last' => 'Eway', 'sex' => 'Female', 'birth' => '2011-06-21', 'municipality' => 'Tinglayan', 'barangay' => 'Buscalan', 'status' => 'IN_PROGRESS', 'priority' => 'urgent', 'category' => 'Protection and safety', 'worker' => $worker],
             ['first' => 'Demo', 'last' => 'Fagto', 'sex' => 'Male', 'birth' => '2013-02-14', 'municipality' => 'Pasil', 'barangay' => 'Ableg', 'status' => 'FOR_CLOSURE_REVIEW', 'priority' => 'normal', 'category' => 'Family support', 'worker' => $worker],
-            ['first' => 'Demo', 'last' => 'Gaddang', 'sex' => 'Female', 'birth' => '2009-09-12', 'municipality' => 'Balbalan', 'barangay' => 'Dao-angan', 'status' => 'CLOSED', 'priority' => 'low', 'category' => 'Education support', 'worker' => $supervisor],
+            ['first' => 'Demo', 'last' => 'Gaddang', 'sex' => 'Female', 'birth' => '2009-09-12', 'municipality' => 'Balbalan', 'barangay' => 'Dao-angan', 'status' => 'CLOSED', 'priority' => 'low', 'category' => 'Education support', 'worker' => $worker],
             ['first' => 'Demo', 'last' => 'Hucab', 'sex' => 'Male', 'birth' => '2016-03-30', 'municipality' => 'Lubuagan', 'barangay' => 'Mabilong', 'status' => 'OPEN', 'priority' => 'high', 'category' => 'Health and nutrition', 'worker' => $worker],
             ['first' => 'Demo', 'last' => 'Insum', 'sex' => 'Female', 'birth' => '2012-11-05', 'municipality' => 'Tanudan', 'barangay' => 'Lower Lubo', 'status' => 'IN_PROGRESS', 'priority' => 'normal', 'category' => 'Child protection', 'worker' => $worker],
-            ['first' => 'Demo', 'last' => 'Jocson', 'sex' => 'Male', 'birth' => '2010-05-19', 'municipality' => 'City of Tabuk', 'barangay' => 'Laya East', 'status' => 'FOR_FOLLOW_UP', 'priority' => 'normal', 'category' => 'Education support', 'worker' => $supervisor],
+            ['first' => 'Demo', 'last' => 'Jocson', 'sex' => 'Male', 'birth' => '2010-05-19', 'municipality' => 'City of Tabuk', 'barangay' => 'Laya East', 'status' => 'FOR_FOLLOW_UP', 'priority' => 'normal', 'category' => 'Education support', 'worker' => $worker],
             ['first' => 'Demo', 'last' => 'Kiat', 'sex' => 'Female', 'birth' => '2014-07-25', 'municipality' => 'Rizal', 'barangay' => 'Liwan East', 'status' => 'AWAITING_REFERRAL', 'priority' => 'high', 'category' => 'Protection and safety', 'worker' => $worker],
             ['first' => 'Demo', 'last' => 'Lacwasan', 'sex' => 'Male', 'birth' => '2011-10-08', 'municipality' => 'Pinukpuk', 'barangay' => 'Limos', 'status' => 'OPEN', 'priority' => 'low', 'category' => 'Family support', 'worker' => $worker],
         ];
@@ -92,8 +83,8 @@ class KalingaDemoSeeder extends Seeder
         DB::table('monitoring_visits')->updateOrInsert(['case_id' => $firstCase, 'visited_at' => $now->toDateString()], ['location' => 'Bulanao Centro, City of Tabuk', 'observations' => 'Fictional demo monitoring visit: household was available and follow-up actions were reviewed.', 'risks' => 'Continue routine follow-up.', 'next_steps' => 'Confirm provider appointment and review progress next month.', 'created_by' => $worker, 'created_at' => $now, 'updated_at' => $now]);
         DB::table('relationships')->updateOrInsert(['client_id' => DB::table('cases')->where('id', $firstCase)->value('client_id'), 'name' => 'Demo Guardian Aglibut'], ['relationship_type' => 'Parent / guardian', 'phone' => 'DEMO-GUARDIAN-0001', 'is_guardian' => true, 'created_at' => $now->copy()->subDays(9), 'updated_at' => $now]);
         DB::table('consents')->updateOrInsert(['case_id' => $firstCase, 'lawful_basis' => 'Informed consent (fictional demo)'], ['purposes' => json_encode(['case management', 'approved service referral']), 'sharing_allowed' => true, 'granted_at' => $now->copy()->subDays(9), 'recorded_by' => $worker, 'created_at' => $now->copy()->subDays(9), 'updated_at' => $now]);
-        DB::table('referrals')->updateOrInsert(['case_id' => $firstCase, 'service_category' => 'Health services'], ['service_provider_id' => $providerIds['DEMO Kalinga Provincial Health Office'], 'status' => 'SENT', 'reason' => 'Fictional demo referral for initial consultation.', 'referred_at' => $now->copy()->subDays(2), 'accepted_at' => null, 'completed_at' => null, 'created_by' => $worker, 'created_at' => $now->copy()->subDays(3), 'updated_at' => $now]);
-        DB::table('referrals')->updateOrInsert(['case_id' => $thirdCase, 'service_category' => 'Protection and psychosocial support'], ['service_provider_id' => $providerIds['DEMO Kalinga Child Protection Network'], 'status' => 'PENDING', 'reason' => 'Fictional demo referral awaiting provider confirmation.', 'referred_at' => null, 'accepted_at' => null, 'completed_at' => null, 'created_by' => $worker, 'created_at' => $now->copy()->subDay(), 'updated_at' => $now]);
+        DB::table('referrals')->updateOrInsert(['case_id' => $firstCase, 'service_category' => 'Health services'], ['referred_to' => 'DEMO Kalinga Provincial Health Office', 'status' => 'SENT', 'reason' => 'Fictional demo referral for initial consultation.', 'referred_at' => $now->copy()->subDays(2), 'accepted_at' => null, 'completed_at' => null, 'created_by' => $worker, 'created_at' => $now->copy()->subDays(3), 'updated_at' => $now]);
+        DB::table('referrals')->updateOrInsert(['case_id' => $thirdCase, 'service_category' => 'Protection and psychosocial support'], ['referred_to' => 'DEMO Kalinga Child Protection Network', 'status' => 'PENDING', 'reason' => 'Fictional demo referral awaiting provider confirmation.', 'referred_at' => null, 'accepted_at' => null, 'completed_at' => null, 'created_by' => $worker, 'created_at' => $now->copy()->subDay(), 'updated_at' => $now]);
         DB::table('tasks')->updateOrInsert(['title' => 'DEMO: Confirm health referral appointment'], ['case_id' => $firstCase, 'assigned_to' => $worker, 'due_at' => $now->copy()->addDays(2), 'status' => 'open', 'created_at' => $now, 'updated_at' => $now]);
         DB::table('tasks')->updateOrInsert(['title' => 'DEMO: Review follow-up case list'], ['case_id' => DB::table('cases')->where('case_number', 'DEMO-KLG-2026-0002')->value('id'), 'assigned_to' => $worker, 'due_at' => $now->copy()->addDay(), 'status' => 'open', 'created_at' => $now, 'updated_at' => $now]);
         DB::table('notifications')->updateOrInsert(['user_id' => $worker, 'title' => 'Demo data ready'], ['type' => 'demo_seed', 'body' => 'Fictional presentation cases, tasks, referrals, and planning records are ready to review.', 'action_url' => '/cases', 'read_at' => null, 'created_at' => $now, 'updated_at' => $now]);

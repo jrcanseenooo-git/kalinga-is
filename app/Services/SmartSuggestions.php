@@ -63,23 +63,29 @@ class SmartSuggestions
             $due = Carbon::parse($accepted ? $ref->accepted_at : ($ref->referred_at ?? $ref->created_at))->addDays($accepted ? $targets['completion_days'] : $targets['response_days']);
             if ($due->isPast()) {
                 $add('referral', 'urgent', (int) $ref->case_id, $accepted ? 'Service completion is overdue' : 'No response to a referral yet',
-                    'Follow up with ' . ($ref->referred_to ?: 'the receiving office') . ' on ' . strtolower($ref->service_category) . ' (due ' . $due->timezone('Asia/Manila')->format('M j') . ').', 'monitoring');
+                    'Follow up with ' . ($ref->referred_to ?: 'the receiving office') . ' on ' . strtolower($ref->service_category) . ' (due ' . $due->timezone('Asia/Manila')->format('M j') . ').', 'notes');
             }
         }
 
-        // 2. High or critical risk without a safety reassessment in the last 7 days.
-        $latestRisk = DB::table('risk_assessments')->whereIn('case_id', $caseIds)->select('case_id', DB::raw('MAX(assessed_at) as last_at'))->groupBy('case_id')->pluck('last_at', 'case_id');
-        foreach (DB::table('cases')->whereIn('id', $caseIds)->whereIn('initial_risk_level', ['high', 'critical'])->get(['id', 'opened_at']) as $case) {
-            $last = $latestRisk[$case->id] ?? null;
-            if (!$last || Carbon::parse($last)->lt(now()->subDays(7))) {
-                $add('safety', 'urgent', (int) $case->id, 'High-risk case needs a safety review', $last ? 'Last safety assessment was more than 7 days ago.' : 'No safety and risk assessment recorded since intake.', 'safety');
-            }
+        // 2. KaVAT: none finalized yet (urgent when the intake rated the risk high or critical).
+        $kavatDone = DB::table('kavat_assessments')->whereIn('case_id', $caseIds)->where('status', 'final')->distinct()->pluck('case_id')->all();
+        $kavatDraft = DB::table('kavat_assessments')->whereIn('case_id', $caseIds)->where('status', 'draft')->distinct()->pluck('case_id')->all();
+        foreach (DB::table('cases')->whereIn('id', $caseIds)->whereNotIn('id', $kavatDone)->get(['id', 'initial_risk_level']) as $case) {
+            $high = in_array($case->initial_risk_level, ['high', 'critical'], true);
+            $add('kavat', $high ? 'urgent' : 'action', (int) $case->id, in_array($case->id, $kavatDraft) ? 'Finish the baseline KaVAT' : 'Administer the baseline KaVAT',
+                $high ? 'The intake rated the risk ' . $case->initial_risk_level . '.' : 'Every case starts with a KaVAT.', 'kavat');
         }
-
-        // 3. Opened more than 7 days ago with no comprehensive assessment.
-        $assessed = DB::table('case_assessments')->whereIn('case_id', $caseIds)->distinct()->pluck('case_id')->all();
-        foreach (DB::table('cases')->whereIn('id', $caseIds)->where('opened_at', '<', now()->subDays(7))->whereNotIn('id', $assessed)->get(['id']) as $case) {
-            $add('assessment', 'action', (int) $case->id, 'Start the comprehensive assessment', 'The case was opened over a week ago and has no assessment yet.', 'assessment');
+        // 3. Remarks from the supervisor or monitors not yet read.
+        foreach (DB::table('case_remarks')->whereIn('case_id', $caseIds)->whereNull('parent_id')->whereNull('acknowledged_at')->select('case_id', DB::raw('COUNT(*) as total'))->groupBy('case_id')->get() as $row) {
+            $add('remark', 'urgent', (int) $row->case_id, 'Read the remarks on this case', $row->total . ' unread ' . ((int) $row->total === 1 ? 'remark' : 'remarks') . ' from your supervisor or monitors.', 'overview');
+        }
+        // Kalinga forms: Case Summary after a week, Intervention Plan after two weeks.
+        $written = DB::table('case_forms')->whereIn('case_id', $caseIds)->get(['case_id', 'form_type'])->groupBy('form_type')->map(fn ($rows) => $rows->pluck('case_id')->all());
+        foreach (DB::table('cases')->whereIn('id', $caseIds)->where('opened_at', '<', now()->subDays(7))->whereNotIn('id', $written['summary'] ?? [])->get(['id']) as $case) {
+            $add('forms', 'action', (int) $case->id, 'Write the Case Summary Report', 'The case was opened over a week ago.', 'forms');
+        }
+        foreach (DB::table('cases')->whereIn('id', $caseIds)->where('opened_at', '<', now()->subDays(14))->whereNotIn('id', $written['plan'] ?? [])->get(['id']) as $case) {
+            $add('forms', 'action', (int) $case->id, 'Write the Intervention Plan', 'The case was opened over two weeks ago and has no plan yet.', 'forms');
         }
 
         // 4. No progress note in 30 days.
@@ -87,13 +93,8 @@ class SmartSuggestions
         foreach ($caseIds as $case) {
             $last = $lastNote[$case] ?? null;
             if (!$last || Carbon::parse($last)->lt(now()->subDays(30))) {
-                $add('stale', 'info', (int) $case, 'No progress note in 30 days', $last ? 'Record the latest contact or monitoring visit.' : 'No progress note recorded yet.', 'monitoring');
+                $add('stale', 'info', (int) $case, 'No progress note in 30 days', $last ? 'Record the latest contact or monitoring visit.' : 'No progress note recorded yet.', 'notes');
             }
-        }
-
-        // 5. Care plan review due within 7 days.
-        foreach (DB::table('case_plans')->whereIn('case_id', $caseIds)->where('is_current', true)->whereNotNull('review_due_at')->where('review_due_at', '<=', now()->addDays(7)->toDateString())->get(['case_id', 'review_due_at']) as $plan) {
-            $add('plan', 'action', (int) $plan->case_id, 'Care plan review is due', 'Review due ' . Carbon::parse($plan->review_due_at)->format('M j') . '.', 'care');
         }
 
         $order = ['urgent' => 0, 'action' => 1, 'info' => 2];

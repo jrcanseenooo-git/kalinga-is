@@ -11,11 +11,16 @@ use App\Models\User;
 class RolePermissions
 {
     public const ROLES = [
-        'system_admin' => ['System Administrator', 'Accounts, configuration, audit and retention administration; no substantive casework access.'],
-        'social_worker' => ['Social Worker / Case Manager', 'Owns assigned CEFMU casework: intake, assessment, planning, intervention, referral, monitoring, closure.'],
+        'system_admin' => ['System Administrator', 'IT administration only: accounts, LGU registry, form builder, audit logs and system settings. No case records.'],
+        'project_manager' => ['Project Manager', 'Kalinga project team (Central Office / STB): monitors the project in all regions or in assigned regions, approves accounts, manages the LGU registry and office profiles. Sees cases with secured names only.'],
+        'fo_user' => ['Field Office User', 'Field Office Social Technology Unit: monitors the project in its own region. Sees cases with secured names only and can add remarks.'],
+        'lgu_head' => ['LGU Head / Supervisor', 'Monitors the CEFMU cases of the case managers in the LGU, adds remarks and approves case closure. Holds no cases.'],
+        'social_worker' => ['Case Manager', 'Owns assigned CEFMU cases: intake, KaVAT, Kalinga forms, progress notes and referrals, closure and aftercare.'],
         'cpu_member' => ['CPU Member', 'Multidisciplinary team member with discipline-specific access; participates in case conferences and CPU coordination.'],
-        'fo_user' => ['Field Office User', 'Regional casework oversight within assigned province.'],
     ];
+
+    /** Roles that monitor cases (secured names, read-only, remarks) instead of holding them. */
+    public const MONITORING_ROLES = ['project_manager', 'fo_user', 'lgu_head'];
 
     public const CPU_DISCIPLINES = [
         'lea' => 'Law Enforcement Agent (LEA)',
@@ -41,14 +46,32 @@ class RolePermissions
         'mdt.assign', 'mdt.manage', 'mdt.access', 'mdt.note.create', 'mdt.discussion.create',
         'cpu.chat.view', 'cpu.chat.post', 'cpu.chat.search', 'cpu.chat.capture', 'cpu.chat.manage',
         'lgu.profile.view', 'lgu.profile.manage',
+        'cases.monitor', 'cases.remark', 'closure.approve', 'users.approve', 'lgu.registry.view', 'lgu.registry.manage',
         'identity.candidates.view', 'identity.review', 'identity.link', 'identity.merge.approve', 'identity.merge.execute', 'identity.merge.history.view', 'assessments.legacy.reconcile',
+        // Phase 7: form options and user feedback; Phase 8: Connect across regions.
+        'options.manage', 'feedback.review', 'connect.network',
     ];
 
+    private const MONITOR = ['cases.monitor', 'cases.remark', 'analytics.view', 'analytics.export', 'analytics.quarterly', 'management.dashboard.view', 'management.report.export',
+        'activities.manage', 'cpu.chat.view', 'cpu.chat.post', 'cpu.chat.search'];
+
     private const GRANTS = [
-        'system_admin' => ['lgu.profile.view', 'lgu.profile.manage', 'admin.manage', 'audits.view', 'retention.manage', 'analytics.view', 'analytics.export', 'analytics.quarterly', 'management.dashboard.view', 'management.report.export', 'cpu.chat.view', 'cpu.chat.manage'],
+        'system_admin' => ['admin.manage', 'audits.view', 'retention.manage', 'users.approve', 'lgu.registry.view', 'lgu.registry.manage',
+            'analytics.view', 'analytics.export', 'analytics.quarterly', 'management.dashboard.view', 'management.report.export', 'cpu.chat.view', 'cpu.chat.manage',
+            'options.manage', 'feedback.review'],
+        'project_manager' => [...self::MONITOR, 'users.approve', 'lgu.registry.view', 'lgu.registry.manage', 'lgu.profile.view', 'lgu.profile.manage',
+            'options.manage', 'feedback.review', 'connect.network'],
+        'fo_user' => [...self::MONITOR, 'lgu.registry.view', 'lgu.profile.view'],
+        // The LGU Head supervises: reads the LGU's cases, approves closure and the
+        // other second-person reviews, reassigns cases; never writes case content.
+        'lgu_head' => [...self::MONITOR, 'closure.approve', 'cases.view', 'cases.assign', 'cases.close', 'documents.download', 'reports.social.generate',
+            'assessments.review', 'plans.review', 'participation.review', 'conferences.review', 'transfers.manage',
+            'assessments.restricted_view', 'participation.restricted_view',
+            'identity.candidates.view', 'identity.review', 'identity.link', 'identity.merge.approve', 'identity.merge.execute', 'identity.merge.history.view',
+            'records.classify', 'records.restricted_view', 'records.retention.review', 'records.hold.manage', 'records.disposition.propose', 'records.disposition.review', 'records.disposition.approve', 'records.disclosure.record'],
         'social_worker' => [
             'reports.create', 'reports.view', 'reports.screen', 'reports.validate', 'reports.accept', 'reports.reject',
-            'risk.assess', 'cases.view', 'cases.create', 'cases.update', 'cases.archive', 'cases.assign', 'cases.close', 'cases.reopen', 'cases.note',
+            'risk.assess', 'cases.view', 'cases.create', 'cases.update', 'cases.archive', 'cases.assign', 'cases.close', 'cases.reopen', 'cases.note', 'cases.remark',
             'relationships.manage', 'consents.record', 'plans.manage',
             'referrals.view', 'referrals.create', 'referrals.respond', 'referrals.close',
             'documents.upload', 'documents.download', 'documents.delete',
@@ -61,14 +84,8 @@ class RolePermissions
             'mdt.access', 'mdt.note.create', 'mdt.discussion.create',
             'cpu.chat.view', 'cpu.chat.post', 'cpu.chat.search', 'cpu.chat.capture',
             'referrals.respond',
-        ],
-        'fo_user' => [
-            'reports.create', 'reports.view', 'risk.assess',
-            'cases.view', 'cases.update', 'cases.assign', 'cases.close', 'cases.reopen', 'cases.note',
-            'referrals.view', 'referrals.respond',
-            'documents.upload', 'documents.download',
-            'activities.manage', 'analytics.view', 'analytics.export', 'analytics.quarterly',
-            'mdt.assign', 'mdt.manage', 'lgu.profile.view',
+            // Calendar: to see and answer invitations to shared activities (Phase 5).
+            'activities.manage',
         ],
     ];
 
@@ -77,7 +94,7 @@ class RolePermissions
         if ($permission === 'assessments.manage' && $this->isCaseworkRole($user)) {
             return true;
         }
-        if ($permission === 'assessments.review' && in_array($user->role, ['social_worker', 'fo_user'], true)) {
+        if ($permission === 'assessments.review' && $user->role === 'social_worker') {
             return true;
         }
         if ($permission === 'assessments.restricted_view' && $this->isCaseworkRole($user)) {
@@ -86,37 +103,37 @@ class RolePermissions
         if ($permission === 'participation.manage' && $this->isCaseworkRole($user)) {
             return true;
         }
-        if ($permission === 'participation.review' && in_array($user->role, ['social_worker', 'fo_user'], true)) {
+        if ($permission === 'participation.review' && $user->role === 'social_worker') {
             return true;
         }
         if ($permission === 'participation.restricted_view' && $this->isCaseworkRole($user)) {
             return true;
         }
-        if ($permission === 'plans.review' && in_array($user->role, ['social_worker', 'fo_user'], true)) {
+        if ($permission === 'plans.review' && $user->role === 'social_worker') {
             return true;
         }
-        if ($permission === 'transfers.manage' && in_array($user->role, ['social_worker', 'fo_user'], true)) {
+        if ($permission === 'transfers.manage' && $user->role === 'social_worker') {
             return true;
         }
         if ($permission === 'conferences.manage' && $this->isCaseworkRole($user)) {
             return true;
         }
-        if ($permission === 'conferences.review' && in_array($user->role, ['social_worker', 'fo_user'], true)) {
+        if ($permission === 'conferences.review' && $user->role === 'social_worker') {
             return true;
         }
         if ($permission === 'identity.candidates.view' && $this->isCaseworkRole($user)) {
             return true;
         }
-        if (in_array($permission, ['identity.review', 'identity.link', 'identity.merge.approve', 'identity.merge.execute', 'identity.merge.history.view', 'assessments.legacy.reconcile'], true) && in_array($user->role, ['social_worker', 'fo_user'], true)) {
+        if (in_array($permission, ['identity.review', 'identity.link', 'identity.merge.approve', 'identity.merge.execute', 'identity.merge.history.view', 'assessments.legacy.reconcile'], true) && $user->role === 'social_worker') {
             return true;
         }
         if ($permission === 'records.classify' && $this->isCaseworkRole($user)) {
             return true;
         }
-        if ($permission === 'records.restricted_view' && in_array($user->role, ['social_worker', 'fo_user'], true)) {
+        if ($permission === 'records.restricted_view' && $user->role === 'social_worker') {
             return true;
         }
-        if (in_array($permission, ['records.retention.review', 'records.hold.manage', 'records.disposition.propose', 'records.disposition.review', 'records.disposition.approve', 'records.disclosure.record'], true) && in_array($user->role, ['social_worker', 'fo_user'], true)) {
+        if (in_array($permission, ['records.retention.review', 'records.hold.manage', 'records.disposition.propose', 'records.disposition.review', 'records.disposition.approve', 'records.disclosure.record'], true) && $user->role === 'social_worker') {
             return true;
         }
 
@@ -135,7 +152,7 @@ class RolePermissions
         }
 
         $permissions = self::GRANTS[$role] ?? [];
-        if (in_array($role, ['social_worker', 'fo_user'], true)) {
+        if ($role === 'social_worker') {
             $permissions[] = 'assessments.manage';
             $permissions[] = 'assessments.restricted_view';
             $permissions[] = 'participation.manage';
@@ -156,9 +173,21 @@ class RolePermissions
         return array_values(array_unique($permissions));
     }
 
+    /** The case manager role: owns and writes case content. */
     public function isCaseworkRole(User $user): bool
     {
-        return $this->allows($user, 'cases.view');
+        return $user->role === 'social_worker' && in_array('cases.view', self::GRANTS['social_worker'], true);
+    }
+
+    /** Display name of a role, for example "Case Manager". */
+    public static function label(?string $role): string
+    {
+        return self::ROLES[$role][0] ?? ucwords(str_replace('_', ' ', (string) $role));
+    }
+
+    public function isMonitoringRole(User $user): bool
+    {
+        return in_array($user->role, self::MONITORING_ROLES, true);
     }
 
     public function isFieldWorker(User $user): bool
@@ -170,6 +199,6 @@ class RolePermissions
     public function canViewAggregateOnly(User $user): bool
     {
         return $this->allows($user, 'analytics.view')
-            && $user->role === 'system_admin';
+            && ($user->role === 'system_admin' || $this->isMonitoringRole($user));
     }
 }

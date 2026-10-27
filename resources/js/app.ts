@@ -7,6 +7,9 @@ import { createInertiaApp, router } from '@inertiajs/vue3';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createApp, DefineComponent, h } from 'vue';
 import { ZiggyVue } from '../../vendor/tightenco/ziggy';
+import { applyOptionSets, type Option } from '@/utils/caseOptions';
+
+type WithOptionSets = { optionSets?: Record<string, Option[]> | null };
 
 protectBrowserHistory();
 
@@ -22,7 +25,10 @@ router.on('invalid', (event) => {
     }
 });
 
-router.on('navigate', event => { void prepareFieldApp(event.detail.page.props).catch(() => undefined); });
+router.on('navigate', event => {
+    applyOptionSets((event.detail.page.props as WithOptionSets).optionSets);
+    void prepareFieldApp(event.detail.page.props).catch(() => undefined);
+});
 
 const appName = import.meta.env.VITE_APP_NAME || 'Kalinga';
 
@@ -34,6 +40,8 @@ createInertiaApp({
             import.meta.glob<DefineComponent>('./Pages/**/*.vue'),
         ),
     setup({ el, App, props, plugin }) {
+        // Lists edited in Administration > Form options replace the built-in dropdown lists.
+        applyOptionSets((props.initialPage.props as WithOptionSets).optionSets);
         createApp({ render: () => h(App, props) })
             .use(plugin)
             .use(ZiggyVue)

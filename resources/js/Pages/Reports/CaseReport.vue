@@ -2,6 +2,8 @@
 import { Head, router } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 import CaseSummaryBody from '@/Components/Reports/CaseSummaryBody.vue';
+import KalingaFormBody from '@/Components/Reports/KalingaFormBody.vue';
+import KalingaPlanBody from '@/Components/Reports/KalingaPlanBody.vue';
 import IntakeSheetBody from '@/Components/Reports/IntakeSheetBody.vue';
 import InterventionPlanBody from '@/Components/Reports/InterventionPlanBody.vue';
 import ProgressNotesBody from '@/Components/Reports/ProgressNotesBody.vue';
@@ -14,7 +16,10 @@ const props = defineProps<ReportProps>();
 const nameMode = ref<NameMode>('masked');
 const reveal = computed(() => nameMode.value === 'full');
 const clientName = computed(() => clientDisplayName(props.client, nameMode.value));
-const body = computed(() => ({ intake: IntakeSheetBody, notes: ProgressNotesBody, plan: InterventionPlanBody, summary: CaseSummaryBody, study: CaseSummaryBody })[props.type]);
+// A Kalinga form the case manager wrote is printed as written; otherwise the report is assembled from the record.
+const written = computed(() => Boolean(props.form?.hasContent));
+const body = computed(() => ({ intake: IntakeSheetBody, notes: ProgressNotesBody, plan: written.value ? KalingaPlanBody : InterventionPlanBody,
+  summary: written.value ? KalingaFormBody : CaseSummaryBody, study: written.value ? KalingaFormBody : CaseSummaryBody })[props.type]);
 const subtitle = computed(() => ({ intake: 'General Intake Sheet', notes: 'Case management progress notes', plan: 'Intervention plan and contract', summary: '', study: '' })[props.type] || undefined);
 
 // Progress notes: optional period covered.

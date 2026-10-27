@@ -33,9 +33,9 @@ class CaseReports
 {
     public const TYPES = [
         'intake' => 'Kalinga Intake Sheet',
+        'summary' => 'Case Summary Report',
         'notes' => 'Progress Notes',
         'plan' => 'Intervention Plan',
-        'summary' => 'Case Summary Report',
         'study' => 'Social Case Study Report',
     ];
 
@@ -81,12 +81,38 @@ class CaseReports
                     'street' => $member->same_address_as_client ? null : $member->house_no_street]),
         ];
 
-        return $data + match ($type) {
+        return $data + $this->workingForm($case->id, $type) + match ($type) {
             'intake' => $this->intake($case),
             'notes' => $this->notes($case->id, $period),
             'plan' => $this->plan($case->id),
             default => $this->summary($case->id),
         };
+    }
+
+    /**
+     * The Kalinga form the case manager wrote for this report (Case Summary,
+     * Intervention Plan matrix, Social Case Study Report), with its section
+     * titles. The report prints the form when it has content and falls back
+     * to the record otherwise. The case study also prints the plan matrix.
+     */
+    private function workingForm(int $caseId, string $type): array
+    {
+        if (!isset(CaseForms::TYPES[$type])) {
+            return [];
+        }
+        $forms = CaseForms::forCase($caseId);
+        $definition = CaseForms::definition();
+        $form = $forms[$type];
+        $latest = DB::table('kavat_assessments')->where('case_id', $caseId)->where('status', 'final')->orderByDesc('administered_at')->orderByDesc('id')
+            ->first(['administered_at', 'occasion', 'empowerment_rate', 'safety_rate', 'final_score', 'priority']);
+
+        return [
+            'form' => ['status' => $form['status'], 'version' => $form['versions'][0]->version ?? null, 'content' => $form['content'], 'hasContent' => CaseForms::hasContent($type, $form['content']),
+                'sections' => $definition['sections'][$type] ?? [], 'planColumns' => CaseForms::PLAN_COLUMNS],
+            'planMatrix' => $type === 'study' ? $forms['plan']['content']['rows'] : null,
+            'kavat' => $latest ? (array) $latest + ['priority_label' => Kavat::priorityLabel($latest->priority)] : null,
+            'grants' => in_array($type, ['summary', 'study'], true) ? CaseGrants::forCase($caseId) : null,
+        ];
     }
 
     private function caseInfo(object $case): array

@@ -177,6 +177,11 @@ export const REFERRAL_PURPOSES: Record<string, string[]> = {
   NCMF: ['Coordination with Muslim religious leaders', 'Shari\'a court coordination', 'Community intervention'],
   'NGO / civil society organization': ['Psychosocial support', 'Educational assistance', 'Livelihood / skills training', 'Shelter / temporary placement'],
 };
+/** CPU (LGU Child Protection Unit) recipients; everything else is an external agency. */
+export const CPU_RECIPIENTS = REFERRAL_RECIPIENTS[0].options;
+export const EXTERNAL_RECIPIENTS = REFERRAL_RECIPIENTS.slice(1).flatMap((group) => group.options);
+export const isCpuReferral = (referral: { lgu_cpu_member_id?: number | null; referred_to?: string | null }) =>
+  Boolean(referral.lgu_cpu_member_id) || CPU_RECIPIENTS.includes(referral.referred_to ?? '');
 export const purposesFor = (recipient?: string | null): string[] => (recipient && REFERRAL_PURPOSES[recipient]) || DEFAULT_PURPOSES;
 
 /** Services given to the child or family (earlier Kalinga "Services provided"). */
@@ -193,13 +198,39 @@ export const SERVICE_TYPES: (Option & { amount: boolean; detail: string })[] = [
   { value: 'Other', label: 'Other service', amount: false, detail: 'Describe the service' },
 ];
 
+/** Disability or support need (intake). Codes are stored; labels can be edited in Form options. */
+export const DISABILITY_TYPES: Option[] = [
+  { value: 'no_support_need_declared', label: 'No disability support need declared' }, { value: 'deaf_hard_of_hearing', label: 'Deaf / hard of hearing' },
+  { value: 'intellectual_disability', label: 'Intellectual disability' }, { value: 'learning_disability', label: 'Learning disability' },
+  { value: 'mental_disability', label: 'Mental disability' }, { value: 'physical_disability', label: 'Physical disability' },
+  { value: 'psychosocial_disability', label: 'Psychosocial disability' }, { value: 'speech_language_impairment', label: 'Speech and language impairment' },
+  { value: 'visual_disability', label: 'Visual disability' }, { value: 'cancer', label: 'Cancer' }, { value: 'rare_disease', label: 'Rare disease' },
+];
+
+/**
+ * Lists edited by the administrator (Administration > Form options) arrive
+ * with every page as `optionSets`. They replace the built-in lists above in
+ * place, so every form uses them; without them (or offline before the first
+ * load) the built-in lists stay.
+ */
+const OVERRIDABLE: Record<string, Option[]> = {} as Record<string, Option[]>;
+export function applyOptionSets(sets: Record<string, Option[]> | null | undefined): void {
+  if (!sets) return;
+  for (const [name, options] of Object.entries(sets)) {
+    const target = OVERRIDABLE[name];
+    if (target && Array.isArray(options) && options.length) target.splice(0, target.length, ...options.map(option => ({ value: String(option.value), label: String(option.label), ...(option.hint ? { hint: String(option.hint) } : {}) })));
+  }
+}
+
 /** Progress note types; "referral" and "service" open their own fields. */
 export const NOTE_TYPES: Option[] = [
   { value: 'contact', label: 'Contact / home visit' },
   { value: 'monitoring', label: 'Monitoring' },
-  { value: 'referral', label: 'Referral to CPU member / agency' },
+  { value: 'referral', label: 'Referral' },
   { value: 'service_delivery', label: 'Service provided' },
   { value: 'coordination', label: 'Coordination' },
   { value: 'case_review', label: 'Case review' },
   { value: 'other', label: 'Other' },
 ];
+
+Object.assign(OVERRIDABLE, { RELATIONSHIPS, CIVIL_STATUSES, RELIGIONS, IP_MEMBERSHIP, EDUCATION_LEVELS, OCCUPATIONS, REFERRAL_SOURCES, VISIT_LOCATIONS, SERVICE_CATEGORIES, PARTNER_AGENCIES, DISABILITY_TYPES });

@@ -18,5 +18,9 @@ class OperationalNotification
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+        // Wake the user's phones after the response is sent (no content travels in the push).
+        if (WebPush::enabled()) {
+            dispatch(fn () => WebPush::notify($userId))->afterResponse();
+        }
     }
 }

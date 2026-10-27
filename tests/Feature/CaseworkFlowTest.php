@@ -66,7 +66,7 @@ class CaseworkFlowTest extends TestCase
         $worker = User::factory()->create(['role' => 'social_worker']);
         $client = DB::table('clients')->insertGetId(['first_name' => 'Dashboard', 'last_name' => 'Client', 'created_at' => now(), 'updated_at' => now()]);
         DB::table('cases')->insert(['case_number' => 'KLG-2026-00005', 'client_id' => $client, 'assigned_to' => $worker->id, 'status' => 'OPEN', 'stage' => 'intake', 'priority' => 'normal', 'opened_at' => now(), 'created_at' => now(), 'updated_at' => now()]);
-        $this->actingAs($worker)->get(route('dashboard'))->assertOk()->assertSee('Dashboard')->assertSee('Client');
+        $this->actingAs($worker)->get(route('dashboard'))->assertOk()->assertSee('Dashboard')->assertSee('KLG-2026-00005')->assertDontSee('Dashboard Client');
     }
 
     public function test_non_social_worker_dashboard_does_not_receive_lgu_worker_workload(): void
@@ -74,6 +74,8 @@ class CaseworkFlowTest extends TestCase
         $fieldOffice = User::factory()->create(['role' => 'fo_user', 'province' => 'Kalinga']);
         $client = DB::table('clients')->insertGetId(['first_name' => 'Scoped', 'last_name' => 'Client', 'province' => 'Kalinga', 'created_at' => now(), 'updated_at' => now()]);
         DB::table('cases')->insert(['case_number' => 'KLG-2026-00006', 'client_id' => $client, 'assigned_to' => $fieldOffice->id, 'status' => 'OPEN', 'stage' => 'intake', 'priority' => 'normal', 'opened_at' => now(), 'created_at' => now(), 'updated_at' => now()]);
-        $this->actingAs($fieldOffice)->get(route('dashboard'))->assertOk()->assertInertia(fn ($page) => $page->where('lguWorkload', null));
+        // Monitoring roles get their own to-do list, never a case manager's workload or case list.
+        $this->actingAs($fieldOffice)->get(route('dashboard'))->assertOk()->assertInertia(fn ($page) => $page->component('Dashboard')
+            ->where('metrics.activeCases', null)->has('actionQueue', 0)->has('suggestions', 0))->assertDontSee('KLG-2026-00006');
     }
 }

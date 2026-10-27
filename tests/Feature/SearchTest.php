@@ -32,14 +32,10 @@ class SearchTest extends TestCase
             ->assertOk()->assertJsonCount(0, 'reports');
     }
 
-    public function test_field_office_search_does_not_cross_province_boundary(): void
+    public function test_monitoring_roles_cannot_use_the_case_manager_search(): void
     {
-        $fieldOffice = User::factory()->create(['role' => 'fo_user', 'province' => 'Kalinga']);
-        $otherProvinceClient = $this->client('Province', 'Boundary', 'Abra');
-        $this->caseFor($otherProvinceClient, $fieldOffice, 'KLG-2026-ABRA-1');
-
-        $this->actingAs($fieldOffice)->getJson(route('search', ['q' => 'Province']))
-            ->assertOk()->assertJsonCount(0, 'cases');
+        $fieldOffice = User::factory()->create(['role' => 'fo_user', 'region' => 'Cordillera Administrative Region (CAR)']);
+        $this->actingAs($fieldOffice)->getJson(route('search', ['q' => 'Province']))->assertForbidden();
     }
 
     public function test_municipal_worker_search_does_not_cross_lgu_report_boundary(): void

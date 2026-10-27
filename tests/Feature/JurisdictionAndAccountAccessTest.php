@@ -51,7 +51,7 @@ class JurisdictionAndAccountAccessTest extends TestCase
         $this->actingAs($inactive)->get(route('dashboard'))->assertRedirect(route('login'));
     }
 
-    public function test_administrator_must_submit_a_valid_psgc_jurisdiction_hierarchy(): void
+    public function test_field_office_accounts_need_a_valid_psgc_region_and_keep_no_lower_level(): void
     {
         $administrator = User::factory()->create(['role' => 'system_admin']);
         $worker = User::factory()->create(['role' => 'social_worker']);
@@ -60,11 +60,34 @@ class JurisdictionAndAccountAccessTest extends TestCase
             'role' => 'fo_user', 'active' => true,
             'region' => 'Cordillera Administrative Region (CAR)', 'province' => 'Kalinga', 'municipality' => 'City of Tabuk',
         ])->assertRedirect();
-        $this->assertDatabaseHas('users', ['id' => $worker->id, 'municipality' => 'City of Tabuk']);
+        $this->assertDatabaseHas('users', ['id' => $worker->id, 'region' => 'Cordillera Administrative Region (CAR)', 'province' => null, 'municipality' => null]);
 
-        $this->actingAs($administrator)->patch(route('admin.users.update', $worker), [
-            'role' => 'fo_user', 'active' => true,
-            'region' => 'Cordillera Administrative Region (CAR)', 'province' => 'Kalinga', 'municipality' => 'Caloocan City',
-        ])->assertSessionHasErrors('municipality');
+        $this->actingAs($administrator)->patch(route('admin.users.update', $worker), ['role' => 'fo_user', 'active' => true, 'region' => 'Not a PSGC region'])->assertSessionHasErrors('region');
+        $this->actingAs($administrator)->patch(route('admin.users.update', $worker), ['role' => 'fo_user', 'active' => true])->assertStatus(422);
+    }
+
+    public function test_project_manager_manages_only_field_accounts_in_their_regions(): void
+    {
+        $car = DB::table('lgu_units')->insertGetId(['psgc_code' => 'SYN-CAR-1', 'name' => 'Synthetic CAR Town', 'province' => 'Kalinga', 'region' => 'Cordillera Administrative Region (CAR)', 'active' => true, 'created_at' => now(), 'updated_at' => now()]);
+        $r8 = DB::table('lgu_units')->insertGetId(['psgc_code' => 'SYN-R8-1', 'name' => 'Synthetic Leyte Town', 'province' => 'Leyte', 'region' => 'Region VIII (Eastern Visayas)', 'active' => true, 'created_at' => now(), 'updated_at' => now()]);
+        $manager = User::factory()->create(['role' => 'project_manager', 'region_scope' => ['Cordillera Administrative Region (CAR)']]);
+        $inside = User::factory()->create(['role' => 'cpu_member']);
+        $outside = User::factory()->create(['role' => 'cpu_member']);
+        foreach ([[$inside, $car], [$outside, $r8]] as [$user, $lgu]) {
+            DB::table('user_lgu_assignments')->insert(['user_id' => $user->id, 'lgu_id' => $lgu, 'active' => true, 'effective_from' => now()->subDay(), 'created_at' => now(), 'updated_at' => now()]);
+        }
+        $pending = User::factory()->create(['role' => 'cpu_member', 'active' => false, 'account_status' => 'pending', 'requested_role' => 'cpu_member', 'region' => 'Cordillera Administrative Region (CAR)']);
+        $pendingElsewhere = User::factory()->create(['role' => 'cpu_member', 'active' => false, 'account_status' => 'pending', 'requested_role' => 'cpu_member', 'region' => 'Region VIII (Eastern Visayas)']);
+
+        $this->actingAs($manager)->get(route('admin.index'))->assertOk()->assertInertia(fn ($page) => $page
+            ->where('users', fn ($users) => collect($users)->pluck('id')->contains($inside->id) && !collect($users)->pluck('id')->contains($outside->id))
+            ->where('pendingRegistrations', fn ($rows) => collect($rows)->pluck('id')->all() === [$pending->id]));
+        $this->post(route('admin.registrations.approve', $pending), ['role' => 'cpu_member'])->assertRedirect();
+        $this->assertDatabaseHas('users', ['id' => $pending->id, 'account_status' => 'approved', 'active' => true]);
+        $this->post(route('admin.registrations.approve', $pendingElsewhere), ['role' => 'cpu_member'])->assertNotFound();
+        $this->post(route('admin.registrations.approve', $pending), ['role' => 'system_admin'])->assertSessionHasErrors('role');
+        $this->patch(route('admin.users.update', $outside), ['role' => 'cpu_member', 'active' => false])->assertNotFound();
+        $this->get(route('admin.forms'))->assertForbidden();
+        $this->get(route('admin.audits'))->assertForbidden();
     }
 }

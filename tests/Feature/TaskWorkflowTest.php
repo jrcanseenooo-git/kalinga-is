@@ -19,7 +19,8 @@ class TaskWorkflowTest extends TestCase
 
         $this->actingAs($owner)->post(route('tasks.store'), ['title' => 'Schedule follow-up', 'case_id' => $case, 'due_at' => '2026-10-01 09:00'])->assertRedirect();
         $this->assertDatabaseHas('tasks', ['title' => 'Schedule follow-up', 'case_id' => $case, 'assigned_to' => $owner->id, 'status' => 'open']);
-        $this->assertDatabaseHas('notifications', ['user_id' => $owner->id, 'type' => 'task_assigned']);
+        // The organizer is not notified of their own activity (it would wake their phone); the history records it.
+        $this->assertDatabaseHas('task_history', ['actor_id' => $owner->id, 'event' => 'created']);
         $task = DB::table('tasks')->value('id');
         $this->actingAs($owner)->patch(route('tasks.transition', $task), ['status' => 'completed'])->assertRedirect();
         $this->assertDatabaseHas('tasks', ['id' => $task, 'status' => 'completed']);

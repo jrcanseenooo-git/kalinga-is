@@ -108,7 +108,7 @@ class SystemAuditLogTest extends TestCase
         $this->actingAs($admin)->withSession(['two_factor_confirmed' => true]);
         $this->get(route('admin.audits', ['type' => 'data_access']))->assertOk()
             ->assertInertia(fn ($page) => $page->component('Admin/Audits')->where('audits.total', 1)->where('audits.data.0.record', 'CASE-2026-001')
-                ->where('audits.data.0.user', 'Juan Dela Cruz')->where('audits.data.0.role', 'Social Worker / Case Manager')->where('audits.data.0.type', 'Data Access'));
+                ->where('audits.data.0.user', 'Juan Dela Cruz')->where('audits.data.0.role', 'Case Manager')->where('audits.data.0.type', 'Data Access'));
         $this->get(route('admin.audits', ['q' => 'juan']))->assertInertia(fn ($page) => $page->where('audits.total', 1));
         $this->get(route('admin.audits', ['record' => AuditCatalogue::logId($viewed)]))->assertInertia(fn ($page) => $page->where('audits.total', 1)->where('audits.data.0.log_id', AuditCatalogue::logId($viewed)));
         $this->get(route('admin.audits', ['role' => 'system_admin', 'module' => 'Analytics', 'action' => 'EXPORT', 'status' => 'success']))->assertInertia(fn ($page) => $page->where('audits.total', 1));

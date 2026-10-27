@@ -2,7 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\User;
+use App\Services\CalendarSharing;
 use App\Services\CaseAccessScope;
+use App\Services\CaseAssignmentEligibility;
 use App\Services\NoteReferrals;
 use App\Services\OperationalNotification;
 use App\Services\ReferenceNumberService;
@@ -11,8 +14,8 @@ use App\Services\WorkerTasks;
 use App\Support\AuditLog;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
@@ -94,13 +97,114 @@ class OperationsController extends Controller
         $startOfToday = $now->copy()->timezone('Asia/Manila')->startOfDay()->utc();
         $endOfToday = $now->copy()->timezone('Asia/Manila')->endOfDay()->utc();
 
+        $ownIds = $events->pluck('id')->all();
+        $participants = DB::table('task_participants')->join('users', 'users.id', '=', 'task_participants.user_id')->whereIn('task_participants.task_id', $ownIds ?: [0])
+            ->get(['task_participants.task_id', 'task_participants.user_id', 'task_participants.response', 'users.name'])->groupBy('task_id');
+        $history = DB::table('task_history')->join('users', 'users.id', '=', 'task_history.actor_id')->whereIn('task_history.task_id', $ownIds ?: [0])->orderBy('task_history.id')
+            ->get(['task_history.task_id', 'task_history.event', 'task_history.from_due_at', 'task_history.to_due_at', 'task_history.reason', 'task_history.created_at', 'users.name as actor'])->groupBy('task_id');
+        $events = $events->map(function ($row) use ($participants, $history) {
+            $row->participants = ($participants[$row->id] ?? collect())->map(fn ($p) => ['id' => $p->user_id, 'name' => $p->name, 'response' => $p->response])->values();
+            $row->history = ($history[$row->id] ?? collect())->values();
+            $row->shared = false;
+
+            return $row;
+        });
+
         return Inertia::render('Calendar/Index', [
-            'tasks' => $events->values(),
+            'tasks' => $events->values()->merge($this->invitedActivities($user))->values(),
             'caseEvents' => $this->caseCalendarEvents($user),
             'availableCases' => $service->cases($user)->whereNotIn('cases.status', ['CLOSED', 'ARCHIVED'])->orderByDesc('cases.updated_at')->limit(300)->get(['cases.id', 'cases.case_number']),
             'summary' => ['open' => (clone $open)->count(), 'overdue' => (clone $open)->where('tasks.due_at', '<', $now)->count(),
                 'dueToday' => (clone $open)->whereBetween('tasks.due_at', [$startOfToday, $endOfToday])->count()],
         ]);
+    }
+
+    /**
+     * Activities other users invited this user to. The case number shows only
+     * when the user may already open that case; an invitation never grants
+     * case access.
+     */
+    private function invitedActivities($user): Collection
+    {
+        $eligibility = app(CaseAssignmentEligibility::class);
+        $rows = DB::table('task_participants')->join('tasks', 'tasks.id', '=', 'task_participants.task_id')->join('users', 'users.id', '=', 'tasks.assigned_to')
+            ->leftJoin('cases', 'cases.id', '=', 'tasks.case_id')
+            ->where('task_participants.user_id', $user->id)->where('task_participants.response', '!=', 'removed')
+            ->where(fn ($q) => $q->where('tasks.status', 'open')->orWhere('tasks.updated_at', '>=', now()->subDays(90)))
+            ->get(['tasks.id', 'tasks.title', 'tasks.event_type', 'tasks.due_at', 'tasks.location', 'tasks.details', 'tasks.status', 'tasks.case_id', 'cases.case_number',
+                'cases.lgu_id', 'cases.assigned_to as case_owner', 'cases.deleted_at', 'users.name as organizer', 'task_participants.response']);
+
+        return $rows->map(function ($row) use ($user, $eligibility) {
+            $case = $row->case_id && !$row->deleted_at ? DB::table('cases')->find($row->case_id) : null;
+            $visible = $case && $eligibility->canRead($user, $case);
+
+            return (object) ['id' => $row->id, 'title' => $row->title, 'event_type' => $row->event_type, 'due_at' => $row->due_at ? Carbon::parse($row->due_at)->toIso8601String() : null,
+                'location' => $row->location, 'details' => $row->details, 'status' => $row->status, 'case_id' => $visible ? $row->case_id : null,
+                'case_number' => $visible ? $row->case_number : ($row->case_id ? 'Case-linked activity' : null),
+                'shared' => true, 'organizer' => $row->organizer, 'my_response' => $row->response, 'participants' => [], 'history' => []];
+        });
+    }
+
+    /** Users the organizer can invite (name search), for the activity form. */
+    public function inviteCandidates(Request $request)
+    {
+        $this->authorize('activities.manage');
+        $data = $request->validate(['q' => 'nullable|string|max:80']);
+
+        return response()->json(['users' => app(CalendarSharing::class)->candidates($request->user(), (string) ($data['q'] ?? ''))], 200, ['Cache-Control' => 'private, no-store']);
+    }
+
+    public function respondTask(Request $request, int $task)
+    {
+        $this->authorize('activities.manage');
+        $data = $request->validate(['response' => 'required|in:accepted,declined']);
+        $row = DB::table('task_participants')->where('task_id', $task)->where('user_id', $request->user()->id)->where('response', '!=', 'removed')->first();
+        abort_unless($row, 404);
+        $record = DB::table('tasks')->find($task);
+        abort_unless($record && $record->status === 'open', 422, 'This activity is no longer open.');
+        DB::table('task_participants')->where('id', $row->id)->update(['response' => $data['response'], 'responded_at' => now(), 'updated_at' => now()]);
+        DB::table('task_history')->insert(['task_id' => $task, 'event' => $data['response'], 'actor_id' => $request->user()->id, 'created_at' => now()]);
+        $this->notifications->send((int) $record->assigned_to, 'calendar.response', 'Invitation ' . $data['response'], $request->user()->name . ' ' . $data['response'] . ' "' . $record->title . '".', '/calendar');
+        AuditLog::record('task.' . $data['response'], 'task', $task, ['response' => $data['response']], $request->user()->id, 'success', ['description' => 'Calendar invitation ' . $data['response']]);
+
+        return back()->with('success', $data['response'] === 'accepted' ? 'You accepted the invitation.' : 'You declined the invitation.');
+    }
+
+    /** Invites new participants and removes dropped ones; returns the newly invited ids. */
+    private function syncParticipants(Request $r, int $task, array $wanted): array
+    {
+        $wanted = array_values(array_unique(array_map('intval', $wanted)));
+        abort_unless(count($wanted) <= CalendarSharing::MAX_PARTICIPANTS, 422, 'Invite up to ' . CalendarSharing::MAX_PARTICIPANTS . ' people.');
+        $current = DB::table('task_participants')->where('task_id', $task)->where('response', '!=', 'removed')->pluck('user_id')->map(fn ($id) => (int) $id)->all();
+        $added = array_values(array_diff($wanted, $current));
+        if ($added && !app(CalendarSharing::class)->canInvite($r->user(), $added)) {
+            throw ValidationException::withMessages(['participants' => 'You can invite only people who work in your area.']);
+        }
+        foreach ($added as $userId) {
+            DB::table('task_participants')->updateOrInsert(['task_id' => $task, 'user_id' => $userId], ['response' => 'pending', 'invited_by' => $r->user()->id, 'responded_at' => null, 'created_at' => now(), 'updated_at' => now()]);
+            DB::table('task_history')->insert(['task_id' => $task, 'event' => 'invited', 'actor_id' => $r->user()->id, 'reason' => DB::table('users')->where('id', $userId)->value('name'), 'created_at' => now()]);
+        }
+        $removed = array_values(array_diff($current, $wanted));
+        if ($removed) {
+            DB::table('task_participants')->where('task_id', $task)->whereIn('user_id', $removed)->update(['response' => 'removed', 'updated_at' => now()]);
+        }
+
+        return $added;
+    }
+
+    /** Tells participants and the supervisor, Field Office and Project Manager about a moved or cancelled activity. */
+    private function announceChange(Request $r, object $record, string $what, string $reason): void
+    {
+        $title = $what === 'cancelled' ? 'Activity cancelled' : 'Activity rescheduled';
+        $participants = DB::table('task_participants')->where('task_id', $record->id)->whereIn('response', ['pending', 'accepted'])->pluck('user_id')->map(fn ($id) => (int) $id)->all();
+        $owner = DB::table('users')->find($record->assigned_to);
+        $watchers = $owner ? app(CalendarSharing::class)->watchers(User::find($owner->id)) : [];
+        foreach (array_unique(array_merge($participants, $watchers)) as $userId) {
+            if ($userId === (int) $r->user()->id) {
+                continue;
+            }
+            $this->notifications->send($userId, 'calendar.' . $what, $title, ($owner->name ?? 'A user') . ' ' . $what . ' "' . $record->title . '". Reason: ' . mb_strimwidth($reason, 0, 160, '...'), '/calendar');
+        }
     }
 
     /**
@@ -147,17 +251,10 @@ class OperationsController extends Controller
         return $events;
     }
 
-    public function providers(Request $r)
-    {
-        $this->authorize('administer-system');
-
-        return Inertia::render('Providers/Index', ['items' => DB::table('service_providers')->orderBy('name')->get()]);
-    }
-
     public function storeReferral(Request $r)
     {
         $this->authorize('referrals.create');
-        $d = $r->validate(['case_id' => 'required|integer', 'service_provider_id' => ['nullable', Rule::exists('service_providers', 'id')->where('active', true)], 'service_category' => 'required|string|max:255', 'reason' => 'nullable|string|max:5000', 'lawful_basis' => 'required|in:consent,legal_obligation,vital_interests,public_task']);
+        $d = $r->validate(['case_id' => 'required|integer', 'service_category' => 'required|string|max:255', 'reason' => 'nullable|string|max:5000', 'lawful_basis' => 'required|in:consent,legal_obligation,vital_interests,public_task']);
         $this->caseAccess($r, (int) $d['case_id']);
         if ($d['lawful_basis'] === 'consent' && !$this->hasSharingConsent((int) $d['case_id'])) {
             throw ValidationException::withMessages(['lawful_basis' => 'This case has no active consent that allows sharing. Record it in the case (Client & Intake, Consent register) or choose another documented basis.']);
@@ -176,16 +273,26 @@ class OperationsController extends Controller
     {
         $this->authorize('activities.manage');
         $d = $r->validate(['title' => 'required|string|max:255', 'event_type' => 'nullable|in:' . implode(',', self::EVENT_TYPES), 'case_id' => 'nullable|integer',
-            'due_at' => 'nullable|date', 'location' => 'nullable|string|max:255', 'details' => 'nullable|string|max:2000']);
+            'due_at' => 'nullable|date', 'location' => 'nullable|string|max:255', 'details' => 'nullable|string|max:2000',
+            'participants' => 'nullable|array|max:' . CalendarSharing::MAX_PARTICIPANTS, 'participants.*' => 'integer']);
         if (!empty($d['case_id'])) {
             $this->caseAccess($r, (int) $d['case_id']);
         }
+        $participants = $d['participants'] ?? [];
+        unset($d['participants']);
         $d['due_at'] = !empty($d['due_at']) ? Carbon::parse($d['due_at'], 'Asia/Manila')->utc() : null;
-        $id = DB::table('tasks')->insertGetId($d + ['assigned_to' => $r->user()->id, 'status' => 'open', 'created_at' => now(), 'updated_at' => now()]);
-        $this->notifications->send($r->user()->id, 'task_assigned', 'Activity scheduled', 'An activity was added to your calendar.', '/calendar');
-        AuditLog::insert(['user_id' => $r->user()->id, 'event' => 'task.created', 'auditable_type' => 'task', 'auditable_id' => $id, 'created_at' => now(), 'updated_at' => now()]);
+        [$id, $invited] = DB::transaction(function () use ($d, $r, $participants) {
+            $id = DB::table('tasks')->insertGetId($d + ['assigned_to' => $r->user()->id, 'status' => 'open', 'created_at' => now(), 'updated_at' => now()]);
+            DB::table('task_history')->insert(['task_id' => $id, 'event' => 'created', 'actor_id' => $r->user()->id, 'to_due_at' => $d['due_at'], 'created_at' => now()]);
 
-        return back()->with('success', 'Activity added to your calendar.');
+            return [$id, $this->syncParticipants($r, $id, $participants)];
+        });
+        foreach ($invited as $userId) {
+            $this->notifications->send($userId, 'calendar.invited', 'Calendar invitation', $r->user()->name . ' invited you to "' . $d['title'] . '".', '/calendar');
+        }
+        AuditLog::insert(['user_id' => $r->user()->id, 'event' => 'task.created', 'auditable_type' => 'task', 'auditable_id' => $id, 'changes' => json_encode(['participants' => count($invited)]), 'created_at' => now(), 'updated_at' => now()]);
+
+        return back()->with('success', $invited ? 'Activity added and invitations sent.' : 'Activity added to your calendar.');
     }
 
     public function updateTask(Request $r, int $task)
@@ -195,37 +302,62 @@ class OperationsController extends Controller
         abort_unless($record, 403);
         abort_unless($record->status === 'open', 422, 'Only open activities can be edited.');
         $d = $r->validate(['title' => 'required|string|max:255', 'event_type' => 'nullable|in:' . implode(',', self::EVENT_TYPES), 'case_id' => 'nullable|integer',
-            'due_at' => 'nullable|date', 'location' => 'nullable|string|max:255', 'details' => 'nullable|string|max:2000']);
+            'due_at' => 'nullable|date', 'location' => 'nullable|string|max:255', 'details' => 'nullable|string|max:2000',
+            'participants' => 'nullable|array|max:' . CalendarSharing::MAX_PARTICIPANTS, 'participants.*' => 'integer', 'reason' => 'nullable|string|max:500']);
         if (!empty($d['case_id'])) {
             $this->caseAccess($r, (int) $d['case_id']);
         }
         $d['due_at'] = !empty($d['due_at']) ? Carbon::parse($d['due_at'], 'Asia/Manila')->utc() : null;
-        DB::table('tasks')->where('id', $task)->update($d + ['updated_at' => now()]);
-        AuditLog::insert(['user_id' => $r->user()->id, 'event' => 'task.updated', 'auditable_type' => 'task', 'auditable_id' => $task, 'created_at' => now(), 'updated_at' => now()]);
+        $old = $record->due_at ? Carbon::parse($record->due_at) : null;
+        $moved = ($old?->toIso8601String()) !== ($d['due_at']?->toIso8601String());
+        $reason = trim((string) ($d['reason'] ?? ''));
+        // Owner rule: moving an activity needs a reason, which is kept and shared.
+        if ($moved && $old && mb_strlen($reason) < 5) {
+            throw ValidationException::withMessages(['reason' => 'Give the reason for moving this activity (at least 5 characters).']);
+        }
+        $participants = $d['participants'] ?? null;
+        unset($d['participants'], $d['reason']);
+        $invited = DB::transaction(function () use ($d, $r, $task, $moved, $old, $reason, $participants) {
+            DB::table('tasks')->where('id', $task)->update($d + ['updated_at' => now()]);
+            if ($moved && $old) {
+                DB::table('task_history')->insert(['task_id' => $task, 'event' => 'rescheduled', 'actor_id' => $r->user()->id, 'from_due_at' => $old, 'to_due_at' => $d['due_at'], 'reason' => $reason, 'created_at' => now()]);
+            }
 
-        return back()->with('success', 'Activity updated.');
-    }
+            return $participants === null ? [] : $this->syncParticipants($r, $task, $participants);
+        });
+        foreach ($invited as $userId) {
+            $this->notifications->send($userId, 'calendar.invited', 'Calendar invitation', $r->user()->name . ' invited you to "' . $d['title'] . '".', '/calendar');
+        }
+        if ($moved && $old) {
+            $this->announceChange($r, (object) ['id' => $task, 'title' => $d['title'], 'assigned_to' => $record->assigned_to], 'rescheduled', $reason);
+            AuditLog::record('task.rescheduled', 'task', $task, ['reason' => $reason], $r->user()->id, 'success',
+                ['description' => 'Activity rescheduled: ' . mb_strimwidth($reason, 0, 120, '...'), 'old_value' => $old->timezone('Asia/Manila')->format('Y-m-d H:i'), 'new_value' => $d['due_at']?->copy()->timezone('Asia/Manila')->format('Y-m-d H:i') ?? 'No date']);
+        } else {
+            AuditLog::insert(['user_id' => $r->user()->id, 'event' => 'task.updated', 'auditable_type' => 'task', 'auditable_id' => $task, 'created_at' => now(), 'updated_at' => now()]);
+        }
 
-    public function storeProvider(Request $r)
-    {
-        $this->authorize('administer-system');
-        $d = $r->validate(['name' => 'required|string|max:255', 'service_type' => 'required|string|max:255', 'contact_person' => 'nullable|string|max:255', 'phone' => 'nullable|string|max:80', 'region' => 'nullable|string|max:120', 'province' => 'nullable|string|max:120', 'municipality' => 'nullable|string|max:120', 'barangay' => 'nullable|string|max:120']);
-        $id = DB::table('service_providers')->insertGetId($d + ['active' => true, 'created_at' => now(), 'updated_at' => now()]);
-        AuditLog::insert(['user_id' => $r->user()->id, 'event' => 'provider.created', 'auditable_type' => 'service_provider', 'auditable_id' => $id, 'created_at' => now(), 'updated_at' => now()]);
-
-        return back()->with('success', 'Service provider added to the directory.');
+        return back()->with('success', $moved && $old ? 'Activity rescheduled; the people concerned were notified.' : 'Activity updated.');
     }
 
     public function transitionTask(Request $r, int $task)
     {
         $this->authorize('activities.manage');
-        $d = $r->validate(['status' => 'required|in:open,completed,cancelled']);
+        $d = $r->validate(['status' => 'required|in:open,completed,cancelled', 'reason' => 'nullable|string|max:500']);
+        $reason = trim((string) ($d['reason'] ?? ''));
+        if ($d['status'] === 'cancelled' && mb_strlen($reason) < 5) {
+            throw ValidationException::withMessages(['reason' => 'Give the reason for cancelling this activity (at least 5 characters).']);
+        }
         $record = DB::table('tasks')->where('id', $task)->where('assigned_to', $r->user()->id)->first();
         abort_unless($record, 403);
         if ($record->case_id) {
             $this->caseAccess($r, (int) $record->case_id);
         }abort_unless($record->status === 'open' && in_array($d['status'], ['completed', 'cancelled'], true), 422, 'Invalid task transition.');
         DB::table('tasks')->where('id', $task)->update(['status' => $d['status'], 'updated_at' => now()]);
+        DB::table('task_history')->insert(['task_id' => $task, 'event' => $d['status'], 'actor_id' => $r->user()->id, 'reason' => $reason ?: null, 'created_at' => now()]);
+        if ($d['status'] === 'cancelled') {
+            $this->announceChange($r, $record, 'cancelled', $reason);
+            AuditLog::record('task.cancelled', 'task', $task, ['reason' => $reason], $r->user()->id, 'success', ['description' => 'Activity cancelled: ' . mb_strimwidth($reason, 0, 120, '...'), 'old_value' => 'open', 'new_value' => 'cancelled']);
+        }
         AuditLog::insert(['user_id' => $r->user()->id, 'event' => 'task.transitioned', 'auditable_type' => 'task', 'auditable_id' => $task, 'changes' => json_encode(['from' => 'open', 'to' => $d['status']]), 'created_at' => now(), 'updated_at' => now()]);
 
         return back()->with('success', 'Task status updated.');

@@ -4,7 +4,7 @@
     "scripts": {
         "build": "vue-tsc && vite build",
         "dev": "vite",
-        "test:frontend": "node --test tests/frontend/offlineSync.test.mjs tests/frontend/historyEncryption.test.mjs tests/frontend/philippineTime.test.mjs tests/frontend/caseSearch.test.mjs",
+        "test:frontend": "node --test tests/frontend/offlineSync.test.mjs tests/frontend/historyEncryption.test.mjs tests/frontend/philippineTime.test.mjs tests/frontend/caseSearch.test.mjs tests/frontend/kavat.test.mjs",
         "test:e2e": "playwright test",
         "test:e2e:headed": "playwright test --headed",
         "test:e2e:report": "playwright show-report"
@@ -31,7 +31,9 @@
     },
     "dependencies": {
         "@lucide/vue": "^1.48.0",
-        "qrcode": "^1.5.4"
+        "@types/topojson-client": "^3.1.5",
+        "qrcode": "^1.5.4",
+        "topojson-client": "^3.1.0"
     },
     "overrides": {
         "shell-quote": "^1.12.0"

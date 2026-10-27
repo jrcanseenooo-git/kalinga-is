@@ -1,8 +1,13 @@
 <script setup lang="ts">
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import SectionNav from '@/Components/SectionNav.vue';
-import { Head, Link } from '@inertiajs/vue3';
-import { computed } from 'vue';
+import { Head, Link, router } from '@inertiajs/vue3';
+import axios from 'axios';
+import DrillMap, { type MapLevel } from '@/Components/Analytics/DrillMap.vue';
+import TrendLinesChart from '@/Components/Charts/TrendLinesChart.vue';
+import { formatPh } from '@/utils/philippineTime';
+import { ChevronRight, FileDown } from '@lucide/vue';
+import { computed, ref } from 'vue';
 import { Sparkles } from '@lucide/vue';
 import DonutChart from '@/Components/Charts/DonutChart.vue';
 import FunnelChart from '@/Components/Charts/FunnelChart.vue';
@@ -30,7 +35,52 @@ const props = defineProps<{
   totals: Record<string, Count>;
   canExport: boolean;
   canQuarterly: boolean;
+  filters: { region: string; province: string; municipality: string; barangay: string; year: number | null; quarter: number | null };
+  level: MapLevel;
+  children: Array<{ name: string; total: number; active: number }>;
+  monthly: Array<{ label: string; opened: Count; closed: Count }>;
+  quarters: TrendRow[];
+  kavatPriority: Row[];
+  grantsTotal: number | 'Suppressed';
+  exportedBy: { name: string; at: string };
 }>();
+
+// Area and period selection: every figure on the page follows it.
+const go = (changes: Partial<typeof props.filters>) => {
+  const next = { ...props.filters, ...changes };
+  const query = Object.fromEntries(Object.entries(next).filter(([, value]) => value !== '' && value !== null && value !== undefined));
+  router.get(route('analytics.index'), query, { preserveScroll: true, preserveState: false });
+};
+const selectArea = (name: string) => {
+  const f = props.filters;
+  if (props.level === 'region') go({ region: name, province: '', municipality: '', barangay: '' });
+  else if (props.level === 'province') go({ province: name, municipality: '', barangay: '' });
+  else if (props.level === 'municipality') go({ municipality: name, barangay: '' });
+  else go({ barangay: f.barangay === name ? '' : name });
+};
+const up = () => {
+  const f = props.filters;
+  if (f.barangay) go({ barangay: '' }); else if (f.municipality) go({ municipality: '', barangay: '' }); else if (f.province) go({ province: '' }); else go({ region: '' });
+};
+const crumbs = computed(() => {
+  const f = props.filters;
+  return [{ label: 'Philippines', to: { region: '', province: '', municipality: '', barangay: '' } }, ...(f.region ? [{ label: f.region, to: { province: '', municipality: '', barangay: '' } }] : []),
+    ...(f.province ? [{ label: f.province, to: { municipality: '', barangay: '' } }] : []), ...(f.municipality ? [{ label: f.municipality, to: { barangay: '' } }] : []), ...(f.barangay ? [{ label: f.barangay, to: {} }] : [])];
+});
+const thisYear = new Date().getFullYear();
+const years = Array.from({ length: thisYear - 2023 }, (_, i) => thisYear - i);
+const periodLabel = computed(() => props.filters.year ? (props.filters.quarter ? `Q${props.filters.quarter} ${props.filters.year}` : `Year ${props.filters.year}`) : 'All time');
+const areaLabel = computed(() => crumbs.value.map(c => c.label).join(' > '));
+const peso = (value: number | 'Suppressed') => value === 'Suppressed' ? 'Withheld' : new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', maximumFractionDigits: 0 }).format(value);
+
+// PDF: the browser saves the page as shown, with a watermark naming the user and the time. The export is audited first.
+const printing = ref(false);
+const watermark = computed(() => `${props.exportedBy.name} - ${formatPh(new Date().toISOString(), 'dateTimeShort')} - CONFIDENTIAL`);
+async function exportPdf() {
+  printing.value = true;
+  try { await axios.post(route('analytics.printed'), { ...Object.fromEntries(Object.entries(props.filters).filter(([, v]) => v !== '' && v !== null)) }); window.print(); }
+  finally { printing.value = false; }
+}
 
 const chartTotal = (rows: any[]) => rows.reduce((sum: number, r: any) => sum + Number(r.total), 0);
 const displayStatus = (s: string) => s.toLowerCase().replaceAll('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
@@ -78,29 +128,51 @@ const trendTotal = computed(() => numericTrend.value.length === props.trend.leng
         <div>
           <p class="text-sm font-bold text-brand-700">Analytics</p>
           <h1 class="mt-1 text-2xl font-extrabold text-slate-900 sm:text-3xl">Operational summary</h1>
-          <p class="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Aggregate view across all accessible cases. Geographic groups require a minimum cell size for privacy.</p>
+          <p class="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Choose an area on the map and a period; every figure on this page follows the choice. Small groups are withheld for privacy.</p>
+          <p class="mt-1 hidden text-sm font-semibold text-slate-900 print:block">{{ areaLabel }} - {{ periodLabel }}</p>
         </div>
         <div class="flex shrink-0 gap-2">
           <Link v-if="canQuarterly" :href="route('analytics.quarterly')" class="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition hover:border-brand-300 hover:text-brand-700">Quarterly reports</Link>
-          <a v-if="canExport" :href="route('analytics.export')" class="rounded-xl bg-brand-700 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-brand-800">Download CSV</a>
+          <a v-if="canExport" :href="route('analytics.export')" class="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition hover:border-brand-300">Download CSV</a>
+          <button v-if="canExport" type="button" class="inline-flex items-center gap-1.5 rounded-xl bg-brand-700 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-brand-800 disabled:opacity-60" :disabled="printing" @click="exportPdf"><FileDown class="h-4 w-4" aria-hidden="true" />Export PDF</button>
         </div>
       </header>
 
-      <p class="text-sm text-slate-600">Suppressed values are withheld for privacy and do not mean zero. Group charts show publishable counts only.</p>
+      <div class="flex flex-wrap items-center justify-between gap-3 print:hidden">
+        <nav aria-label="Area" class="flex min-w-0 flex-wrap items-center gap-1 text-sm"><template v-for="(crumb, index) in crumbs" :key="index"><ChevronRight v-if="index" class="h-4 w-4 text-slate-400" aria-hidden="true" /><button type="button" class="min-h-9 rounded-lg px-2 font-semibold" :class="index === crumbs.length - 1 ? 'text-slate-900' : 'text-brand-700 hover:bg-brand-50'" :aria-current="index === crumbs.length - 1 ? 'location' : undefined" @click="go(crumb.to)">{{ crumb.label }}</button></template></nav>
+        <div class="flex flex-wrap items-center gap-2" role="group" aria-label="Period">
+          <label class="sr-only" for="analytics-year">Year</label>
+          <select id="analytics-year" class="ui-field min-h-10 w-auto py-1 text-sm" :value="filters.year ?? ''" @change="go({ year: ($event.target as HTMLSelectElement).value ? Number(($event.target as HTMLSelectElement).value) : null, quarter: null })"><option value="">All time</option><option v-for="year in years" :key="year" :value="year">{{ year }}</option></select>
+          <div v-if="filters.year" class="inline-flex overflow-hidden rounded-lg border border-slate-200" role="group" aria-label="Quarter"><button v-for="q in [null, 1, 2, 3, 4]" :key="String(q)" type="button" class="min-h-10 px-3 text-sm" :class="filters.quarter === q ? 'bg-brand-700 text-white' : 'bg-white text-slate-700 hover:bg-brand-50'" :aria-pressed="filters.quarter === q" @click="go({ quarter: q })">{{ q ? `Q${q}` : 'Whole year' }}</button></div>
+        </div>
+      </div>
+      <p class="text-sm text-slate-600">Showing <b>{{ areaLabel }}</b>, <b>{{ periodLabel }}</b>. Withheld values are hidden for privacy and do not mean zero.</p>
+
+      <DrillMap :level="level" :rows="children" :region="filters.region" :province="filters.province" :municipality="filters.municipality" :barangay="filters.barangay" @select="selectArea" @back="up" />
 
       <!-- Totals -->
-      <div class="grid gap-4 sm:grid-cols-3">
+      <div class="grid grid-cols-2 gap-4 lg:grid-cols-3">
         <article v-for="(item, idx) in [
-          { key: 'cases', label: 'Total cases', icon: '▣', tone: 'violet' },
-          { key: 'clients', label: 'Unique clients', icon: '◇', tone: 'blue' },
-          { key: 'openReferrals', label: 'Open referrals', icon: '↗', tone: 'amber' },
+          { key: 'cases', label: 'Total cases', icon: '#', tone: 'violet' },
+          { key: 'active', label: 'Active cases', icon: '+', tone: 'blue' },
+          { key: 'highPriority', label: 'KaVAT High Priority', icon: '!', tone: 'amber' },
+          { key: 'openReferrals', label: 'Open referrals', icon: '>', tone: 'amber' },
+          { key: 'closed', label: 'Closed cases', icon: '=', tone: 'blue' },
+          { key: 'clients', label: 'Unique clients', icon: 'o', tone: 'violet' },
         ]" :key="idx" class="total-card" :class="`total-${item.tone}`">
           <div class="total-icon" aria-hidden="true">{{ item.icon }}</div>
-          <div>
-            <p class="text-sm font-semibold text-slate-600">{{ item.label }}</p>
-            <p class="mt-1 text-3xl font-extrabold">{{ props.totals[item.key] ?? 0 }}</p>
+          <div class="min-w-0">
+            <p class="break-words text-sm font-semibold text-slate-600">{{ item.label }}</p>
+            <p class="mt-1 break-words text-2xl font-extrabold sm:text-3xl">{{ props.totals[item.key] ?? 0 }}</p>
           </div>
         </article>
+      </div>
+
+      <article class="total-card total-violet"><div class="total-icon" aria-hidden="true">P</div><div class="min-w-0"><p class="text-sm font-semibold text-slate-600">Total grants disbursed</p><p class="mt-1 break-words text-2xl font-extrabold sm:text-3xl">{{ peso(grantsTotal) }}</p><p class="text-xs text-slate-600">{{ totals.grantsCount }} grants, from the grants log of each case (voided entries excluded).</p></div></article>
+
+      <div class="grid gap-5 xl:grid-cols-[1.4fr_1fr]">
+        <article class="chart-card"><h2>New and closed cases</h2><p class="mt-0.5 text-xs text-slate-500">Last 12 months in the selected area (period filter not applied).</p><div class="mt-3"><TrendLinesChart title="New and closed cases per month" :rows="monthly" :series="[{ key: 'opened', label: 'New cases', color: '#7c5cd6' }, { key: 'closed', label: 'Closed cases', color: '#2f9e6b' }]" /></div><ChartTable title="New and closed cases" :rows="monthly.map(row => ({ label: row.label, total: row.opened as number }))" label-header="Month" value-header="New cases" /></article>
+        <article class="chart-card"><h2>New cases by quarter</h2><p class="mt-0.5 text-xs text-slate-500">Last 8 quarters in the selected area.</p><div class="mt-3"><TrendAreaChart title="New cases by quarter" :rows="quarters" /></div></article>
       </div>
 
       <!-- Smart insights (rule-based, computed from the publishable figures on this page) -->
@@ -120,12 +192,14 @@ const trendTotal = computed(() => numericTrend.value.length === props.trend.leng
         <article class="chart-card"><h2>Cases by area</h2><p class="mt-1 text-xs text-slate-500">Ranked; PSGC-ready geographic workload.</p><div class="mt-4"><LollipopChart v-if="geoRows.length" title="Cases by area" :rows="geoRows" /><p v-else class="text-sm text-slate-600">No publishable area data.</p></div></article>
       </div>
 
-      <div class="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+      <div class="grid gap-5 md:grid-cols-2 min-[1600px]:grid-cols-4">
         <article class="chart-card"><h2>CEFMU classification</h2><div class="mt-4"><DonutChart title="CEFMU classification" :rows="props.classification" center-label="cases" /></div></article>
         <article class="chart-card"><h2>Cases by sex</h2><div class="mt-4"><DonutChart title="Cases by sex" :rows="props.sex" center-label="cases" :colors="['#e0607e', '#3b82d6', '#64748b']" /></div></article>
         <article class="chart-card"><h2>Cases by age group</h2><div class="mt-4"><ColumnChart title="Cases by age group" :rows="props.age" /></div><ChartTable title="Cases by age group" :rows="props.age" label-header="Age group" /></article>
-        <article class="chart-card"><h2>Services provided</h2><p class="mt-1 text-xs text-slate-500">Share of planned services by type.</p><div class="mt-4"><WaffleChart title="Services provided" :rows="props.services" /></div></article>
+        <article class="chart-card"><h2>Services provided</h2><p class="mt-1 text-xs text-slate-500">Services given, by type.</p><div class="mt-4"><WaffleChart title="Services provided" :rows="props.services" /></div></article>
       </div>
+      <article class="chart-card"><h2>KaVAT priority (latest per case)</h2><p class="mt-1 text-xs text-slate-500">From finalized KaVAT results only.</p><div class="mt-4"><DonutChart v-if="kavatPriority.length" title="KaVAT priority" :rows="kavatPriority" center-label="cases" :colors="['#e0607e', '#2f9e6b']" /><p v-else class="text-sm text-slate-600">No finalized KaVAT to show here.</p></div></article>
+      <div class="print-watermark" aria-hidden="true"><span v-for="n in 12" :key="n">{{ watermark }}</span></div>
     </section>
   </AuthenticatedLayout>
 </template>
@@ -179,6 +253,13 @@ const trendTotal = computed(() => numericTrend.value.length === props.trend.leng
 .insight{display:flex;flex-direction:column;gap:.15rem;border-radius:.8rem;border:1px solid #e9e5f5;background:#fff;padding:.65rem .8rem;font-size:.82rem}
 .insight-warn{border-color:#fcd34d;background:#fffbeb}.insight-good{border-color:#a7f3d0;background:#ecfdf5}
 
+/* PDF export: the page as shown, with a diagonal watermark naming the user and time. */
+.print-watermark{display:none}
+@media print {
+  .print-watermark{position:fixed;inset:0;z-index:50;display:flex;flex-direction:column;justify-content:space-around;align-items:center;pointer-events:none;transform:rotate(-30deg)}
+  .print-watermark span{font-size:18px;font-weight:700;color:rgb(91 33 182 / .12);white-space:nowrap}
+  .chart-card,.total-card{break-inside:avoid}
+}
 @media (max-width: 640px) {
   .total-card { padding: 1rem; gap: .75rem; }
   .total-icon { height: 2.25rem; width: 2.25rem; font-size: .9rem; border-radius: .65rem; }

@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use App\Services\CaseAccessScope;
+use App\Services\MonitoringScope;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -57,8 +58,9 @@ class AssignedCaseScopeTest extends TestCase
         $this->get(route('cases.index'))->assertOk()->assertInertia(fn (Assert $page) => $page
             ->has('cases.data', 1)->where('cases.data.0.id', $own));
         $this->get(route('dashboard'))->assertOk()->assertInertia(fn (Assert $page) => $page
-            ->where('metrics.totalCases', 1)->where('lguWorkload.total_cases', 2)
-            ->has('recentCases', 1)->where('recentCases.0.id', $own));
+            // The dashboard is a to-do list: own active cases only, no LGU workload or other workers' cases.
+            ->where('metrics.activeCases', 1)->missing('lguWorkload')->missing('recentCases')
+            ->where('suggestions', fn ($items) => collect($items)->every(fn ($item) => (int) $item['case_id'] === $own)));
         $this->getJson(route('search', ['q' => 'HiddenRecord']))->assertOk()->assertJsonCount(0, 'cases');
         $this->get(route('calendar.index'))->assertOk()->assertInertia(fn (Assert $page) => $page
             ->has('availableCases', 1)->where('availableCases.0.id', $own));
@@ -87,19 +89,27 @@ class AssignedCaseScopeTest extends TestCase
         $this->assertSame([], $query()->pluck('cases.id')->all());
     }
 
-    public function test_case_scope_keeps_fo_province_and_denies_cpu_and_admin_case_access(): void
+    public function test_monitoring_roles_see_cases_only_through_their_scope_and_never_as_case_managers(): void
     {
         $lgu = $this->lgu('Tabuk');
         $worker = User::factory()->create(['role' => 'social_worker']);
         $case = $this->caseFor($worker, $lgu, 'Scoped');
-        foreach (['fo_user' => [$case], 'cpu_member' => [], 'system_admin' => []] as $role => $expected) {
-            $user = User::factory()->create(['role' => $role, 'province' => 'Kalinga']);
+        foreach (['fo_user', 'project_manager', 'cpu_member', 'system_admin'] as $role) {
+            $user = User::factory()->create(['role' => $role, 'region' => 'CAR', 'region_scope' => ['*']]);
             $query = DB::table('cases')->join('clients', 'clients.id', '=', 'cases.client_id');
-            $this->assertSame($expected, app(CaseAccessScope::class)->scopeCases($query, $user)->pluck('cases.id')->all());
+            $this->assertSame([], app(CaseAccessScope::class)->scopeCases($query, $user)->pluck('cases.id')->all(), $role);
         }
-        $fo = User::factory()->create(['role' => 'fo_user', 'province' => 'OtherProvince']);
-        $query = DB::table('cases')->join('clients', 'clients.id', '=', 'cases.client_id');
-        $this->assertSame([], app(CaseAccessScope::class)->scopeCases($query, $fo)->pluck('cases.id')->all());
+        $scope = app(MonitoringScope::class);
+        $monitored = fn (User $user) => $scope->scopeCases(DB::table('cases'), $user)->pluck('cases.id')->all();
+        $this->assertSame([$case], $monitored(User::factory()->create(['role' => 'fo_user', 'region' => 'CAR'])));
+        $this->assertSame([], $monitored(User::factory()->create(['role' => 'fo_user', 'region' => 'Region VIII'])));
+        $this->assertSame([$case], $monitored(User::factory()->create(['role' => 'project_manager', 'region_scope' => ['*']])));
+        $this->assertSame([], $monitored(User::factory()->create(['role' => 'project_manager', 'region_scope' => ['Region VIII']])));
+        $head = User::factory()->create(['role' => 'lgu_head']);
+        $this->assertSame([], $monitored($head));
+        $this->assign($head, $lgu);
+        $this->assertSame([$case], $monitored($head));
+        $this->assertSame([], $monitored(User::factory()->create(['role' => 'cpu_member'])));
     }
 
     public function test_offline_pack_does_not_disclose_assigned_cases_outside_current_lgu(): void

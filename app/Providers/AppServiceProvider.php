@@ -86,6 +86,7 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('intake-autosave', fn ($request) => Limit::perMinute(30)->by(($request->user()?->id ?? 'guest') . '|' . $request->ip()));
         RateLimiter::for('sensitive-write', fn ($request) => Limit::perMinute(60)->by(($request->user()?->id ?? 'guest') . '|' . $request->ip()));
         RateLimiter::for('file-upload', fn ($request) => Limit::perMinute(12)->by(($request->user()?->id ?? 'guest') . '|' . $request->ip()));
+        RateLimiter::for('connect-send', fn ($request) => Limit::perMinute(40)->by($request->user()?->id ?? $request->ip()));
         RateLimiter::for('offline-sync', fn ($request) => Limit::perMinute(30)->by(($request->user()?->id ?? 'guest') . '|' . $request->header('X-Kalinga-Device-ID') . '|' . $request->ip()));
     }
 }

@@ -93,7 +93,7 @@ const printNow = () => window.print();
 .rpt-kv tr:last-child th,.rpt-kv tr:last-child td{border-bottom:0}
 .rpt-table{width:100%;border-collapse:collapse;font-size:.8rem}.rpt-table th{background:var(--rpt-tint);color:var(--rpt-head);font-weight:700;text-align:left;padding:.3rem .45rem;border:1px solid var(--rpt-line)}.rpt-table td{padding:.3rem .45rem;border:1px solid var(--rpt-line);vertical-align:top;overflow-wrap:break-word}
 .rpt-wrap{overflow-x:auto}.rpt-w-date{width:7rem}.rpt-empty{text-align:center;color:var(--rpt-muted);font-style:italic}
-.rpt-text{white-space:pre-wrap;outline:none}.rpt-text:focus,.rpt-list:focus{box-shadow:0 0 0 2px #c4b5fd}.rpt-list{padding-left:1.1rem;list-style:disc;outline:none}.rpt-list li{margin:.12rem 0}
+.rpt-text{white-space:pre-wrap;outline:none}.rpt-para+.rpt-para{margin-top:.5rem}.rpt-para{text-align:justify;text-indent:2rem}.rpt-text:focus,.rpt-list:focus{box-shadow:0 0 0 2px #c4b5fd}.rpt-list{padding-left:1.1rem;list-style:disc;outline:none}.rpt-list li{margin:.12rem 0}
 .rpt-sub+.rpt-sub{margin-top:.5rem}.rpt-sub h3{font-size:.74rem;font-weight:700;color:var(--rpt-head);text-transform:uppercase;letter-spacing:.03em}
 .rpt-muted{color:var(--rpt-muted)}.rpt-small{font-size:.78rem}.rpt-total{margin-top:.4rem;text-align:right;font-size:.8rem}
 .rpt-withheld{color:var(--rpt-muted);font-style:italic}

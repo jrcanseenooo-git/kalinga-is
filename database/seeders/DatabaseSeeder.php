@@ -16,7 +16,7 @@ class DatabaseSeeder extends Seeder
     {
         $this->call(ReferenceDataSeeder::class);
 
-        foreach ([['name' => 'Kalinga Social Worker', 'email' => 'worker@kalinga.test', 'role' => 'social_worker'], ['name' => 'Kalinga Supervisor', 'email' => 'supervisor@kalinga.test', 'role' => 'social_worker'], ['name' => 'Kalinga CPU Member', 'email' => 'cpu@kalinga.test', 'role' => 'cpu_member', 'cpu_discipline' => 'social_worker_cpo'], ['name' => 'Kalinga System Admin', 'email' => 'admin@kalinga.test', 'role' => 'system_admin']] as $account) {
+        foreach ([['name' => 'Kalinga Social Worker', 'email' => 'worker@kalinga.test', 'role' => 'social_worker'], ['name' => 'Kalinga Supervisor', 'email' => 'supervisor@kalinga.test', 'role' => 'lgu_head'], ['name' => 'Kalinga Project Manager', 'email' => 'pm@kalinga.test', 'role' => 'project_manager', 'region_scope' => ['*']], ['name' => 'Kalinga Field Office', 'email' => 'fo@kalinga.test', 'role' => 'fo_user', 'region' => 'Cordillera Administrative Region (CAR)'], ['name' => 'Kalinga CPU Member', 'email' => 'cpu@kalinga.test', 'role' => 'cpu_member', 'cpu_discipline' => 'social_worker_cpo'], ['name' => 'Kalinga System Admin', 'email' => 'admin@kalinga.test', 'role' => 'system_admin']] as $account) {
             User::updateOrCreate(['email' => $account['email']], $account + ['email_verified_at' => now(), 'password' => Hash::make('password')]);
         }
 

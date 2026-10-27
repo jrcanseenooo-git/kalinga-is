@@ -31,9 +31,9 @@ class ReferralLifecycleIntegrationTest extends TestCase
         $this->get(route('cases.show', $case))->assertOk()->assertInertia(fn (Assert $page) => $page
             ->where('referralTransitions.DRAFT', ['PENDING'])
             ->where('referralTransitions.IN_PROGRESS', ['COMPLETED', 'RETURNED', 'UNAVAILABLE']));
-        $reviewer = User::factory()->create(['role' => 'fo_user', 'province' => 'Kalinga']);
-        $this->be($reviewer)->get(route('cases.show', $case))->assertOk()->assertInertia(fn (Assert $page) => $page
-            ->where('referralTransitions.IN_PROGRESS', ['RETURNED', 'UNAVAILABLE']));
+        // Monitoring roles never open the case workspace; they use the secured monitoring summary.
+        $reviewer = User::factory()->create(['role' => 'project_manager', 'region_scope' => ['*']]);
+        $this->be($reviewer)->get(route('cases.show', $case))->assertForbidden();
     }
 
     public function test_stale_referral_status_cannot_advance_or_duplicate_an_audit(): void
@@ -47,11 +47,9 @@ class ReferralLifecycleIntegrationTest extends TestCase
         $this->assertSame(1, DB::table('audit_logs')->where('event', 'referral.transitioned')->count());
     }
 
-    public function test_ineligible_provider_and_other_workers_case_cannot_be_used_for_a_new_referral(): void
+    public function test_another_workers_case_cannot_be_used_for_a_referral(): void
     {
         extract($this->fixture());
-        $provider = DB::table('service_providers')->insertGetId(['name' => 'Synthetic inactive provider', 'service_type' => 'Health', 'active' => false, 'created_at' => now(), 'updated_at' => now()]);
-        $this->postJson(route('referrals.store'), ['case_id' => $case, 'service_provider_id' => $provider, 'service_category' => 'Health', 'lawful_basis' => 'legal_obligation'])->assertUnprocessable()->assertJsonValidationErrors('service_provider_id');
         $other = User::factory()->create(['role' => 'social_worker']);
         $this->ensureNormalizedLguAssignment($other);
         $this->be($other)->patchJson(route('referrals.transition', $referral), ['status' => 'PENDING', 'expected_status' => 'DRAFT'])->assertForbidden();

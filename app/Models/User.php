@@ -26,6 +26,7 @@ class User extends Authenticatable
         'role',
         'cpu_discipline',
         'region',
+        'region_scope',
         'province',
         'municipality',
         'active',
@@ -62,6 +63,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'active' => 'boolean',
+            'region_scope' => 'array',
             'two_factor_email_code_expires_at' => 'datetime',
         ];
     }

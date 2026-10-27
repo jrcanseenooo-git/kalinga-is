@@ -4,7 +4,9 @@
  */
 export type RiskFactor = { code: string; label: string; definition: string | null; weight: number };
 export type RiskRule = { moderate: number; high: number; critical: number };
-export type IntakeOptions = { riskFactors: RiskFactor[]; riskRule: RiskRule };
+/** A field the administrator added to the intake (Administration > Form options). */
+export type CustomField = { id: number; key: string; label: string; type: 'text' | 'textarea' | 'select' | 'date' | 'number' | 'yes_no'; required: boolean; options: string[]; help_text: string | null };
+export type IntakeOptions = { riskFactors: RiskFactor[]; riskRule: RiskRule; customFields?: CustomField[] };
 export type RiskLevel = 'low' | 'moderate' | 'high' | 'critical';
 
 const LEVEL_ORDER: RiskLevel[] = ['low', 'moderate', 'high', 'critical'];

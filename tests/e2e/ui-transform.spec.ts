@@ -2,19 +2,6 @@ import { expect, test } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { login, expectNoHorizontalOverflow } from './helpers';
 
-test('comprehensive assessment starts a real initial draft and retains unsaved section work',async({page})=>{
- await login(page);await page.goto('/cases?search=SYN-UI-2026-0002');
- await page.getByRole('link',{name:/SYN-UI-2026-0002/}).first().click();await expect(page).toHaveURL(/\/cases\/\d+$/);
- await page.getByRole('tab',{name:/^Assessment/}).click();const panel=page.locator('#case-panel-assessment');
- await panel.getByRole('button',{name:'Load assessments',exact:true}).click();
- await panel.getByRole('button',{name:'Create initial draft',exact:true}).click();
- const confirmation=page.getByRole('dialog');if(await confirmation.isVisible())await confirmation.locator('#generic-submit-confirm').click();
- await expect(panel.getByRole('navigation',{name:'Assessment sections',exact:true})).toBeVisible();
- await panel.getByLabel('Verified facts',{exact:true}).fill('Synthetic unfinished assessment section.');
- await panel.getByRole('navigation',{name:'Assessment sections',exact:true}).getByRole('button',{name:/^strengths (and )?support/i}).click();
- await panel.getByRole('navigation',{name:'Assessment sections',exact:true}).getByRole('button',{name:/^presenting situation/i}).click();
- await expect(panel.getByLabel('Verified facts',{exact:true})).toHaveValue('Synthetic unfinished assessment section.');
-});
 
 test.describe('case browser history privacy',()=>{
  test('case browser history reauthorizes after an external reassignment',async({page,browser})=>{
@@ -96,66 +83,21 @@ test.describe('case browser history privacy',()=>{
  });
 });
 
-test('safety assessment has named controls and accessible error recovery',async({page})=>{
- await page.setViewportSize({width:390,height:1080});await login(page);await page.goto('/cases?search=SYN-UI-2026-0001');
- await page.getByRole('link',{name:/SYN-UI-2026-0001/}).first().click();await expect(page).toHaveURL(/\/cases\/\d+$/);
- await page.getByRole('tab',{name:/^Safety/}).click();
- const panel=page.locator('#case-panel-safety');
- await expect(panel.getByLabel('Assessment type',{exact:true})).toBeVisible();
- await expect(panel.getByLabel(/Assessment date and time/)).toBeVisible();
- const scan=await new AxeBuilder({page}).include('#case-panel-safety').analyze();
- expect(scan.violations.filter(item=>['critical','serious'].includes(item.impact??''))).toEqual([]);
-});
 
-test('safety assessment retains errors and persists separate draft and finalized history',async({page})=>{
- await login(page);await page.goto('/cases?search=SYN-UI-2026-0001');
- await page.getByRole('link',{name:/SYN-UI-2026-0001/}).first().click();await expect(page).toHaveURL(/\/cases\/\d+$/);
- await page.getByRole('tab',{name:/^Safety/}).click();const panel=page.locator('#case-panel-safety');
- await panel.getByLabel(/Overall current risk/).selectOption('critical');
- await panel.getByLabel('Professional rationale',{exact:true}).fill('Synthetic safety rationale retained after validation.');
- await panel.getByLabel('Trusted or safe adult',{exact:true}).check();
- await panel.getByRole('button',{name:'Review and finalize',exact:true}).click();
- await panel.getByRole('button',{name:'Finalize assessment',exact:true}).click();
- await expect(panel.getByRole('alert').first()).toContainText('Record immediate protection needs or an action');
- await expect(panel.getByRole('alert').first()).toBeFocused();
- await expect(panel.getByLabel('Professional rationale',{exact:true})).toHaveValue('Synthetic safety rationale retained after validation.');
- await panel.getByLabel('Required protection action',{exact:true}).fill('Synthetic protection action for browser verification.');
- await panel.getByRole('button',{name:'Save draft',exact:true}).click();
- await expect(panel.getByRole('status')).toHaveText('Safety and risk assessment draft saved.');
- await expect(panel.getByText('Draft',{exact:true})).toBeVisible();
- await expect(panel.getByText('No finalized risk recorded',{exact:true})).toBeVisible();
- await panel.getByLabel('Required protection action',{exact:true}).fill('Synthetic finalized protection action.');
- await panel.getByLabel('Professional rationale',{exact:true}).fill('Synthetic finalized professional rationale.');
- await panel.getByLabel('Supportive caregiver',{exact:true}).check();
- await panel.getByRole('button',{name:'Review and finalize',exact:true}).click();
- await panel.getByRole('button',{name:'Keep editing',exact:true}).click();
- await expect(panel.getByLabel('Professional rationale',{exact:true})).toHaveValue('Synthetic finalized professional rationale.');
- await panel.getByRole('button',{name:'Review and finalize',exact:true}).click();
- await panel.getByRole('button',{name:'Finalize assessment',exact:true}).click();
- await expect(panel.getByRole('status')).toHaveText('Safety and risk assessment finalized.');
- await page.reload();await page.getByRole('tab',{name:/^Safety/}).click();
- await expect(panel.getByText('Current finalized risk: critical',{exact:true})).toBeVisible();
- await expect(panel.locator('article')).toHaveCount(2);
- await panel.locator('article').first().getByText('Review recorded findings and rationale',{exact:true}).click();
- await expect(panel.locator('article').first()).toContainText('Synthetic finalized professional rationale.');
- await expect(panel.locator('article').first()).toContainText('Supportive caregiver');
- expect(await page.evaluate(()=>JSON.stringify(localStorage))).not.toContain('Synthetic finalized professional rationale.');
-});
 
-for(const width of [360,390,768,1024,1440,1920]) test(`safety risk responsive review at ${width}px`,async({page})=>{
+for(const width of [360,390,768,1024,1440,1920]) test(`KaVAT and Kalinga forms responsive review at ${width}px`,async({page})=>{
  await page.setViewportSize({width,height:1080});await login(page);await page.goto('/cases?search=SYN-UI-2026-0001');
  await page.getByRole('link',{name:/SYN-UI-2026-0001/}).first().click();await expect(page).toHaveURL(/\/cases\/\d+$/);
- await page.getByRole('tab',{name:/^Safety/}).click();const panel=page.locator('#case-panel-safety');
- await expect(panel.getByRole('heading',{name:'Safety and risk assessment',exact:true})).toBeVisible();
- await expect.poll(async()=>Math.round((await panel.boundingBox())!.y)).toBeGreaterThanOrEqual(64);
- await expect.poll(async()=>Math.round((await panel.boundingBox())!.y)).toBeLessThan(160);
+ await page.getByRole('tab',{name:/^KaVAT/}).click();const panel=page.locator('#case-panel-kavat');
+ await expect(panel.getByRole('heading',{name:'Kalinga Vulnerability Assessment Tool (KaVAT)',exact:true})).toBeVisible();
  await expectNoHorizontalOverflow(page);
- const scan=await new AxeBuilder({page}).include('main').analyze();
+ let scan=await new AxeBuilder({page}).include('main').analyze();
  expect(scan.violations.filter(item=>['critical','serious'].includes(item.impact??''))).toEqual([]);
- await page.screenshot({path:`docs/implementation/evidence/ui-06/viewport-${width}.png`,animations:'disabled'});
- await page.screenshot({path:`docs/implementation/evidence/ui-06/safety-${width}.png`,fullPage:true,animations:'disabled'});
- const history=panel.getByRole('heading',{name:'Assessment history',exact:true});await history.scrollIntoViewIfNeeded();
- await page.screenshot({path:`docs/implementation/evidence/ui-06/history-${width}.png`,animations:'disabled'});
+ await page.getByRole('tab',{name:/^Kalinga forms/}).click();const forms=page.locator('#case-panel-forms');
+ await expect(forms.getByRole('list',{name:'Order of the Kalinga forms'}).getByRole('listitem')).toHaveCount(5);
+ await expectNoHorizontalOverflow(page);
+ scan=await new AxeBuilder({page}).include('main').analyze();
+ expect(scan.violations.filter(item=>['critical','serious'].includes(item.impact??''))).toEqual([]);
 });
 
 test('case reassignment preserves eligibility and safely ends former-owner access', async ({ page, browser }) => {
@@ -211,7 +153,7 @@ for(const width of [360,390,768,1024,1440,1920]) test(`case workspace overview a
  const payload=JSON.parse((await page.locator('#app').getAttribute('data-page'))!).props;
  await expect(page.getByRole('heading',{name:payload.caseRecord.case_number,exact:true})).toBeVisible();
  const tabs=page.getByRole('tablist',{name:'Case record sections',exact:true});
- await expect(tabs.getByRole('tab')).toHaveCount(9);
+ await expect(tabs.getByRole('tab')).toHaveCount(7);
  const viewportOverflow=await page.evaluate(()=>document.documentElement.scrollWidth-document.documentElement.clientWidth);
  if(viewportOverflow>1) await test.info().attach('overflow-layout-metadata',{body:JSON.stringify(await page.evaluate(()=>Array.from(document.querySelectorAll('main *')).filter(element=>element.getBoundingClientRect().right>document.documentElement.clientWidth+1).map(element=>({tag:element.tagName,classes:element.getAttribute('class'),right:Math.round(element.getBoundingClientRect().right)})))),contentType:'application/json'});
  await expectNoHorizontalOverflow(page);
@@ -238,7 +180,7 @@ for(const width of [360,390,768,1024,1440,1920]) test(`case workspace overview a
  await page.getByRole('button',{name:'Reports',exact:true}).click();await page.getByRole('list',{name:'Print a case report'}).getByRole('link',{name:'Case Summary Report',exact:true}).click();
  await expect(page.getByRole('heading',{name:'CASE SUMMARY REPORT',exact:true})).toBeVisible();
  await page.goto(caseUrl); await expect(page.getByRole('heading',{name:payload.caseRecord.case_number,exact:true})).toBeVisible();
- await page.getByRole('link',{name:'Plan & continuity',exact:true}).first().click();
+ await page.goto(page.url().replace(/\/cases\/(\d+).*/,'/cases/$1/plan-workspace'));
  await expect(page.getByRole('heading',{name:'Case plan',exact:true})).toBeVisible();
 });
 
@@ -308,31 +250,19 @@ for(const width of [360,390,768,1024,1440,1920]) test(`case registry shared filt
  await expect(page).toHaveURL(/\/cases\/\d+$/);
 });
 
-for(const width of [360,390,768,1024,1440,1920]) test(`Option 2 dashboard screenshot and workflows at ${width}px`,async({page})=>{
+for(const width of [360,390,768,1024,1440,1920]) test(`to-do dashboard screenshot and workflows at ${width}px`,async({page})=>{
  await page.setViewportSize({width,height:1080}); await login(page); await page.goto('/dashboard');
- await expect(page.getByRole('heading',{name:'Dashboard',exact:true})).toBeVisible();
- const priorities=page.getByRole('region',{name:'Casework priorities'});
- await expect(priorities.getByRole('link')).toHaveCount(4);
- const payload=await page.locator('#app').getAttribute('data-page');const data=JSON.parse(payload!).props;
- await expect(priorities.getByRole('link',{name:/Active cases/})).toContainText(String(data.metrics.activeCases));
- const action=page.getByRole('heading',{name:'My cases requiring action',exact:true});
- const analytics=page.getByRole('region',{name:'Supporting caseload analytics'});
- expect((await action.boundingBox())!.y).toBeLessThan((await analytics.boundingBox())!.y);
- await expect(page.getByRole('heading',{name:'Upcoming schedule',exact:true})).toBeVisible();
- await expect(analytics.getByRole('img')).toHaveCount(2);
+ await expect(page.getByRole('heading',{name:/your to-do list/i})).toBeVisible();
+ // To-do only: no charts on the dashboard (they are in Analytics).
+ await expect(page.getByRole('region',{name:'Supporting caseload analytics'})).toHaveCount(0);
  await expect(page.getByRole('link',{name:'New case intake',exact:true})).toHaveAttribute('href',/\/cases\/create$/);
+ await expect(page.getByRole('link',{name:/Analytics and map/})).toHaveAttribute('href',/\/analytics$/);
  await expectNoHorizontalOverflow(page);
  const result=await new AxeBuilder({page}).analyze();
  expect(result.violations.filter(item=>['critical','serious'].includes(item.impact??''))).toEqual([]);
  await page.evaluate(()=>document.fonts.ready);
  await page.screenshot({path:`docs/implementation/evidence/ui-02/dashboard-${width}.png`,fullPage:true,animations:'disabled'});
  await page.screenshot({path:`docs/implementation/evidence/ui-02/viewport-${width}.png`,animations:'disabled'});
- await priorities.getByRole('link',{name:/Overdue actions/}).click();
- await expect(page).toHaveURL(/\/calendar$/);
- await page.goto('/dashboard');
- const chart=page.getByRole('region',{name:'Case intake trend',exact:true});
- await chart.getByText('View data table',{exact:true}).click();
- await expect(chart.getByRole('table')).toBeVisible();
  if(width<1024){await page.getByRole('button',{name:'Open navigation',exact:true}).click();await expect(page.locator('#workspace-navigation').getByRole('button',{name:'Close navigation',exact:true})).toBeFocused();await page.keyboard.press('Escape');}
 });
 
@@ -340,8 +270,7 @@ test('dashboard empty state is honest and shell collapse stays keyboard usable',
  await page.setViewportSize({width:1440,height:1080});
  await login(page,{email:'empty-worker@kalinga.test',password:'password'}); await page.goto('/dashboard');
  await expect(page.getByText('No open case tasks recorded',{exact:true})).toBeVisible();
- await expect(page.getByText('No upcoming dated tasks',{exact:true})).toBeVisible();
- await expect(page.getByText('No case openings recorded in this period.',{exact:true})).toBeVisible();
+ await expect(page.getByText('Nothing scheduled.',{exact:true})).toBeVisible();
  await page.getByRole('button',{name:'Collapse navigation',exact:true}).click();
  const sidebar=page.locator('#workspace-navigation');
  await expect.poll(async()=>(await sidebar.boundingBox())!.width).toBe(96);
@@ -355,8 +284,8 @@ test('dashboard empty state is honest and shell collapse stays keyboard usable',
 });
 
 test('case planning selects the newly acknowledged draft instead of the prior version',async({page})=>{
- await login(page);await page.goto('/cases?search=SYN-UI-2026-0003');await page.getByRole('link',{name:/SYN-UI-2026-0003/}).first().click();
- await page.getByRole('link',{name:/Plan & continuity/}).first().click();
+ await login(page);await page.goto('/cases?search=SYN-UI-2026-0003');await page.getByRole('link',{name:/SYN-UI-2026-0003/}).first().click();await expect(page).toHaveURL(/\/cases\/\d+$/);
+await page.goto(page.url().replace(/\/cases\/(\d+).*/,'/cases/$1/plan-workspace'));
  await page.getByRole('textbox',{name:'Overall objective',exact:true}).fill('Synthetic first plan cycle objective.');
  await page.getByRole('button',{name:'Create draft',exact:true}).click();await page.getByRole('dialog').locator('#generic-submit-confirm').click();
  await expect(page.getByRole('heading',{name:'Version 1 · draft',exact:true})).toBeVisible();
@@ -369,7 +298,7 @@ test('case planning selects the newly acknowledged draft instead of the prior ve
 });
 test('formal handover completes for an eligible recipient and removes the former worker view',async({page,browser})=>{
  await login(page);await page.goto('/cases?search=SYN-UI-2026-0002');await page.getByRole('link',{name:/SYN-UI-2026-0002/}).first().click();await expect(page).toHaveURL(/\/cases\/\d+$/);const caseUrl=page.url();
- await page.getByRole('link',{name:/Plan & continuity/}).first().click();
+ await page.goto(page.url().replace(/\/cases\/(\d+).*/,'/cases/$1/plan-workspace'));
  await page.getByRole('textbox',{name:'Overall objective',exact:true}).fill('Synthetic handover continuity objective.');await page.getByRole('button',{name:'Create draft',exact:true}).click();await page.getByRole('dialog').locator('#generic-submit-confirm').click();
  await expect(page.getByRole('heading',{name:'Version 1 · draft',exact:true})).toBeVisible();
  await page.getByRole('navigation',{name:'Planning activities',exact:true}).getByRole('button',{name:'Formal handover',exact:true}).click();
