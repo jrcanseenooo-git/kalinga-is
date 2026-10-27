@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\CaseAccessScope;
+use App\Services\Kavat;
 use App\Services\MonitoringScope;
 use App\Services\RolePermissions;
 use App\Support\AuditLog;
@@ -129,33 +130,144 @@ class AnalyticsController extends Controller
         ];
     }
 
+    /**
+     * Area and period chosen on the analytics map. The area narrows by the
+     * child's recorded address (region > province > municipality > barangay);
+     * the period narrows by the case opening date.
+     *
+     * @return array{region: string, province: string, municipality: string, barangay: string, year: ?int, quarter: ?int}
+     */
+    private function analyticsFilters(Request $request): array
+    {
+        $data = $request->validate([
+            'region' => 'nullable|string|max:120', 'province' => 'nullable|string|max:120', 'municipality' => 'nullable|string|max:120', 'barangay' => 'nullable|string|max:120',
+            'year' => 'nullable|integer|min:2020|max:' . now()->year, 'quarter' => 'nullable|integer|min:1|max:4',
+        ]);
+        $value = fn (string $key) => trim((string) ($data[$key] ?? ''));
+
+        return ['region' => $value('region'), 'province' => $value('region') !== '' ? $value('province') : '', 'municipality' => $value('region') !== '' ? $value('municipality') : '',
+            'barangay' => $value('municipality') !== '' ? $value('barangay') : '', 'year' => isset($data['year']) ? (int) $data['year'] : null,
+            'quarter' => isset($data['year'], $data['quarter']) ? (int) $data['quarter'] : null];
+    }
+
+    private function applyArea($query, array $filters)
+    {
+        foreach (['region', 'province', 'municipality', 'barangay'] as $level) {
+            if ($filters[$level] !== '') {
+                $query->where("clients.{$level}", $filters[$level]);
+            }
+        }
+
+        return $query;
+    }
+
+    /** @return array{0: ?Carbon, 1: ?Carbon} */
+    private function periodRange(array $filters): array
+    {
+        if (!$filters['year']) {
+            return [null, null];
+        }
+        $start = $filters['quarter'] ? Carbon::create($filters['year'], ($filters['quarter'] - 1) * 3 + 1, 1, 0, 0, 0, 'Asia/Manila') : Carbon::create($filters['year'], 1, 1, 0, 0, 0, 'Asia/Manila');
+        $end = $start->copy()->addMonths($filters['quarter'] ? 3 : 12)->subSecond();
+
+        return [$start->utc(), $end->utc()];
+    }
+
     public function index(Request $request)
     {
         $this->authorize('view-analytics');
-        $base = $this->scopedCases(
-            DB::table('cases')->join('clients', 'clients.id', '=', 'cases.client_id')->whereNull('cases.deleted_at'),
-            $request,
-        );
+        $filters = $this->analyticsFilters($request);
+        [$from, $to] = $this->periodRange($filters);
+        $area = $this->applyArea($this->scopedCases(DB::table('cases')->join('clients', 'clients.id', '=', 'cases.client_id')->whereNull('cases.deleted_at'), $request), $filters);
+        $base = (clone $area)->when($from, fn ($q) => $q->whereBetween('cases.opened_at', [$from, $to]));
         $caseIds = (clone $base)->select('cases.id');
+        $min = $this->minimum($request);
         $trend = collect(range(5, 0))->map(function ($offset) use ($base, $request) {
             $month = now()->startOfMonth()->subMonths($offset);
 
             return ['label' => $month->format('M Y'), 'total' => $this->safeCount($request, (clone $base)->whereBetween('cases.opened_at', [$month, $month->copy()->endOfMonth()])->count())];
         });
+        // Trend lines follow the area (not the period): 12 months of new and closed cases.
+        $monthly = collect(range(11, 0))->map(function ($offset) use ($area, $request) {
+            $month = now('Asia/Manila')->startOfMonth()->subMonths($offset);
+            [$start, $end] = [$month->copy()->utc(), $month->copy()->addMonth()->utc()];
+
+            return ['label' => $month->format('M Y'), 'opened' => $this->safeCount($request, (clone $area)->where('cases.opened_at', '>=', $start)->where('cases.opened_at', '<', $end)->count()),
+                'closed' => $this->safeCount($request, (clone $area)->where('cases.closed_at', '>=', $start)->where('cases.closed_at', '<', $end)->count())];
+        });
+        $quarters = collect(range(7, 0))->map(function ($offset) use ($area, $request) {
+            $start = now('Asia/Manila')->firstOfQuarter()->subQuarters($offset);
+
+            return ['label' => 'Q' . $start->quarter . ' ' . $start->year, 'total' => $this->safeCount($request, (clone $area)->where('cases.opened_at', '>=', $start->copy()->utc())->where('cases.opened_at', '<', $start->copy()->addQuarter()->utc())->count())];
+        });
+        // The map shows the next level down inside the selected area.
+        $next = $filters['region'] === '' ? 'region' : ($filters['province'] === '' && $filters['municipality'] === '' ? 'province' : ($filters['municipality'] === '' ? 'municipality' : 'barangay'));
+        // A region without provinces (NCR): the next level after the region is the city or municipality.
+        if ($next === 'province' && !(clone $base)->whereNotNull('clients.province')->where('clients.province', '!=', '')->exists()
+            && (clone $base)->whereNotNull('clients.municipality')->where('clients.municipality', '!=', '')->exists()) {
+            $next = 'municipality';
+        }
+        $children = (clone $base)->selectRaw("COALESCE(clients.{$next}, 'Not recorded') as name, COUNT(*) as total, SUM(CASE WHEN cases.status != 'CLOSED' THEN 1 ELSE 0 END) as active")
+            ->groupBy('name')->havingRaw('COUNT(*) >= ?', [$min])->orderByDesc('total')->get()->map(fn ($row) => ['name' => $row->name, 'total' => (int) $row->total, 'active' => (int) $row->active]);
+        $latestKavat = DB::table('kavat_assessments as k')->whereIn('k.case_id', $caseIds)->where('k.status', 'final')
+            ->whereRaw('k.id = (select max(k2.id) from kavat_assessments k2 where k2.case_id = k.case_id and k2.status = ?)', ['final']);
+        $grants = DB::table('case_grants')->whereIn('case_id', $caseIds)->whereNull('voided_at');
 
         return Inertia::render('Analytics/Index', [
             'canExport' => $request->user()->can('analytics.export'),
             'canQuarterly' => $request->user()->can('analytics.quarterly'),
-            'status' => (clone $base)->select('cases.status', DB::raw('count(*) as total'))->groupBy('cases.status')->havingRaw('COUNT(*) >= ?', [$this->minimum($request)])->orderByDesc('total')->get(),
-            'geo' => (clone $base)->selectRaw("COALESCE(clients.municipality, 'Unspecified') as area, count(*) as total")->groupBy('area')->havingRaw('COUNT(*) >= ?', [$this->minimum($request)])->orderByDesc('total')->get(),
-            'referrals' => DB::table('referrals')->whereIn('case_id', $caseIds)->select('status', DB::raw('count(*) as total'))->groupBy('status')->havingRaw('COUNT(*) >= ?', [$this->minimum($request)])->get(),
+            'filters' => $filters,
+            'level' => $next,
+            'children' => $children,
+            'status' => (clone $base)->select('cases.status', DB::raw('count(*) as total'))->groupBy('cases.status')->havingRaw('COUNT(*) >= ?', [$min])->orderByDesc('total')->get(),
+            'geo' => (clone $base)->selectRaw("COALESCE(clients.municipality, 'Unspecified') as area, count(*) as total")->groupBy('area')->havingRaw('COUNT(*) >= ?', [$min])->orderByDesc('total')->get(),
+            'referrals' => DB::table('referrals')->whereIn('case_id', $caseIds)->select('status', DB::raw('count(*) as total'))->groupBy('status')->havingRaw('COUNT(*) >= ?', [$min])->get(),
             'trend' => $trend,
-            'sex' => (clone $base)->selectRaw("COALESCE(clients.sex, 'Not recorded') as label, count(*) as total")->groupBy('label')->havingRaw('COUNT(*) >= ?', [$this->minimum($request)])->orderByDesc('total')->get(),
-            'classification' => (clone $base)->selectRaw("COALESCE(cases.category, 'Not classified') as label, count(*) as total")->groupBy('label')->havingRaw('COUNT(*) >= ?', [$this->minimum($request)])->orderByDesc('total')->get(),
-            'age' => (clone $base)->selectRaw($this->ageBandExpression() . ' as label, count(*) as total')->groupBy('label')->havingRaw('COUNT(*) >= ?', [$this->minimum($request)])->get(),
-            'services' => DB::table('interventions')->join('case_plans', 'case_plans.id', '=', 'interventions.case_plan_id')->whereIn('case_plans.case_id', (clone $base)->select('cases.id'))->select('interventions.service_category as label', DB::raw('count(*) as total'))->groupBy('interventions.service_category')->havingRaw('COUNT(*) >= ?', [$this->minimum($request)])->orderByDesc('total')->limit(8)->get(),
-            'totals' => $this->safeCounts($request, ['cases' => (clone $base)->count(), 'clients' => (clone $base)->distinct('clients.id')->count('clients.id'), 'openReferrals' => DB::table('referrals')->whereIn('case_id', $caseIds)->whereNotIn('status', ['COMPLETED', 'WITHDRAWN'])->count()]),
+            'monthly' => $monthly,
+            'quarters' => $quarters,
+            'sex' => (clone $base)->selectRaw("COALESCE(clients.sex, 'Not recorded') as label, count(*) as total")->groupBy('label')->havingRaw('COUNT(*) >= ?', [$min])->orderByDesc('total')->get(),
+            'classification' => $this->classificationCounts(clone $base, $min),
+            'age' => (clone $base)->selectRaw($this->ageBandExpression() . ' as label, count(*) as total')->groupBy('label')->havingRaw('COUNT(*) >= ?', [$min])->get(),
+            'services' => DB::table('services_provided')->whereIn('case_id', $caseIds)->select('service_type as label', DB::raw('count(*) as total'))->groupBy('service_type')->havingRaw('COUNT(*) >= ?', [$min])->orderByDesc('total')->limit(8)->get(),
+            'kavatPriority' => (clone $latestKavat)->select('k.priority as label', DB::raw('count(*) as total'))->groupBy('k.priority')->havingRaw('COUNT(*) >= ?', [$min])->get()
+                ->map(fn ($row) => ['label' => Kavat::priorityLabel($row->label), 'total' => (int) $row->total]),
+            'totals' => $this->safeCounts($request, ['cases' => (clone $base)->count(), 'clients' => (clone $base)->distinct('clients.id')->count('clients.id'), 'openReferrals' => DB::table('referrals')->whereIn('case_id', $caseIds)->whereNotIn('status', ['COMPLETED', 'WITHDRAWN'])->count(),
+                'active' => (clone $base)->where('cases.status', '!=', 'CLOSED')->count(), 'closed' => (clone $base)->where('cases.status', 'CLOSED')->count(),
+                'highPriority' => (clone $latestKavat)->where('k.priority', 'high')->count(), 'grantsCount' => (clone $grants)->count()]),
+            // Money is not a count of people; it is shown unless there are too few cases to show safely.
+            'grantsTotal' => $this->permissions->canViewAggregateOnly($request->user()) && (clone $base)->count() < self::PUBLIC_MINIMUM ? 'Suppressed' : round((float) (clone $grants)->sum('amount'), 2),
+            'exportedBy' => ['name' => $request->user()->name, 'at' => now()->toIso8601String()],
         ]);
+    }
+
+    /** CEFMU classification counts (a case can have more than one), falling back to the category. */
+    private function classificationCounts($cases, int $min): array
+    {
+        $labels = ['early_marriage' => 'Early marriage', 'early_union' => 'Early union', 'forced_marriage' => 'Forced marriage', 'forced_union' => 'Forced union'];
+        $counts = [];
+        foreach ($cases->select('cases.cefmu_classifications', 'cases.category')->cursor() as $row) {
+            $codes = json_decode($row->cefmu_classifications ?? '[]', true) ?: [];
+            foreach ($codes ?: [$row->category ?: 'Not classified'] as $code) {
+                $label = $labels[$code] ?? (string) $code;
+                $counts[$label] = ($counts[$label] ?? 0) + 1;
+            }
+        }
+        arsort($counts);
+
+        return collect($counts)->filter(fn ($total) => $total >= $min)->map(fn ($total, $label) => ['label' => $label, 'total' => $total])->values()->all();
+    }
+
+    /** Records that a user printed or saved the analytics view as PDF (the page carries a watermark with the same name and time). */
+    public function printed(Request $request)
+    {
+        $this->authorize('view-analytics');
+        $this->authorize('analytics.export');
+        $filters = $this->analyticsFilters($request);
+        $area = implode(' > ', array_filter([$filters['region'], $filters['province'], $filters['municipality'], $filters['barangay']])) ?: 'Philippines';
+        AuditLog::record('analytics.pdf_exported', 'analytics', null, ['area' => $area, 'year' => $filters['year'], 'quarter' => $filters['quarter']], $request->user()->id, 'success',
+            ['description' => 'Analytics exported to PDF: ' . $area]);
+
+        return response()->json(['logged' => true]);
     }
 
     public function quarterly(Request $request)

@@ -73,6 +73,7 @@ Route::middleware('auth')->group(function () {
     Route::patch('/tasks/{task}/status', [OperationsController::class, 'transitionTask'])->middleware('throttle:sensitive-write')->name('tasks.transition');
     Route::get('/analytics', [AnalyticsController::class, 'index'])->name('analytics.index');
     Route::get('/analytics/export', [AnalyticsController::class, 'export'])->name('analytics.export');
+    Route::post('/analytics/printed', [AnalyticsController::class, 'printed'])->middleware('throttle:sensitive-write')->name('analytics.printed');
     Route::get('/quarterly-monitoring', [AnalyticsController::class, 'quarterly'])->name('analytics.quarterly');
     Route::get('/quarterly-monitoring/export', [AnalyticsController::class, 'quarterlyExport'])->name('analytics.quarterly.export');
     Route::get('/search', SearchController::class)->name('search');

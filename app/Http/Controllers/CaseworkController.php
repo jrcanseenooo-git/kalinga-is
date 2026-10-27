@@ -12,16 +12,19 @@ use App\Services\CaseIntake;
 use App\Services\CaseLifecyclePolicy;
 use App\Services\CaseRemarks;
 use App\Services\CaseVersionGuard;
+use App\Services\DashboardTodos;
 use App\Services\IdentityIntegrity;
 use App\Services\IntakeDrafts;
 use App\Services\Kavat;
 use App\Services\LguAssignmentScope;
+use App\Services\MonitoringScope;
 use App\Services\NoteReferrals;
 use App\Services\OperationalNotification;
 use App\Services\OptionSets;
 use App\Services\RecordsGovernance;
 use App\Services\ReferenceNumberService;
 use App\Services\ReferralTracking;
+use App\Services\RolePermissions;
 use App\Services\SmartSuggestions;
 use App\Services\WorkerTasks;
 use App\Support\AuditLog;
@@ -55,91 +58,37 @@ class CaseworkController extends Controller
         }
     }
 
+    /**
+     * Dashboard: a to-do list only (owner instruction). Charts and figures
+     * are in Analytics. Every role gets its own items: case managers their
+     * case next steps, activities and saved intakes; LGU Heads closures to
+     * approve; monitors replies and cases to look at; managers accounts to
+     * approve; everyone invitations to answer.
+     */
     public function dashboard(Request $request)
     {
         $user = $request->user();
-        // Central Office users begin with privacy-safe management information.
-        // Administration remains a separate, explicit workspace.
-        if ($user->hasPermission('management.dashboard.view')) {
-            return redirect()->route('management.dashboard');
-        }
         if ($user->role === 'cpu_member') {
             return redirect()->route('mdt.collaboration.index');
         }
-        if (!$user->hasPermission('cases.view') && !$user->hasPermission('analytics.view')) {
-            return Inertia::render('Dashboard', ['metrics' => [], 'attention' => [], 'areas' => [], 'regionHeatmap' => [], 'provinceHeatmap' => [], 'barangayWorkload' => [], 'geographicScope' => $this->geographicScope($user), 'recentCases' => [], 'selectedRegion' => '', 'lguWorkload' => null, 'charts' => ['classification' => [], 'sex' => [], 'age' => [], 'ageSummary' => ['youngest' => null, 'oldest' => null, 'recorded' => 0], 'services' => []]]);
-        }
-        $data = $request->validate(['region' => ['nullable', 'string', 'max:120']]);
-        $selectedRegion = trim((string) ($data['region'] ?? ''));
         $cases = DB::table('cases')->leftJoin('clients', 'clients.id', '=', 'cases.client_id')->whereNull('cases.deleted_at');
         $this->scope->scopeCases($cases, $user);
-        if ($selectedRegion !== '') {
-            $cases->where('clients.region', $selectedRegion);
-        }
-        $ageCounts = collect();
-        $recordedAges = collect();
-        $today = now()->startOfDay();
-        $lguWorkload = $this->lguWorkload($user);
-        (clone $cases)->select('clients.birthdate')->get()->each(function (object $client) use ($ageCounts, $recordedAges, $today): void {
-            if (empty($client->birthdate)) {
-                return;
-            }
-            $birthdate = Carbon::parse($client->birthdate)->startOfDay();
-            if ($birthdate->isAfter($today)) {
-                return;
-            }
-            // Calendar-year calculation: a whole-number age that changes on the birthday.
-            $age = $today->year - $birthdate->year;
-            if ($today->month < $birthdate->month || ($today->month === $birthdate->month && $today->day < $birthdate->day)) {
-                $age--;
-            }
-            $recordedAges->push($age);
-            $ageCounts->put($age, ($ageCounts->get($age) ?? 0) + 1);
-        });
-
-        $intakeTrend = [];
-        $month = now('Asia/Manila')->startOfMonth();
-        for ($index = 5; $index >= 0; $index--) {
-            $start = $month->copy()->subMonths($index);
-            $end = $start->copy()->addMonth();
-            $intakeTrend[] = ['month' => $start->format('Y-m'), 'label' => $start->format('M'),
-                'total' => (clone $cases)->where('cases.opened_at', '>=', $start->copy()->utc())
-                    ->where('cases.opened_at', '<', $end->copy()->utc())->count()];
-        }
-        $upcoming = app(WorkerTasks::class)->query($user)->where('tasks.status', 'open')
-            ->where('tasks.due_at', '>=', now())
+        $holdsCases = $user->hasPermission('cases.update');
+        $upcoming = app(WorkerTasks::class)->query($user)->where('tasks.status', 'open')->where('tasks.due_at', '>=', now())
             ->where(fn ($query) => $query->whereNull('tasks.case_id')->orWhereIn('tasks.case_id', (clone $cases)->select('cases.id')))
-            ->orderBy('tasks.due_at')->orderBy('tasks.id')->limit(5)
-            ->get(['tasks.id', 'tasks.case_id', 'tasks.title', 'tasks.due_at', 'cases.case_number']);
+            ->orderBy('tasks.due_at')->orderBy('tasks.id')->limit(5)->get(['tasks.id', 'tasks.case_id', 'tasks.title', 'tasks.due_at', 'cases.case_number']);
 
         return Inertia::render('Dashboard', [
             'asOf' => now()->toIso8601String(),
-            'intakeTrend' => $intakeTrend,
-            'caseStatuses' => (clone $cases)->selectRaw('cases.status as label, COUNT(*) as total')->groupBy('cases.status')->orderBy('cases.status')->get(),
+            'todos' => app(DashboardTodos::class)->groups($user),
             'upcomingActivities' => app(WorkerTasks::class)->withIsoDates($upcoming),
-            'actionQueue' => app(WorkerTasks::class)->actionQueue($user, $cases),
+            'actionQueue' => $holdsCases ? app(WorkerTasks::class)->actionQueue($user, $cases) : [],
             // Rule-based next actions for the case manager's own cases (case numbers only).
             'suggestions' => $user->role === 'social_worker' ? app(SmartSuggestions::class)->forCases($cases) : [],
-            'selectedRegion' => $selectedRegion,
-            'lguWorkload' => $lguWorkload,
-            'geographicScope' => $this->geographicScope($user),
-            'metrics' => ['totalCases' => (clone $cases)->count(), 'activeCases' => (clone $cases)->whereNotIn('cases.status', ['CLOSED'])->count(), 'closedCases' => (clone $cases)->where('cases.status', 'CLOSED')->count(), 'thisMonth' => (clone $cases)->whereBetween('cases.opened_at', [now()->startOfMonth(), now()->endOfMonth()])->count()],
-            'attention' => $this->attentionSummary($user->id, $user->role, $cases),
-            'areas' => (clone $cases)->selectRaw("COALESCE(clients.municipality, 'Unspecified area') as area, COUNT(*) as total")->groupBy('clients.municipality')->orderByDesc('total')->limit(5)->get(),
-            'regionHeatmap' => (clone $cases)->selectRaw("COALESCE(clients.region, 'Unspecified region') as area, COUNT(*) as total")->groupBy('clients.region')->orderByDesc('total')->get(),
-            'provinceHeatmap' => (clone $cases)->selectRaw("COALESCE(clients.region, 'Unspecified region') as region, COALESCE(clients.province, 'Unspecified province') as province, COUNT(*) as total")->groupBy('clients.region', 'clients.province')->orderByDesc('total')->get(),
-            // This contains operational aggregates only. No client ID, name,
-            // address, case reference, narrative, or risk narrative is sent
-            // to the map surface.
-            'barangayWorkload' => (clone $cases)->selectRaw("COALESCE(clients.barangay, 'Unspecified barangay') as barangay, COUNT(*) as total, SUM(CASE WHEN cases.status != 'CLOSED' THEN 1 ELSE 0 END) as active")->groupBy('clients.barangay')->orderByDesc('total')->get(),
-            'charts' => [
-                'classification' => (clone $cases)->selectRaw("COALESCE(cases.category, 'Not classified') as label, COUNT(*) as total")->groupBy('cases.category')->orderByDesc('total')->limit(5)->get(),
-                'sex' => (clone $cases)->selectRaw("COALESCE(clients.sex, 'Not recorded') as label, COUNT(*) as total")->groupBy('clients.sex')->orderByDesc('total')->get(),
-                'age' => $ageCounts->sortKeys()->map(fn (int $total, int $age) => ['label' => $age, 'total' => $total])->values(),
-                'ageSummary' => ['youngest' => $recordedAges->min(), 'oldest' => $recordedAges->max(), 'recorded' => $recordedAges->count()],
-                'services' => DB::table('interventions')->join('case_plans', 'case_plans.id', '=', 'interventions.case_plan_id')->whereIn('case_plans.case_id', (clone $cases)->select('cases.id'))->selectRaw("COALESCE(service_category, 'Other service') as label, COUNT(*) as total")->groupBy('service_category')->orderByDesc('total')->limit(5)->get(),
-            ],
-            'recentCases' => $cases->leftJoin('users', 'users.id', '=', 'cases.assigned_to')->orderByDesc('cases.updated_at')->limit(6)->get(['cases.*', 'clients.first_name', 'clients.last_name', 'users.name as worker_name']),
+            'attention' => $holdsCases ? $this->attentionSummary($user->id, $user->role, $cases) : ['dueSoon' => 0, 'overdueActions' => 0],
+            'metrics' => ['activeCases' => $holdsCases ? (clone $cases)->whereNotIn('cases.status', ['CLOSED'])->count() : null],
+            'scopeLabel' => $user->hasPermission('cases.monitor') ? app(MonitoringScope::class)->label($user) : $this->geographicScope($user)['label'],
+            'roleLabel' => RolePermissions::label($user->role),
         ]);
     }
 
@@ -167,26 +116,6 @@ class CaseworkController extends Controller
         }
 
         return ['level' => 'region', 'label' => 'Authorized case coverage', 'psgcCode' => null, 'boundaryStatus' => 'regional_boundaries_available'];
-    }
-
-    /** Safe aggregate workload for the worker's LGU; it never includes other workers' case identities. */
-    private function lguWorkload(object $user): ?array
-    {
-        if ($user->role !== 'social_worker') {
-            return null;
-        }
-        $caseIds = $this->lgus->dashboardCaseIds($user);
-        if ($caseIds === []) {
-            return ['total_cases' => 0, 'active_cases' => 0, 'overdue_actions' => 0, 'open_referrals' => 0, 'aftercare_cases' => 0];
-        }
-
-        return [
-            'total_cases' => count($caseIds),
-            'active_cases' => DB::table('cases')->whereIn('id', $caseIds)->where('status', '!=', 'CLOSED')->count(),
-            'overdue_actions' => DB::table('tasks')->whereIn('case_id', $caseIds)->where('status', 'open')->where('due_at', '<', now())->count(),
-            'open_referrals' => DB::table('referrals')->whereIn('case_id', $caseIds)->whereNotIn('status', ['COMPLETED', 'WITHDRAWN'])->count(),
-            'aftercare_cases' => DB::table('case_aftercare_plans')->whereIn('case_id', $caseIds)->count(),
-        ];
     }
 
     /**

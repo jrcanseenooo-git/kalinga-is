@@ -58,8 +58,9 @@ class AssignedCaseScopeTest extends TestCase
         $this->get(route('cases.index'))->assertOk()->assertInertia(fn (Assert $page) => $page
             ->has('cases.data', 1)->where('cases.data.0.id', $own));
         $this->get(route('dashboard'))->assertOk()->assertInertia(fn (Assert $page) => $page
-            ->where('metrics.totalCases', 1)->where('lguWorkload.total_cases', 2)
-            ->has('recentCases', 1)->where('recentCases.0.id', $own));
+            // The dashboard is a to-do list: own active cases only, no LGU workload or other workers' cases.
+            ->where('metrics.activeCases', 1)->missing('lguWorkload')->missing('recentCases')
+            ->where('suggestions', fn ($items) => collect($items)->every(fn ($item) => (int) $item['case_id'] === $own)));
         $this->getJson(route('search', ['q' => 'HiddenRecord']))->assertOk()->assertJsonCount(0, 'cases');
         $this->get(route('calendar.index'))->assertOk()->assertInertia(fn (Assert $page) => $page
             ->has('availableCases', 1)->where('availableCases.0.id', $own));

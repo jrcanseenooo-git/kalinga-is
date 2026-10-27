@@ -31,7 +31,9 @@
     },
     "dependencies": {
         "@lucide/vue": "^1.48.0",
-        "qrcode": "^1.5.4"
+        "@types/topojson-client": "^3.1.5",
+        "qrcode": "^1.5.4",
+        "topojson-client": "^3.1.0"
     },
     "overrides": {
         "shell-quote": "^1.12.0"

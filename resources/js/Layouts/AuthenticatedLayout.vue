@@ -20,13 +20,10 @@ const open = ref(false); const collapsed = ref(false); const confirmLogout = ref
 const permissions = computed(() => new Set<string>(page.props.auth.permissions ?? []));
 const can = (permission: string) => permissions.value.has(permission);
 const isActive = (link: NavigationLink) => link.match.some((name) => route().current(name));
-const homeLink = computed(() => can('cases.create')
-  ? { label:'Dashboard', icon:'home', route:'dashboard', match:['dashboard'] }
-  : can('management.dashboard.view')
-    ? { label:'Overview', icon:'home', route:'management.dashboard', match:['management.dashboard','management.section'] }
-    : (page.props.auth.user.role === 'cpu_member'
-      ? { label:'My referred cases', icon:'home', route:'mdt.collaboration.index', match:['mdt.collaboration.index','mdt.workspace'] }
-      : { label:'Dashboard', icon:'home', route:'dashboard', match:['dashboard'] }));
+// The dashboard is everyone's to-do list; CPU members start from their referred cases.
+const homeLink = computed(() => page.props.auth.user.role === 'cpu_member'
+  ? { label:'My referred cases', icon:'home', route:'mdt.collaboration.index', match:['mdt.collaboration.index','mdt.workspace'] }
+  : { label:'Dashboard', icon:'home', route:'dashboard', match:['dashboard'] });
 const navCounts = computed(() => (page.props as unknown as { navCounts?: { activeCases: number | null; calendarDue: number | null } | null }).navCounts ?? null);
 const groups = computed<{ title: string; links: NavigationLink[] }[]>(() => [
   { title:'', links:[homeLink.value] },
@@ -41,6 +38,7 @@ const groups = computed<{ title: string; links: NavigationLink[] }[]>(() => [
   ]},
   ...(can('analytics.view') || can('analytics.quarterly') ? [{ title:'Insights', links:[
     { label:'Analytics', icon:'bars', route:'analytics.index', match:['analytics.index','analytics.quarterly'] },
+    ...(can('management.dashboard.view') ? [{ label:'Management overview', icon:'home', route:'management.dashboard', match:['management.dashboard','management.section'] }] : []),
   ]}] : []),
   { title: can('admin.manage') ? 'Settings' : 'Management', links:[
     ...(can('admin.manage') ? [{ label:'Administration', icon:'settings', route:'admin.overview', match:['admin.overview','admin.index','admin.lgus.index','admin.audits','admin.forms'] }] : [

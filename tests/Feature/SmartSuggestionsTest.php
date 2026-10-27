@@ -34,15 +34,15 @@ class SmartSuggestionsTest extends TestCase
                 $kinds = $items->pluck('kind')->all();
 
                 return $items->every(fn ($item) => (int) $item['case_id'] === $own && $item['case_number'] === 'KLG-SMART-1')
-                    && in_array('referral', $kinds, true) && in_array('safety', $kinds, true) && in_array('assessment', $kinds, true) && in_array('stale', $kinds, true)
+                    && in_array('referral', $kinds, true) && in_array('kavat', $kinds, true) && in_array('forms', $kinds, true) && in_array('stale', $kinds, true)
                     && $items->first()['tone'] === 'urgent'
                     && $items->every(fn ($item) => !str_contains(json_encode($item), 'Synthetic'));
             }));
 
-        // Recording a safety review and a note clears those suggestions.
-        DB::table('risk_assessments')->insert(['case_id' => $own, 'assessed_by' => $worker->id, 'assessment_type' => 'review', 'assessed_at' => now(), 'overall_risk_level' => 'high', 'immediate_protection_required' => false, 'status' => 'finalized', 'created_at' => now(), 'updated_at' => now()]);
+        // Finalizing a KaVAT and recording a note clears those suggestions.
+        $this->finalKavat($own, $worker->id);
         DB::table('case_notes')->insert(['case_id' => $own, 'body' => 'Synthetic', 'visibility' => 'CASE_NOTES', 'record_type' => 'progress_note', 'note_type' => 'contact', 'occurred_at' => now(), 'created_by' => $worker->id, 'created_at' => now(), 'updated_at' => now()]);
-        $this->get(route('dashboard'))->assertInertia(fn (Assert $page) => $page->where('suggestions', fn ($items) => !collect($items)->pluck('kind')->intersect(['safety', 'stale'])->count()));
+        $this->get(route('dashboard'))->assertInertia(fn (Assert $page) => $page->where('suggestions', fn ($items) => !collect($items)->pluck('kind')->intersect(['kavat', 'stale'])->count()));
         $this->assertNotNull($hidden);
     }
 
@@ -62,15 +62,23 @@ class SmartSuggestionsTest extends TestCase
         $fresh = $make($worker, 'KLG-LIST-FRESH', 1);
         DB::table('case_notes')->insert(['case_id' => $fresh, 'body' => 'Synthetic', 'visibility' => 'CASE_NOTES', 'record_type' => 'progress_note', 'note_type' => 'contact', 'occurred_at' => now(), 'created_by' => $worker->id, 'created_at' => now(), 'updated_at' => now()]);
         $make($other, 'KLG-LIST-OTHER', 20);
+        $this->finalKavat($due, $worker->id);
+        $this->finalKavat($fresh, $worker->id);
 
         $this->actingAs($worker)->get(route('cases.index'))->assertOk()->assertInertia(fn (Assert $page) => $page
             ->where('statusCounts.needs_action', 1)
-            ->where('cases.data', fn ($rows) => collect($rows)->firstWhere('id', $due)['next_step']['kind'] === 'assessment'
+            ->where('cases.data', fn ($rows) => collect($rows)->firstWhere('id', $due)['next_step']['kind'] === 'forms'
                 && collect($rows)->firstWhere('id', $fresh)['next_step'] === null
                 && !collect($rows)->contains('case_number', 'KLG-LIST-OTHER')));
 
         $this->get(route('cases.index', ['attention' => 1]))->assertOk()->assertInertia(fn (Assert $page) => $page
             ->where('filters.attention', true)
             ->where('cases.data', fn ($rows) => collect($rows)->pluck('id')->all() === [$due]));
+    }
+
+    private function finalKavat(int $case, int $user): void
+    {
+        DB::table('kavat_assessments')->insert(['case_id' => $case, 'instrument_version' => '2026-pilot', 'occasion' => 'baseline', 'administered_at' => now()->toDateString(), 'administered_by' => $user,
+            'status' => 'final', 'answers' => '{}', 'final_score' => 80, 'priority' => 'standard', 'revision' => 1, 'finalized_at' => now(), 'created_at' => now(), 'updated_at' => now()]);
     }
 }

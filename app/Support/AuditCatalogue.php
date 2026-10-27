@@ -139,6 +139,7 @@ final class AuditCatalogue
         'kavat.discarded' => ['data_deletion', 'DELETE', 'Unfinished KaVAT discarded'],
         'case_form.updated' => ['data_modification', 'UPDATE', 'Kalinga form edited'],
         'case_form.finalized' => ['workflow_status', 'SUBMIT', 'Kalinga form finalized'],
+        'analytics.pdf_exported' => ['report_generation', 'EXPORT', 'Analytics exported to PDF'],
         'task.rescheduled' => ['workflow_status', 'UPDATE', 'Activity rescheduled'],
         'task.cancelled' => ['workflow_status', 'UPDATE', 'Activity cancelled'],
         'task.accepted' => ['workflow_status', 'UPDATE', 'Calendar invitation accepted'],

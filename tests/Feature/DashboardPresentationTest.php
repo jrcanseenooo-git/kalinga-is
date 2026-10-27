@@ -12,7 +12,7 @@ class DashboardPresentationTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_dashboard_trend_and_upcoming_tasks_preserve_case_scope_and_philippine_month_boundary(): void
+    public function test_dashboard_upcoming_tasks_and_analytics_trend_preserve_case_scope_and_philippine_month_boundary(): void
     {
         $this->travelTo(now()->setDate(2026, 10, 18)->setTime(4, 0));
         $worker = User::factory()->create(['role' => 'social_worker']);
@@ -28,10 +28,11 @@ class DashboardPresentationTest extends TestCase
         }
         DB::table('tasks')->insert(['case_id' => null, 'assigned_to' => $worker->id, 'title' => 'Synthetic personal schedule', 'due_at' => now()->addHours(2), 'status' => 'open', 'created_at' => now(), 'updated_at' => now()]);
         $this->be($worker)->get(route('dashboard'))->assertOk()->assertInertia(fn (Assert $page) => $page
-            ->has('intakeTrend', 6)->where('intakeTrend.5.month', '2026-10')->where('intakeTrend.5.total', 1)
-            ->where('intakeTrend.4.total', 0)->has('caseStatuses', 1)->where('caseStatuses.0.total', 1)
             ->has('upcomingActivities', 2)->where('upcomingActivities.0.case_id', $cases[0])->where('upcomingActivities.1.case_id', null));
+        // Trends moved to Analytics: opened 30 Sep 16:30 UTC is 1 October in the Philippines.
+        $this->get(route('analytics.index'))->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->where('monthly.11.label', 'Oct 2026')->where('monthly.11.opened', 1)->where('monthly.10.opened', 0));
         DB::table('user_lgu_assignments')->where('user_id', $worker->id)->update(['active' => false]);
-        $this->get(route('dashboard'))->assertInertia(fn (Assert $page) => $page->where('intakeTrend.5.total', 0)->has('caseStatuses', 0)->has('upcomingActivities', 1)->where('upcomingActivities.0.case_id', null));
+        $this->get(route('dashboard'))->assertInertia(fn (Assert $page) => $page->has('upcomingActivities', 1)->where('upcomingActivities.0.case_id', null));
     }
 }
