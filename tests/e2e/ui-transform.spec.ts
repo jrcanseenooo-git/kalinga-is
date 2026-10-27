@@ -250,31 +250,19 @@ for(const width of [360,390,768,1024,1440,1920]) test(`case registry shared filt
  await expect(page).toHaveURL(/\/cases\/\d+$/);
 });
 
-for(const width of [360,390,768,1024,1440,1920]) test(`Option 2 dashboard screenshot and workflows at ${width}px`,async({page})=>{
+for(const width of [360,390,768,1024,1440,1920]) test(`to-do dashboard screenshot and workflows at ${width}px`,async({page})=>{
  await page.setViewportSize({width,height:1080}); await login(page); await page.goto('/dashboard');
- await expect(page.getByRole('heading',{name:'Dashboard',exact:true})).toBeVisible();
- const priorities=page.getByRole('region',{name:'Casework priorities'});
- await expect(priorities.getByRole('link')).toHaveCount(4);
- const payload=await page.locator('#app').getAttribute('data-page');const data=JSON.parse(payload!).props;
- await expect(priorities.getByRole('link',{name:/Active cases/})).toContainText(String(data.metrics.activeCases));
- const action=page.getByRole('heading',{name:'My cases requiring action',exact:true});
- const analytics=page.getByRole('region',{name:'Supporting caseload analytics'});
- expect((await action.boundingBox())!.y).toBeLessThan((await analytics.boundingBox())!.y);
- await expect(page.getByRole('heading',{name:'Upcoming schedule',exact:true})).toBeVisible();
- await expect(analytics.getByRole('img')).toHaveCount(2);
+ await expect(page.getByRole('heading',{name:/your to-do list/i})).toBeVisible();
+ // To-do only: no charts on the dashboard (they are in Analytics).
+ await expect(page.getByRole('region',{name:'Supporting caseload analytics'})).toHaveCount(0);
  await expect(page.getByRole('link',{name:'New case intake',exact:true})).toHaveAttribute('href',/\/cases\/create$/);
+ await expect(page.getByRole('link',{name:/Analytics and map/})).toHaveAttribute('href',/\/analytics$/);
  await expectNoHorizontalOverflow(page);
  const result=await new AxeBuilder({page}).analyze();
  expect(result.violations.filter(item=>['critical','serious'].includes(item.impact??''))).toEqual([]);
  await page.evaluate(()=>document.fonts.ready);
  await page.screenshot({path:`docs/implementation/evidence/ui-02/dashboard-${width}.png`,fullPage:true,animations:'disabled'});
  await page.screenshot({path:`docs/implementation/evidence/ui-02/viewport-${width}.png`,animations:'disabled'});
- await priorities.getByRole('link',{name:/Overdue actions/}).click();
- await expect(page).toHaveURL(/\/calendar$/);
- await page.goto('/dashboard');
- const chart=page.getByRole('region',{name:'Case intake trend',exact:true});
- await chart.getByText('View data table',{exact:true}).click();
- await expect(chart.getByRole('table')).toBeVisible();
  if(width<1024){await page.getByRole('button',{name:'Open navigation',exact:true}).click();await expect(page.locator('#workspace-navigation').getByRole('button',{name:'Close navigation',exact:true})).toBeFocused();await page.keyboard.press('Escape');}
 });
 
@@ -282,8 +270,7 @@ test('dashboard empty state is honest and shell collapse stays keyboard usable',
  await page.setViewportSize({width:1440,height:1080});
  await login(page,{email:'empty-worker@kalinga.test',password:'password'}); await page.goto('/dashboard');
  await expect(page.getByText('No open case tasks recorded',{exact:true})).toBeVisible();
- await expect(page.getByText('No upcoming dated tasks',{exact:true})).toBeVisible();
- await expect(page.getByText('No case openings recorded in this period.',{exact:true})).toBeVisible();
+ await expect(page.getByText('Nothing scheduled.',{exact:true})).toBeVisible();
  await page.getByRole('button',{name:'Collapse navigation',exact:true}).click();
  const sidebar=page.locator('#workspace-navigation');
  await expect.poll(async()=>(await sidebar.boundingBox())!.width).toBe(96);
