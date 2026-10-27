@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Services\ReferenceNumberService;
 use App\Support\AuditLog;
+use App\Support\PhilippineDate;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -21,7 +22,7 @@ class PublicReportController extends Controller
             'narrative' => 'required|string|max:5000',
             'subject_first' => 'nullable|string|max:80',
             'subject_last' => 'nullable|string|max:80',
-            'subject_birthdate' => 'nullable|date|before_or_equal:today',
+            'subject_birthdate' => 'nullable|date|before_or_equal:' . PhilippineDate::today(),
             'subject_sex' => 'nullable|in:Female,Male',
             'region' => 'nullable|string|max:120',
             'province' => 'nullable|string|max:120',

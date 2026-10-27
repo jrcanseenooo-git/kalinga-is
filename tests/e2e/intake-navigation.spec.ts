@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
-import { login, expectNoHorizontalOverflow } from './helpers';
+import { login, expectNoHorizontalOverflow, acceptConfirm } from './helpers';
 
 const next = (page: Page) => page.getByRole('button', { name: 'Continue', exact: true }).click();
 const firstName = (page: Page) => page.getByRole('textbox', { name: 'First name *', exact: true });
@@ -113,7 +113,6 @@ test('an intake can be paused, found in Saved intakes, resumed and discarded', a
     await expect(firstName(page)).toHaveValue('Paused');
     await expect(page.getByRole('textbox', { name: 'Alias or nickname', exact: true })).toHaveValue('Pau');
     await page.goto('/cases/create');
-    page.once('dialog', dialog => dialog.accept());
-    await saved.getByRole('button', { name: /Discard saved intake P\*\*R\*\*OS/ }).click();
+    await saved.getByRole('button', { name: /Discard saved intake P\*\*R\*\*OS/ }).click();await acceptConfirm(page);
     await expect(saved).not.toContainText('P**R**OS');
 });

@@ -23,3 +23,15 @@ export async function expectNoHorizontalOverflow(page: Page) {
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(overflow).toBeLessThanOrEqual(1);
 }
+
+/** Answer Kalinga's own confirmation dialog (askConfirm), which replaced the browser confirm box. */
+export async function acceptConfirm(page: Page) {
+    const dialog = page.getByRole('dialog').filter({ has: page.locator('#confirm-dialog-accept') });
+    await dialog.locator('#confirm-dialog-accept').click();
+    await dialog.waitFor({ state: 'hidden' });
+}
+export async function dismissConfirm(page: Page) {
+    const dialog = page.getByRole('dialog').filter({ has: page.locator('#confirm-dialog-accept') });
+    await dialog.getByRole('button').first().click();
+    await dialog.waitFor({ state: 'hidden' });
+}

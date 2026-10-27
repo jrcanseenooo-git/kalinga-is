@@ -3,10 +3,13 @@
  * Field names match App\Services\CaseIntake on the server, which checks
  * everything again; these checks only guide the case manager step by step.
  */
+import { manilaToday } from '@/utils/philippineTime';
 import { MARRIAGE_CLASSIFICATIONS } from '@/data/cefmu';
 import { isLowerThan, suggestRisk, type IntakeOptions, type RiskLevel } from '@/Casework/intakeRules';
 
 export { intakeFieldId, intakeStepForField, isLowerThan, suggestRisk } from '@/Casework/intakeRules';
+export { isEmptyFamilyMember, normalizePhone, tidyName } from '@/Casework/intakeText';
+import { isEmptyFamilyMember } from '@/Casework/intakeText';
 export type { CustomField, IntakeOptions, RiskFactor, RiskLevel, RiskRule } from '@/Casework/intakeRules';
 
 export const INTAKE_STEPS = ['Privacy notice', 'Child & safe contact', 'Case details', 'Safety triage'] as const;
@@ -47,9 +50,9 @@ export function emptyIntake(location?: AssignedLocation) {
         disability_evidence: '', civil_status: '', religion: '', ip_category: '', education_attainment: '',
         safe_contact_method: 'Not recorded', safe_contact_notes: '',
         house_no_street: '', region: location?.region ?? '', province: location?.province ?? '', municipality: location?.municipality ?? '', barangay: '',
-        permanent_same_as_present: true, permanent_house_no_street: '', permanent_region: '', permanent_province: '', permanent_municipality: '', permanent_barangay: '',
+        permanent_same_as_present: false, permanent_house_no_street: '', permanent_region: '', permanent_province: '', permanent_municipality: '', permanent_barangay: '',
         primary_caregiver_name: '', primary_caregiver_relationship: '', primary_caregiver_contact: '',
-        caregiver_same_address: true, caregiver_house_no_street: '', caregiver_region: '', caregiver_province: '', caregiver_municipality: '', caregiver_barangay: '',
+        caregiver_same_address: false, caregiver_house_no_street: '', caregiver_region: '', caregiver_province: '', caregiver_municipality: '', caregiver_barangay: '',
         family_members: [] as FamilyMember[],
         category: 'CEFMU', cefmu_classifications: [] as string[], union_forms: [] as string[], union_status: '',
         partner_current_age: '' as number | '', union_duration_years: '' as number | '', union_duration_extra_months: '' as number | '', current_residence: '',
@@ -62,10 +65,10 @@ export function emptyIntake(location?: AssignedLocation) {
 export type IntakeData = ReturnType<typeof emptyIntake>;
 
 export const emptyFamilyMember = (): FamilyMember => ({ name: '', relationship_type: '', sex: '', birthdate: '', civil_status: '', education: '', occupation: '',
-    same_address: true, house_no_street: '', region: '', province: '', municipality: '', barangay: '' });
+    same_address: false, house_no_street: '', region: '', province: '', municipality: '', barangay: '' });
 
 const phoneOk = (value: string) => !value || /^(?:\+63|0)9\d{9}$/.test(value);
-const todayIso = () => new Date().toISOString().slice(0, 10);
+const todayIso = () => manilaToday();
 
 /** Problems on one step, keyed by field name. */
 export function validateIntakeStep(step: number, data: IntakeData, options: IntakeOptions): Record<string, string> {
@@ -82,6 +85,11 @@ export function validateIntakeStep(step: number, data: IntakeData, options: Inta
         else if (data.birthdate > todayIso()) errors.birthdate = 'Date of birth cannot be in the future.';
         if (!data.sex) errors.sex = "Select the child's sex.";
         if (!phoneOk(data.phone)) errors.phone = 'Use 09XXXXXXXXX or +639XXXXXXXXX.';
+        data.family_members.forEach((member, index) => {
+            if (isEmptyFamilyMember(member)) return;
+            if (!member.name.trim()) errors[`family_members.${index}.name`] = `Family member ${index + 1}: add the name, or remove this person.`;
+            if (!member.relationship_type) errors[`family_members.${index}.relationship_type`] = `Family member ${index + 1}: choose the relationship to the child.`;
+        });
     }
     if (step === 3) {
         if (!data.cefmu_classifications.length) errors.cefmu_classifications = 'Select at least one CEFMU classification.';
@@ -118,6 +126,6 @@ export function intakePayload(data: IntakeData): Record<string, unknown> {
         consent_form_type: data.consent_photo ? data.consent_form_type || 'consent' : null,
         partner_current_age: data.union_status === 'no' || data.partner_current_age === '' ? null : Number(data.partner_current_age),
         union_duration_months: data.union_status === 'no' ? null : durationMonths(data),
-        family_members: data.family_members.filter(member => member.name.trim() && member.relationship_type),
+        family_members: data.family_members.filter(member => !isEmptyFamilyMember(member)),
     };
 }

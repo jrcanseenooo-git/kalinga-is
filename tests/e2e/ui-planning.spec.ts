@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
-import { login, expectNoHorizontalOverflow } from './helpers';
+import { login, expectNoHorizontalOverflow, dismissConfirm } from './helpers';
 
 async function openPlanning(page:Page, number='SYN-UI-2026-0004') {
  await login(page);await page.goto(`/cases?search=${encodeURIComponent(number)}`);await page.getByRole('link',{name:new RegExp(number)}).first().click();await expect(page).toHaveURL(/\/cases\/\d+$/);
@@ -14,7 +14,7 @@ async function createDraft(page:Page,objective:string){
 
 test('planning unfinished objective survives cancelling navigation',async({page})=>{
  await openPlanning(page);const url=page.url();await page.getByRole('textbox',{name:'Overall objective',exact:true}).fill('Synthetic unfinished planning work.');
- let prompted=false;page.once('dialog',async dialog=>{prompted=true;await dialog.dismiss();});await page.getByRole('link',{name:'Back to case',exact:true}).click();await expect.poll(()=>prompted).toBe(true);
+ await page.getByRole('link',{name:'Back to case',exact:true}).click();await dismissConfirm(page);
  await expect(page).toHaveURL(url);await expect(page.getByRole('textbox',{name:'Overall objective',exact:true})).toHaveValue('Synthetic unfinished planning work.');
 });
 

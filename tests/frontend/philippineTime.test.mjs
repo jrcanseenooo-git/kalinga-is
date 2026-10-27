@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import ts from 'typescript';
 const source=readFileSync(new URL('../../resources/js/utils/philippineTime.ts',import.meta.url),'utf8');
 const compiled=ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022}}).outputText;
-const {manilaDateTime,manilaInputToUtc,philippineTimestamp,calendarDateLabel,storedUtcToManilaInput}=await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`);
+const {manilaToday,manilaDateTime,manilaInputToUtc,philippineTimestamp,calendarDateLabel,storedUtcToManilaInput}=await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`);
 
 test('Philippine midnight fields round-trip independently of device timezone',()=>{
  const prior=process.env.TZ;try{for(const tz of ['UTC','America/Los_Angeles','Asia/Tokyo']){process.env.TZ=tz;assert.equal(manilaDateTime(new Date('2026-10-18T16:05:00Z')),'2026-10-19T00:05');assert.equal(manilaInputToUtc('2026-10-19T00:05'),'2026-10-18T16:05:00.000Z');}}finally{if(prior===undefined)delete process.env.TZ;else process.env.TZ=prior;}
@@ -35,4 +35,10 @@ test('database UTC timestamps without a zone are read as UTC, not device time',a
   assert.equal(ageFromBirthdate('2010-10-22','2026-10-21'),15);
   assert.equal(ageFromBirthdate('2010-10-22','2026-10-22'),16);
  }}finally{if(prior===undefined)delete process.env.TZ;else process.env.TZ=prior;}
+});
+
+test('today is the Philippine date, not the UTC date, before 8 AM', () => {
+    assert.equal(manilaToday(new Date('2026-10-27T17:30:00Z')), '2026-10-28');
+    assert.equal(manilaToday(new Date('2026-10-28T15:59:00Z')), '2026-10-28');
+    assert.equal(manilaToday(new Date('2026-10-28T16:00:00Z')), '2026-10-29');
 });

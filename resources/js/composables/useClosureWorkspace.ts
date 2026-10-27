@@ -1,3 +1,4 @@
+import { askConfirm } from '@/utils/confirmDialog';
 import axios from 'axios';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import { registerUnsavedCaseWork, reloadAfterAccessDenial } from '@/Security/browserHistory';
@@ -39,7 +40,8 @@ export function useClosureWorkspace(caseId: number) {
         finally { busy.value = false; }
     }
     async function discard() {
-        if (busy.value || !window.confirm('Discard the unfinished revision and use the refreshed saved record?')) return;
+        if (busy.value) return;
+        if (!(await askConfirm({ title: 'Discard the unfinished revision?', message: 'The refreshed saved record is used instead.', confirmLabel: 'Discard', tone: 'danger' }))) return;
         if (refreshRequired.value) { await load(); if (refreshRequired.value) return; }
         adopt(); error.value = ''; fieldError.value = '';
     }
@@ -55,7 +57,7 @@ export function useClosureWorkspace(caseId: number) {
     }
     async function write(action: 'record' | 'review' | 'close' | 'reopen') {
         if (disabled.value || !data.value?.allowed_actions[action] || (action !== 'record' && dirty.value)) return;
-        if (action !== 'record' && !window.confirm({review:'Independently review the saved closure record?',close:'Close this case using the current reviewed record and configured readiness checks?',reopen:'Reopen this case and start a new draft planning cycle? The former closure remains in history.'}[action])) return;
+        if (action !== 'record' && !(await askConfirm({ review: { title: 'Review the saved closure record?', message: 'Your independent review is recorded.', confirmLabel: 'Record my review' }, close: { title: 'Close this case?', message: 'The case is closed using the current reviewed record and the readiness checks.', confirmLabel: 'Close the case', tone: 'danger' as const }, reopen: { title: 'Reopen this case?', message: 'A new draft planning cycle starts. The former closure stays in the history.', confirmLabel: 'Reopen the case' } }[action]))) return;
         busy.value = true; error.value = ''; fieldError.value = ''; message.value = '';
         let acknowledged = false;
         try {

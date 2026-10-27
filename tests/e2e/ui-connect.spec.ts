@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
-import { login, expectNoHorizontalOverflow } from './helpers';
+import { login, expectNoHorizontalOverflow, acceptConfirm, dismissConfirm } from './helpers';
 
 async function open(page:Page) {await login(page,{email:'cpu@kalinga.test',password:'password'});await page.goto('/cpu/coordination');}
 
@@ -29,7 +29,7 @@ test('Connect retains a lost-acknowledgement message for explicit review without
     await page.getByLabel('New message',{exact:true}).fill(text);await page.getByRole('button',{name:'Send message',exact:true}).click();await page.getByRole('dialog').locator('#generic-submit-confirm').click();
     await expect(page.getByRole('alert').first()).toContainText('send outcome could not be confirmed');await expect(page.getByRole('button',{name:'Send message',exact:true})).toBeDisabled();await expect(page.getByLabel('New message',{exact:true})).toHaveValue(text);
     await page.unroute('**/cpu/coordination/*/messages');await page.getByRole('button',{name:'Refresh conversation',exact:true}).click();await expect(page.getByRole('region',{name:'Coordination messages',exact:true})).toContainText(text);
-    page.once('dialog',dialog=>dialog.accept());await page.getByRole('button',{name:'Discard unfinished message',exact:true}).click();expect(writes).toBe(1);
+    await page.getByRole('button',{name:'Discard unfinished message',exact:true}).click();await acceptConfirm(page);expect(writes).toBe(1);
     await expect(page.getByRole('region',{name:'Coordination messages',exact:true}).getByRole('article').filter({hasText:text})).toHaveCount(1);
 });
 
@@ -47,7 +47,7 @@ test('Connect validation retains text and focuses the error summary',async({page
 
 test('Connect refresh retains unfinished reply metadata and cancelled navigation retains the draft',async({page})=>{
     await open(page);const region=page.getByRole('region',{name:'Coordination messages',exact:true});await region.getByRole('article').last().getByRole('button',{name:'Reply',exact:true}).click();await page.getByLabel('New message',{exact:true}).fill('Synthetic unfinished operational reply.');await page.getByRole('button',{name:'Refresh conversation',exact:true}).click();await expect(page.getByText('Replying to a message in this group',{exact:true})).toBeVisible();await expect(page.getByLabel('New message',{exact:true})).toHaveValue('Synthetic unfinished operational reply.');
-    let prompted=false;page.once('dialog',async dialog=>{prompted=true;await dialog.dismiss();});await page.getByRole('link',{name:'My referred cases',exact:true}).first().click();await expect.poll(()=>prompted).toBe(true);await expect(page.getByLabel('New message',{exact:true})).toHaveValue('Synthetic unfinished operational reply.');
+    await page.getByRole('link',{name:'My referred cases',exact:true}).first().click();await dismissConfirm(page);await expect(page.getByLabel('New message',{exact:true})).toHaveValue('Synthetic unfinished operational reply.');
     const stored=await page.evaluate(()=>JSON.stringify(localStorage)+JSON.stringify(sessionStorage)+JSON.stringify(history.state));expect(stored).not.toContain('Synthetic unfinished operational reply.');
 });
 

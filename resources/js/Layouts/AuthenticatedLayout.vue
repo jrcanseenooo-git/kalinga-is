@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import KalingaAssist from '@/Components/Assist/KalingaAssist.vue';
+import ConfirmDialogHost from '@/Components/UI/ConfirmDialogHost.vue';
+import TextSizeControl from '@/Components/UI/TextSizeControl.vue';
 import { formatPh } from '@/utils/philippineTime';
 import ConnectionStatus from '@/Components/UI/ConnectionStatus.vue';
 import { accessCheckPending } from '@/Security/browserHistory';
@@ -6,7 +9,7 @@ import Breadcrumbs from '@/Components/UI/Breadcrumbs.vue';
 import FeedbackDialog from '@/Components/FeedbackDialog.vue';
 import NotificationPanel from '@/Components/UI/NotificationPanel.vue';
 import type { PageProps } from '@/types';
-import { Link, router, usePage } from '@inertiajs/vue3'; import AppIcon from '@/Components/AppIcon.vue'; import SubmissionConfirmation from '@/Components/SubmissionConfirmation.vue'; import MidnightSessionGuard from '@/Components/MidnightSessionGuard.vue'; import { Bell, CalendarDays, ChevronDown, CircleHelp, LogOut, Menu, MessageSquareText, Plus, Search, UserRound } from '@lucide/vue';
+import { Link, router, usePage } from '@inertiajs/vue3'; import AppIcon from '@/Components/AppIcon.vue'; import SubmissionConfirmation from '@/Components/SubmissionConfirmation.vue'; import MidnightSessionGuard from '@/Components/MidnightSessionGuard.vue'; import { Sparkles, Bell, CalendarDays, ChevronDown, CircleHelp, LogOut, Menu, MessageSquareText, Plus, Search, UserRound } from '@lucide/vue';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import Modal from '@/Components/Modal.vue';
 import FlashToast from '@/Components/FlashToast.vue';
@@ -16,7 +19,7 @@ const desktop = ref(false);
 const navigationCollapsed = computed(() => desktop.value && collapsed.value);
 const menuButton = ref<HTMLButtonElement | null>(null);
 const sidebar = ref<HTMLElement | null>(null);
-const userMenuOpen = ref(false); const feedbackOpen = ref(false); const userMenu = ref<HTMLElement | null>(null); const searchTerm = ref('');
+const userMenuOpen = ref(false); const feedbackOpen = ref(false); const assistOpen = ref(false); const userMenu = ref<HTMLElement | null>(null); const searchTerm = ref('');
 const open = ref(false); const collapsed = ref(false); const confirmLogout = ref(false); const notificationsOpen = ref(false); const connectionOnline = ref(navigator.onLine); const page = usePage<PageProps>(); const unreadAlerts = computed(() => Number(page.props.unreadNotifications ?? 0)); const notificationPreview = computed(() => page.props.notificationPreview ?? []);
 const permissions = computed(() => new Set<string>(page.props.auth.permissions ?? []));
 const can = (permission: string) => permissions.value.has(permission);
@@ -49,7 +52,7 @@ const groups = computed<{ title: string; links: NavigationLink[] }[]>(() => [
       ...(can('options.manage') ? [{ label:'Form options', icon:'settings', route:'admin.options', match:['admin.options'] }] : []),
       ...(can('feedback.review') ? [{ label:'User feedback', icon:'bell', route:'admin.feedback', match:['admin.feedback'] }] : []),
     ]),
-    ...(can('lgu.profile.view') ? [{ label:'Office profile & signatories', icon:'building', route:'lgu-profile.show', match:['lgu-profile.show'] }] : []),
+    ...(can('lgu.profile.view') ? [{ label:'Office & signatories', icon:'building', route:'lgu-profile.show', match:['lgu-profile.show'] }] : []),
   ]},
 ].filter(group => group.links.length));
 const mobileLinks = computed(()=>[homeLink.value,...groups.value.flatMap(group=>group.links).filter(link=>['cases.index','monitoring.cases.index','cases.create','calendar.index','cpu.coordination.index','analytics.index'].includes(link.route))].slice(0,5));
@@ -136,10 +139,10 @@ onUnmounted(()=>{ removeEventListener('storage', readOfflinePending); removeEven
    <div class="flex shrink-0 items-center gap-1 sm:gap-2">
     <time v-if="!route().current('dashboard')" class="hidden items-center gap-2 rounded-lg border border-[var(--color-line)] bg-white px-3 py-2 text-xs font-medium text-slate-700 xl:inline-flex"><CalendarDays aria-hidden="true" class="h-4 w-4 text-brand-700"/>{{today}}</time>
     <ConnectionStatus :online="connectionOnline" class="px-2"/>
-    <button type="button" class="ui-button relative h-11 w-11 border-0 bg-transparent px-0 hover:bg-slate-100" aria-label="Open notifications" aria-controls="notification-panel" :aria-expanded="notificationsOpen" @click="notificationsOpen=!notificationsOpen"><Bell class="h-5 w-5"/><span v-if="unreadAlerts" class="absolute right-1 top-1 grid min-h-4 min-w-4 place-items-center rounded-full bg-rose-600 px-1 text-[10px] font-semibold text-white">{{unreadAlerts>9?'9+':unreadAlerts}}</span></button>
+    <button type="button" class="ui-button h-11 gap-1.5 border-violet-200 bg-violet-50 px-2.5 text-violet-800 hover:bg-violet-100 sm:px-3" aria-label="Open Kalinga Assist" @click="assistOpen=true"><Sparkles aria-hidden="true" class="h-5 w-5"/><span class="hidden sm:inline">Assist</span></button><button type="button" class="ui-button relative h-11 w-11 border-0 bg-transparent px-0 hover:bg-slate-100" aria-label="Open notifications" aria-controls="notification-panel" :aria-expanded="notificationsOpen" @click="notificationsOpen=!notificationsOpen"><Bell class="h-5 w-5"/><span v-if="unreadAlerts" class="absolute right-1 top-1 grid min-h-4 min-w-4 place-items-center rounded-full bg-rose-600 px-1 text-[10px] font-semibold text-white">{{unreadAlerts>9?'9+':unreadAlerts}}</span></button>
     <div ref="userMenu" class="relative">
      <button type="button" class="flex min-h-11 items-center gap-2 rounded-xl px-1.5 hover:bg-slate-100 sm:px-2" aria-haspopup="menu" :aria-expanded="userMenuOpen" aria-controls="user-menu" @click.stop="userMenuOpen=!userMenuOpen"><span class="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-100 text-xs font-bold text-brand-800">{{initials}}</span><span class="hidden min-w-0 text-left min-[1024px]:block"><span class="block max-w-40 truncate text-sm font-semibold text-slate-900">{{page.props.auth.user.name}}</span><span class="block max-w-40 truncate text-xs text-slate-600">{{roleLabel}}</span></span><ChevronDown aria-hidden="true" class="hidden h-4 w-4 text-slate-500 min-[1024px]:block"/></button>
-     <div v-if="userMenuOpen" id="user-menu" role="menu" class="absolute right-0 top-12 z-50 w-56 overflow-hidden rounded-xl border border-[var(--color-line)] bg-white py-1 shadow-lg"><div class="border-b border-slate-100 px-4 py-3 min-[1024px]:hidden"><p class="truncate text-sm font-semibold text-slate-900">{{page.props.auth.user.name}}</p><p class="truncate text-xs text-slate-600">{{roleLabel}}</p></div><button type="button" role="menuitem" class="flex min-h-11 w-full items-center gap-3 px-4 text-left text-sm text-slate-700 hover:bg-slate-50" @click="userMenuOpen=false; feedbackOpen=true"><MessageSquareText aria-hidden="true" class="h-4 w-4"/>Send feedback</button><Link role="menuitem" :href="route('profile.edit')" class="flex min-h-11 items-center gap-3 px-4 text-sm text-slate-700 hover:bg-slate-50" @click="userMenuOpen=false"><UserRound aria-hidden="true" class="h-4 w-4"/>Profile and security</Link><Link role="menuitem" :href="route('help.guide')" class="flex min-h-11 items-center gap-3 px-4 text-sm text-slate-700 hover:bg-slate-50" @click="userMenuOpen=false"><CircleHelp aria-hidden="true" class="h-4 w-4"/>Help and guides</Link><button role="menuitem" type="button" class="flex min-h-11 w-full items-center gap-3 border-t border-slate-100 px-4 text-left text-sm text-rose-700 hover:bg-rose-50" @click="userMenuOpen=false;logout()"><LogOut aria-hidden="true" class="h-4 w-4"/>Sign out</button></div>
+     <div v-if="userMenuOpen" id="user-menu" role="menu" class="absolute right-0 top-12 z-50 w-64 overflow-hidden rounded-xl border border-[var(--color-line)] bg-white py-1 shadow-lg"><div class="border-b border-slate-100 px-4 py-3 min-[1024px]:hidden"><p class="truncate text-sm font-semibold text-slate-900">{{page.props.auth.user.name}}</p><p class="truncate text-xs text-slate-600">{{roleLabel}}</p></div><div class="border-b border-slate-100 px-4 py-2"><TextSizeControl /></div><button type="button" role="menuitem" class="flex min-h-11 w-full items-center gap-3 px-4 text-left text-sm text-slate-700 hover:bg-slate-50" @click="userMenuOpen=false; feedbackOpen=true"><MessageSquareText aria-hidden="true" class="h-4 w-4"/>Send feedback</button><Link role="menuitem" :href="route('profile.edit')" class="flex min-h-11 items-center gap-3 px-4 text-sm text-slate-700 hover:bg-slate-50" @click="userMenuOpen=false"><UserRound aria-hidden="true" class="h-4 w-4"/>Profile and security</Link><Link role="menuitem" :href="route('help.guide')" class="flex min-h-11 items-center gap-3 px-4 text-sm text-slate-700 hover:bg-slate-50" @click="userMenuOpen=false"><CircleHelp aria-hidden="true" class="h-4 w-4"/>Help and guides</Link><button role="menuitem" type="button" class="flex min-h-11 w-full items-center gap-3 border-t border-slate-100 px-4 text-left text-sm text-rose-700 hover:bg-rose-50" @click="userMenuOpen=false;logout()"><LogOut aria-hidden="true" class="h-4 w-4"/>Sign out</button></div>
     </div>
     <Link v-if="can('cases.create')" :href="route('cases.create')" aria-label="Create new case" class="ui-button ui-button-primary ml-1"><Plus class="h-4 w-4"/><span class="hidden sm:inline">New case</span></Link>
    </div>
@@ -157,7 +160,7 @@ onUnmounted(()=>{ removeEventListener('storage', readOfflinePending); removeEven
   <div v-if="open" class="fixed inset-0 z-30 bg-slate-950/35 lg:hidden" @click="closeNavigation" />
   <main id="main-content" tabindex="-1" :inert="open" class="workspace-main relative" :class="navigationCollapsed?'shell-collapsed':''"><slot/><PageSkeleton/></main><FlashToast/>
   <nav :inert="open" class="workspace-mobile-nav" aria-label="Primary navigation"><Link v-for="link in mobileLinks" :key="link.route" :href="route(link.route)" :aria-current="isActive(link)?'page':undefined" class="flex min-h-12 min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 py-2 text-[10px] font-medium" :class="isActive(link)?'text-brand-900':'text-slate-600'"><AppIcon :name="link.icon" class="h-5 w-5"/><span class="text-center leading-tight">{{link.label}}</span></Link></nav>
-  <SubmissionConfirmation/><MidnightSessionGuard/>
+  <SubmissionConfirmation/><ConfirmDialogHost/><KalingaAssist :show="assistOpen" @close="assistOpen=false"/><MidnightSessionGuard/>
   <Modal aria-label="Sign out of Kalinga" :show="confirmLogout" max-width="md" @close="confirmLogout=false"><section class="p-5"><h2 class="text-lg font-semibold text-slate-900">Sign out of Kalinga?</h2><p class="mt-2 text-sm leading-6 text-slate-600">You will need to sign in again to access your authorized workspace.</p><div class="mt-5 flex flex-wrap justify-end gap-2"><button type="button" class="ui-button" @click="confirmLogout=false">Stay signed in</button><button type="button" class="ui-button border-rose-800 bg-rose-800 text-white hover:bg-rose-900" @click="completeLogout">Sign out</button></div></section></Modal>
  </div>
 </template>
@@ -167,6 +170,8 @@ onUnmounted(()=>{ removeEventListener('storage', readOfflinePending); removeEven
 .workspace-main{min-width:0;padding:84px 16px calc(88px + env(safe-area-inset-bottom))}.workspace-mobile-nav{position:fixed;inset:auto 0 0;z-index:30;display:flex;justify-content:space-around;border-top:1px solid #e2e8f0;background:#fff;padding-bottom:env(safe-area-inset-bottom)}
 .skip-link{position:fixed;left:16px;top:-100px;z-index:80;border:2px solid #5a3a95;border-radius:4px;background:#fff;padding:12px 16px;color:#2d1a5e;font-weight:600}.skip-link:focus{top:8px}.sidebar-scroll{scrollbar-width:thin}
 @media(min-width:768px){.workspace-main{padding:88px 24px 96px}}
+/* Printing (PDF reports): only the page content, never the app frame. */
+@media print{.workspace-header,.workspace-sidebar,.workspace-mobile-nav,.skip-link{display:none!important}.min-h-screen{background:#fff!important}.workspace-main,.workspace-main.shell-collapsed{margin:0!important;padding:0!important}}
 @media(min-width:1024px){.workspace-sidebar{transform:none;width:248px}.sidebar-collapsed{width:96px}.workspace-header{padding-left:264px;padding-right:24px}.workspace-header.shell-collapsed{padding-left:112px}.workspace-main{margin-left:248px;padding:92px 28px 40px}.workspace-main.shell-collapsed{margin-left:96px}.workspace-mobile-nav{display:none}}
 @media(min-width:1440px){.workspace-main{padding:92px 32px 40px}}
 </style>

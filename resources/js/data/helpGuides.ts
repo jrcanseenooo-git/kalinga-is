@@ -33,7 +33,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     summary: 'Four steps: privacy notice and consent form, child and safe contact, case details (CEFMU incidence), safety triage.',
     steps: [
       'Open Case intake and choose Start new intake. A paused intake is listed under Saved intakes; choose Continue to pick it up.',
-      'Step 1: record how the privacy notice was given. You can take a photo of the signed consent or assent form.',
+      'Step 1: record how the privacy notice was given. Take a photo of the signed consent or assent form; Kalinga checks that it is clear and readable. This is the case consent record (there is no separate consent register).',
       'Step 2: enter the child\'s details, an alias or nickname if any, the present and permanent address, safe contact, the primary caregiver and the family composition. Tick "Same address as the child" where it applies.',
       'Step 3: choose the CEFMU classification (early marriage, early union, forced marriage, forced union), the marriage or union type, whether the child is married or living with a partner now or before, the partner\'s age, how long, and where the child lives now.',
       'Step 4: tick the risks you observed. Kalinga suggests a risk level from their points; if you choose a lower level, write why. Then create the case folder; the case opens next.',
@@ -47,7 +47,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     summary: 'Overview, Client & Intake, KaVAT, Kalinga forms, Progress notes & referrals, Closure & aftercare, Documents.',
     steps: [
       'Overview shows remarks from your supervisor, the client profile, case information, the case conference card, referrals and tasks.',
-      'The Next step box at the top follows the Kalinga forms: baseline KaVAT, Case Summary Report, Intervention Plan, progress notes, then the Social Case Study Report.',
+      'The Next step box at the top follows the Kalinga forms: baseline KaVAT result, Case Summary Report, Intervention Plan, the quarterly KaVAT, progress notes, then the Social Case Study Report.',
       'KaVAT is the Kalinga Vulnerability Assessment Tool. Kalinga forms is where you write the summary, plan and case study.',
       'Progress notes & referrals holds notes, visits, referrals to CPU members and to external agencies, services provided and the grants log.',
       'Case conferences can be held at any time; open them from the case conference card on the Overview.',
@@ -58,13 +58,14 @@ export const HELP_ARTICLES: HelpArticle[] = [
     id: 'kavat', category: 'Case work', title: 'Administer the KaVAT', permission: 'cases.update',
     summary: 'The Kalinga Vulnerability Assessment Tool measures empowerment (Part 1) and objective risk (Part 2).',
     steps: [
-      'Open the case, then KaVAT. Choose the occasion (baseline, review or at closure) and the date, then Start.',
-      'Read each of the 25 statements to the child and record Oo, Hindi Sigurado or Hindi. Then answer the 9 Part 2 sections.',
+      'Baseline: the first KaVAT is done before intake in the project\'s screening tool. On the KaVAT tab, enter its date, empowerment rate and safety rate (Kalinga computes the final score and priority; check it matches the sheet) and, if you like, a photo of the sheet.',
+      'Every quarter, open the KaVAT tab: Kalinga tells you if this quarter\'s KaVAT is due and fills in the quarter. Choose Start.',
+      'Read each of the 25 statements to the child and tap Oo, Hindi Sigurado or Hindi. Then answer the 9 Part 2 sections. "Go to the next unanswered" takes you to anything you skipped.',
       'The score updates as you answer: empowerment rate, safety rate and the final protection score. Below 70 is High Priority (Eligible).',
-      'Answers save as you go. When every item is answered, choose Finalize. A finalized KaVAT cannot be changed; record a new one at review or closure to see the trend.',
+      'Answers save as you go. When every item is answered, choose Finalize. A finalized KaVAT cannot be changed. The history compares each quarter with the baseline.',
     ],
     tips: ['"Refused to Answer" is a red flag. In the sensitive sections (partner age, decision to enter the union, violence, safety) it scores the highest risk.', 'Domains rated low appear as suggested rows in the Intervention Plan.', 'No signal? The KaVAT can be answered in Field mode and is sent when you sync; finalize it online.'],
-    keywords: 'kavat vulnerability assessment tool risk empowerment safety score priority eligible domains red flag refused',
+    keywords: 'kavat vulnerability assessment tool risk empowerment safety score priority eligible domains red flag refused baseline quarterly quarter screening sheet',
   },
   {
     id: 'kalinga-forms', category: 'Case work', title: 'Write the Kalinga forms', permission: 'cases.update',
@@ -111,7 +112,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
       'Write the reason for the referral and save. The referral is sent, and the response due date appears on your calendar.',
       'Use Track / update on the note to record Accepted, In progress, Completed (with the outcome) or why it did not proceed.',
     ],
-    tips: ['A CPU member with a Kalinga account gets access to this case for the referral only. Access ends when the referral is completed or closed.', 'Documented consent is available only when a sharing consent is recorded in Client & Intake.'],
+    tips: ['A CPU member with a Kalinga account gets access to this case for the referral only. Access ends when the referral is completed or closed.', 'Consent can be the basis for a referral only when the photo of the signed consent / assent form is in the case. Add it in Client & Intake if it was not taken at intake.'],
     keywords: 'refer referral mdt cpu agency wcpu pnp pao track status accepted completed declined consent sharing',
   },
   {
@@ -148,7 +149,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
       'Choose the report. For Progress Notes you can set a period (from and to dates).',
       'Check the draft. You can correct wording on screen; these edits are not saved to the case.',
       'Names print as initials unless you choose Show full name. Contact numbers are masked.',
-      'Choose Print / Save as PDF. You sign as Prepared by; the office head in Office profile & signatories signs as Noted by.',
+      'Choose Print / Save as PDF. You sign as Prepared by; the office head in Office & signatories signs as Noted by.',
     ],
     tips: ['Health and reproductive health details, restricted assessment sections and MDT notes are left out of the reports.', 'Each printed report gets a reference number (for example GIS, PN, IP, CSR or SCSR) and is recorded in the audit trail.'],
     keywords: 'report reports print pdf intake sheet gis progress notes intervention plan case summary social case study scsr sign signature noted by prepared by',
@@ -157,7 +158,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     id: 'lgu-profile', category: 'Settings', title: 'Set up your office profile and signatories', permission: 'lgu.profile.view',
     summary: 'Office name, logo, office head and CPU members used on reports and referrals.',
     steps: [
-      'Open Office profile & signatories in Settings.',
+      'Open Office & signatories in the menu (under Management).',
       'Enter the office name and short name, address and contact, and upload the LGU logo.',
       'Enter the office head or supervisor with position and designation. They sign reports as Noted by.',
       'Add CPU members with their position, office and role. Link a member to their Kalinga account so referrals reach them.',
@@ -314,6 +315,28 @@ export const HELP_ARTICLES: HelpArticle[] = [
     keywords: 'chat message team project manager case manager region group direct conversation',
   },
   {
+    id: 'assist', category: 'Start here', title: 'Get help from Kalinga Assist',
+    summary: 'The Assist button at the top of every page: what needs you, tips for the page, and answers to your questions.',
+    steps: [
+      'Choose Assist (the sparkle button) at the top of any page.',
+      'Needs your attention lists the most urgent things first; tap one to go straight there.',
+      'Tips shows advice for the page you are on, with links to the related guides.',
+      'Type a question in your own words, in English or Filipino (for example "paano mag refer ng bata"), to see the matching guide steps.',
+    ],
+    tips: ['Assist follows written rules and the guides; nothing you type is sent outside Kalinga.'],
+    keywords: 'assist assistant help smart suggestions ai tips question ask paano',
+  },
+  {
+    id: 'text-size', category: 'Settings', title: 'Make the text bigger',
+    summary: 'Three sizes for all text, fields and buttons on this device.',
+    steps: [
+      'Open your name at the top right. Under Text size, choose the bigger A.',
+      'The Kalinga Intake also has the A buttons at the top of the form.',
+      'The size is kept on this device until you change it.',
+    ],
+    keywords: 'text size bigger font large small eyes read zoom older',
+  },
+  {
     id: 'audit-logs', category: 'Privacy & security', title: 'Review the system audit logs', permission: 'audits.view',
     summary: 'Who did what and when, in 14 log types, with filters, search and export.',
     steps: [
@@ -329,8 +352,18 @@ export const HELP_ARTICLES: HelpArticle[] = [
 ];
 
 /** Simple, explainable search: scores articles by matching words; no external AI. */
+/** Everyday words (including common Filipino ones) mapped to the words the guides use. */
+const SYNONYMS: Record<string, string[]> = {
+  refer: ['referral'], referral: ['refer'], picture: ['photo', 'camera'], camera: ['photo'], photo: ['camera'], print: ['pdf', 'report'], pdf: ['print', 'report'],
+  delete: ['remove', 'discard'], remove: ['delete', 'discard'], phone: ['mobile', 'notification'], mobile: ['phone'], schedule: ['calendar', 'activity'], meeting: ['calendar', 'activity', 'conference'],
+  money: ['grant', 'assistance'], cash: ['grant'], assistance: ['grant'], signal: ['offline', 'field'], offline: ['signal', 'field'], internet: ['offline', 'signal'],
+  password: ['sign', 'login'], login: ['sign'], bigger: ['text', 'size'], font: ['text', 'size'], chat: ['message', 'connect'], message: ['chat', 'connect'],
+  paano: ['how'], bata: ['child'], larawan: ['photo'], tawag: ['contact'], pirma: ['signed', 'consent'],
+};
+
 export function searchHelp(query: string, articles: HelpArticle[]): HelpArticle[] {
-  const words = query.toLowerCase().split(/[^a-z0-9]+/).filter(word => word.length > 2);
+  const typed = query.toLowerCase().split(/[^a-z0-9]+/).filter(word => word.length > 2);
+  const words = [...new Set(typed.flatMap(word => [word, ...(SYNONYMS[word] ?? []), ...(word.endsWith('s') ? [word.slice(0, -1)] : [])]))];
   if (!words.length) return [];
   return articles
     .map(article => {

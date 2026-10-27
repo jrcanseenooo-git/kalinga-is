@@ -196,6 +196,7 @@ for(const width of [360,390,768,1024,1440,1920]) test(`intake steps retain enter
  await page.getByRole('combobox',{name:'Sex *',exact:true}).selectOption('Female');
  await page.getByRole('button',{name:'Add family member',exact:true}).click();
  await page.getByRole('textbox',{name:'Name',exact:true}).last().fill('Synthetic Relative');
+ await page.locator('#family-0-relationship_type').selectOption('Aunt');
  await page.getByRole('checkbox',{name:/^Same address as the child/}).last().uncheck();
  await capture('child-contact');
  await next(); await page.getByRole('checkbox',{name:/^Early marriage/}).check(); await page.getByRole('radio',{name:/^Yes, now/}).check(); await capture('case-details'); await next();

@@ -23,6 +23,9 @@ const matches = computed(() => searchHelp(query.value, articles.value));
 const shown = computed(() => query.value.trim() ? matches.value : articles.value.filter(article => activeCategory.value === 'All' || article.category === activeCategory.value));
 const suggestions = ['How do I refer a child?', 'Working with no signal', 'Print a case study report', 'Record financial assistance'];
 function ask(text: string) { query.value = text; open.value = searchHelp(text, articles.value)[0]?.id ?? null; }
+// Opened from Kalinga Assist with a question (?q=...).
+const asked = new URLSearchParams(window.location.search).get('q');
+if (asked) ask(asked.slice(0, 200));
 </script>
 
 <template>

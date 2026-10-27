@@ -28,6 +28,7 @@ use App\Services\RolePermissions;
 use App\Services\SmartSuggestions;
 use App\Services\WorkerTasks;
 use App\Support\AuditLog;
+use App\Support\PhilippineDate;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -349,9 +350,9 @@ class CaseworkController extends Controller
             ],
             'riskAssessments' => DB::table('risk_assessments')->join('users', 'users.id', '=', 'risk_assessments.assessed_by')->where('case_id', $case)->latest('assessed_at')->get(['risk_assessments.*', 'users.name as assessor'])->map(fn ($assessment) => ['assessment' => $assessment, 'factors' => DB::table('risk_assessment_factors')->where('risk_assessment_id', $assessment->id)->get()]),
             // Detailed plans are fetched only by the dedicated scoped workspace.
-            'consents' => DB::table('consents')->where('case_id', $case)->latest('granted_at')->get(), 'relationships' => DB::table('relationships')->where('client_id', $record->client_id)->latest()->get(),
+            'consentForm' => $this->consentForm($case), 'relationships' => DB::table('relationships')->where('client_id', $record->client_id)->latest()->get(),
             'remarks' => app(CaseRemarks::class)->thread($case),
-            'kavatDefinition' => Kavat::definition(), 'kavat' => CaseFormController::kavatHistory($case),
+            'kavatDefinition' => Kavat::definition(), 'kavat' => CaseFormController::kavatHistory($case), 'kavatBaseline' => CaseFormController::kavatBaseline($case),
             'formsDefinition' => CaseForms::definition(), 'forms' => CaseForms::forCase($case), 'formSuggestions' => CaseForms::suggestions($record, $record),
             'grants' => CaseGrants::forCase($case) + ['types' => CaseGrants::types()],
             // Labels of the extra intake fields (answers are in caseRecord.custom_fields).
@@ -371,7 +372,7 @@ class CaseworkController extends Controller
         abort_unless($record, 404);
         $this->authorize('cases.update');
         $this->caseAccess($request, $record);
-        $data = $request->validate(['first_name' => 'required|string|max:80', 'last_name' => 'required|string|max:80', 'alias' => 'nullable|string|max:80', 'birthdate' => 'nullable|date|before_or_equal:today', 'sex' => 'nullable|in:Male,Female', 'phone' => ['nullable', 'regex:/^(?:\\+63|0)9\\d{9}$/'], 'region' => 'nullable|string|max:120', 'province' => 'nullable|string|max:120', 'municipality' => 'nullable|string|max:120', 'barangay' => 'nullable|string|max:120', 'category' => 'nullable|string|max:80', 'priority' => 'required|in:low,normal,high,urgent']);
+        $data = $request->validate(['first_name' => 'required|string|max:80', 'last_name' => 'required|string|max:80', 'alias' => 'nullable|string|max:80', 'birthdate' => 'nullable|date|before_or_equal:' . PhilippineDate::today(), 'sex' => 'nullable|in:Male,Female', 'phone' => ['nullable', 'regex:/^(?:\\+63|0)9\\d{9}$/'], 'region' => 'nullable|string|max:120', 'province' => 'nullable|string|max:120', 'municipality' => 'nullable|string|max:120', 'barangay' => 'nullable|string|max:120', 'category' => 'nullable|string|max:80', 'priority' => 'required|in:low,normal,high,urgent']);
         DB::transaction(function () use ($request, $record, $case, $data) {
             DB::table('clients')->where('id', $record->client_id)->update(collect($data)->only(['first_name', 'last_name', 'alias', 'birthdate', 'sex', 'phone', 'region', 'province', 'municipality', 'barangay'])->merge(['updated_at' => now()])->all());
             DB::table('cases')->where('id', $case)->update(['category' => $data['category'] ?? null, 'priority' => $data['priority'], 'offline_version' => DB::raw('offline_version + 1'), 'updated_at' => now()]);
@@ -483,6 +484,16 @@ class CaseworkController extends Controller
         return back()->with('success', 'Progress-note addendum finalized. The original record was preserved.');
     }
 
+    /** The consent recorded at intake: the signed form photo, if any, and its type. */
+    private function consentForm(int $case): array
+    {
+        $row = DB::table('cases')->leftJoin('documents', 'documents.id', '=', 'cases.consent_document_id')->where('cases.id', $case)
+            ->first(['cases.consent_document_id', 'cases.consent_form_type', 'documents.name', 'documents.created_at']);
+
+        return ['document_id' => $row?->consent_document_id, 'type' => $row?->consent_form_type, 'name' => $row?->name, 'added_at' => $row?->created_at,
+            'sharing' => app(ReferralTracking::class)->hasSharingConsent($case)];
+    }
+
     public function transition(Request $request, int $case)
     {
         $initial = DB::table('cases')->whereNull('deleted_at')->find($case) ?? abort(404);
@@ -513,7 +524,7 @@ class CaseworkController extends Controller
                 // Reopening starts a new planning cycle. It never reactivates a
                 // former plan or copies a prior plan's narrative as new facts.
                 $prior = DB::table('case_plans')->where('case_id', $case)->orderByDesc('version')->first();
-                $plan = DB::table('case_plans')->insertGetId(['case_id' => $case, 'previous_plan_id' => $prior?->id, 'version' => ($prior->version ?? 0) + 1, 'plan_date' => today(), 'summary' => 'Reopened case: planning reassessment required.', 'overall_objective' => 'Reopened case: planning reassessment required.', 'status' => 'draft', 'authored_by' => $actor->id, 'is_current' => false, 'created_at' => now(), 'updated_at' => now()]);
+                $plan = DB::table('case_plans')->insertGetId(['case_id' => $case, 'previous_plan_id' => $prior?->id, 'version' => ($prior->version ?? 0) + 1, 'plan_date' => PhilippineDate::today(), 'summary' => 'Reopened case: planning reassessment required.', 'overall_objective' => 'Reopened case: planning reassessment required.', 'status' => 'draft', 'authored_by' => $actor->id, 'is_current' => false, 'created_at' => now(), 'updated_at' => now()]);
                 DB::table('case_plan_history')->insert(['case_plan_id' => $plan, 'event' => 'created_on_case_reopening', 'actor_id' => $actor->id, 'created_at' => now(), 'updated_at' => now()]);
             }
             DB::table('case_status_history')->insert(['case_id' => $case, 'from_status' => $record->status, 'to_status' => $data['status'], 'changed_by' => $actor->id, 'created_at' => now(), 'updated_at' => now()]);

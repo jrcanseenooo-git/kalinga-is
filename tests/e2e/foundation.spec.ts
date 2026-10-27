@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
-import { login, expectNoHorizontalOverflow } from './helpers';
+import { login, expectNoHorizontalOverflow, acceptConfirm } from './helpers';
 
 test('Connect loads older authorized history and searches without query text in URLs', async ({ page }) => {
     await login(page, { email: 'cpu@kalinga.test', password: 'password' });
@@ -56,8 +56,7 @@ test('Connect keeps a failed send in the composer and allows recovery', async ({
     await page.unroute('**/cpu/coordination/*/messages');
     // An unconfirmed send is never retried automatically: refresh, review, then allow the send.
     await page.getByRole('button', { name: 'Refresh conversation', exact: true }).click();
-    page.once('dialog', dialog => dialog.accept());
-    await page.getByRole('button', { name: 'Review complete - allow send', exact: true }).click();
+    await page.getByRole('button', { name: 'Review complete - allow send', exact: true }).click();await acceptConfirm(page);
     await page.getByRole('button', { name: 'Send message', exact: true }).click();
     await page.locator('#generic-submit-confirm').click();
     await expect(page.getByRole('region', { name: 'Coordination messages', exact: true })).toContainText('Synthetic connection recovery');
@@ -109,7 +108,7 @@ for (const width of [360, 768, 1440]) {
             await toggle.click();
         }
         await expect(sidebar.getByRole('link', { name: 'Kalinga Connect', exact: true })).toHaveAttribute('href', /\/cpu\/coordination$/);
-        await expect(sidebar.getByRole('link', { name: 'Office profile & signatories', exact: true })).toHaveAttribute('href', /\/lgu-profile$/);
+        await expect(sidebar.getByRole('link', { name: 'Office & signatories', exact: true })).toHaveAttribute('href', /\/lgu-profile$/);
         const calendar = sidebar.getByRole('link', { name: 'Calendar', exact: true });
         await expect(calendar).toHaveAttribute('href', /\/calendar$/);
         await calendar.click();

@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
-import { login, expectNoHorizontalOverflow } from './helpers';
+import { login, expectNoHorizontalOverflow, dismissConfirm } from './helpers';
 
 async function openContext(page: Page) {
     await login(page);
@@ -40,7 +40,7 @@ test('client update retains rejected fields and reloads acknowledged real values
     await expect(panel.getByRole('textbox', { name: 'Contact number (optional)', exact: true })).toHaveValue('09171234567');
 });
 
-test('support relationship and consent purposes persist and withdrawal preserves history', async ({ page }) => {
+test('support relationship persists and the signed consent form can be added later', async ({ page }) => {
     const panel = await openContext(page);
     await panel.getByRole('button', { name: 'Household & support', exact: true }).click();
     await panel.getByRole('textbox', { name: "Person's name", exact: true }).fill('Synthetic support person');
@@ -49,22 +49,20 @@ test('support relationship and consent purposes persist and withdrawal preserves
     await panel.getByRole('checkbox', { name: 'Record guardian flag', exact: true }).check();
     await submit(page, panel, 'Add relationship');
     await expect(panel.getByRole('article').filter({ hasText: 'Synthetic support person' })).toContainText('Guardian flag recorded');
-    await panel.getByRole('button', { name: 'Consent register', exact: true }).click();
-    await panel.getByRole('combobox', { name: 'Lawful basis', exact: true }).selectOption('__other__');
-    await panel.getByRole('textbox', { name: 'Specify other', exact: true }).fill('Synthetic documented basis');
-    await panel.getByRole('textbox', { name: 'Documented purposes', exact: true }).fill('Synthetic case management\nSynthetic limited coordination');
-    await submit(page, panel, 'Record consent');
-    const entry = panel.getByRole('article').filter({ hasText: 'Synthetic documented basis' });
-    await expect(entry).toContainText('Synthetic limited coordination');
-    await expect(entry).toContainText('External sharing permission not recorded');
-    page.once('dialog', dialog => dialog.dismiss()); await entry.getByRole('button', { name: 'Record withdrawal', exact: true }).click();
-    await expect(entry.getByRole('button', { name: 'Record withdrawal', exact: true })).toBeVisible();
-    page.once('dialog', dialog => dialog.accept()); await entry.getByRole('button', { name: 'Record withdrawal', exact: true }).click();
-    await expect(entry).toContainText('Withdrawn'); await expect(entry.getByRole('button')).toHaveCount(0);
-    await page.reload(); await page.getByRole('tab', { name: 'Client & Intake', exact: true }).click();
-    await panel.getByRole('button', { name: 'Consent register', exact: true }).click();
-    await expect(entry).toContainText('Withdrawn'); await expect(entry).toContainText('Synthetic case management');
-    expect(await page.evaluate(() => JSON.stringify(localStorage) + JSON.stringify(sessionStorage))).not.toContain('Synthetic documented basis');
+    // The consent register is gone; the consent given at intake is shown instead.
+    await expect(panel.getByRole('button', { name: 'Consent register', exact: true })).toHaveCount(0);
+    await panel.getByRole('button', { name: 'Client details', exact: true }).click();
+    const consent = panel.locator('section[aria-labelledby="client-consent-title"]');
+    await expect(consent).toContainText('No photo of the signed form yet');
+    await consent.getByRole('button', { name: 'Add the signed form', exact: true }).click();
+    const png = await page.evaluate(() => { const canvas = document.createElement('canvas'); canvas.width = 800; canvas.height = 1100; const context = canvas.getContext('2d')!; context.fillStyle = '#fff'; context.fillRect(0, 0, 800, 1100); context.fillStyle = '#111'; for (let y = 80; y < 1000; y += 40) context.fillRect(60, y, 600, 6); return canvas.toDataURL('image/png').split(',')[1]; });
+    await consent.locator('input[type=file]:not([capture])').setInputFiles({ name: 'form.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64') });
+    await expect(consent.getByRole('img', { name: 'Photo: Signed consent / assent form' })).toBeVisible();
+    await consent.getByRole('combobox', { name: 'This photo shows', exact: true }).selectOption('assent');
+    await submit(page, consent, 'Save the photo');
+    await expect(panel.getByRole('status').filter({ hasText: 'Signed form attached to the case.' })).toBeVisible();
+    await expect(consent).toContainText('Assent form (child)');
+    await expect(consent.getByRole('link', { name: 'View the signed form', exact: true })).toBeVisible();
     await panel.getByRole('button', { name: 'Household & support', exact: true }).click();
     await expect(panel.getByRole('article').filter({ hasText: 'Synthetic support person' })).toContainText('Synthetic agreed contact');
 });
@@ -78,9 +76,7 @@ test('client context unfinished work survives activity changes and cancelled lea
     await page.getByRole('tab', { name: 'Client & Intake', exact: true }).click();
     await panel.getByRole('button', { name: 'Household & support', exact: true }).click();
     await expect(panel.getByRole('textbox', { name: "Person's name", exact: true })).toHaveValue('Synthetic unfinished support');
-    let prompted = false; page.once('dialog', async dialog => { prompted = true; await dialog.dismiss(); });
-    await page.getByRole('link', { name: 'Back to case registry', exact: true }).click();
-    await expect.poll(() => prompted).toBe(true); await expect(page).toHaveURL(url);
+    await page.getByRole('link', { name: 'Back to case registry', exact: true }).click();await dismissConfirm(page); await expect(page).toHaveURL(url);
     await expect(panel.getByRole('textbox', { name: "Person's name", exact: true })).toHaveValue('Synthetic unfinished support');
 });
 
@@ -89,10 +85,8 @@ for (const width of [360, 390, 768, 1024, 1440, 1920]) test(`client context resp
     await expect.poll(async () => Math.round((await panel.boundingBox())!.y)).toBeGreaterThanOrEqual(64);
     await expect.poll(async () => Math.round((await panel.boundingBox())!.y)).toBeLessThan(160);
     await panel.getByRole('button', { name: 'Recorded intake context', exact: true }).click();
-    for (const [view, name] of [['details', 'Client details'], ['support', 'Household & support'], ['consent', 'Consent register']]) {
-        const select = panel.getByRole('combobox', { name: 'Client context activity', exact: true });
-        if (await select.isVisible()) await select.selectOption(view);
-        else await panel.getByRole('button', { name, exact: true }).click();
+    for (const [view, name] of [['details', 'Client details'], ['support', 'Household & support']]) {
+        await panel.getByRole('button', { name, exact: true }).click();
         await panel.evaluate(element => element.scrollIntoView({ block: 'start' }));
         await expectNoHorizontalOverflow(page);
         const scan = await new AxeBuilder({ page }).include('main').analyze();

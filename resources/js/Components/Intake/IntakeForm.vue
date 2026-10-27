@@ -8,13 +8,14 @@ import OptionSelect from '@/Components/UI/OptionSelect.vue';
 import ConsentPhoto from '@/Components/Intake/ConsentPhoto.vue';
 import AddressFields from '@/Components/Intake/AddressFields.vue';
 import FamilyMembers from '@/Components/Intake/FamilyMembers.vue';
-import { INTAKE_STEPS, RISK_LEVELS, intakeFieldId, intakeStepForField, isLowerThan, suggestRisk, validateIntakeStep, type AssignedLocation, type IntakeData, type IntakeOptions } from '@/Casework/intake';
+import { INTAKE_STEPS, RISK_LEVELS, intakeFieldId, intakeStepForField, isLowerThan, normalizePhone, suggestRisk, tidyName, validateIntakeStep, type AssignedLocation, type IntakeData, type IntakeOptions } from '@/Casework/intake';
+import TextSizeControl from '@/Components/UI/TextSizeControl.vue';
 import { CEFMU_CLASSIFICATIONS, FORMAL_MARRIAGE_FORMS, INFORMAL_UNION_FORM, MARRIAGE_CLASSIFICATIONS, RESIDENCES, UNION_CLASSIFICATIONS, UNION_STATUSES } from '@/data/cefmu';
 import { CIVIL_STATUSES, DISABILITY_TYPES, EDUCATION_LEVELS, IP_MEMBERSHIP, REFERRAL_SOURCES, RELATIONSHIPS, RELIGIONS } from '@/utils/caseOptions';
 import { intakeGuidance } from '@/utils/intakeGuidance';
-import { ageFromBirthdate } from '@/utils/philippineTime';
+import { ageFromBirthdate, manilaToday } from '@/utils/philippineTime';
 import { maskedName } from '@/utils/clientName';
-import { CircleAlert, Info } from '@lucide/vue';
+import { CircleAlert, Info, TriangleAlert } from '@lucide/vue';
 import { computed, nextTick, ref, watch } from 'vue';
 
 const props = defineProps<{
@@ -32,7 +33,7 @@ const stepErrors = ref<Record<string, string>>({});
 const errors = computed(() => ({ ...(props.serverErrors ?? {}), ...stepErrors.value }));
 const root = ref<HTMLElement | null>(null);
 const summary = ref<HTMLElement | null>(null);
-const todayIso = new Date().toISOString().slice(0, 10);
+const todayIso = manilaToday();
 /** The answers; the page may swap in another object (for example a recovered draft). */
 const d = computed(() => props.data);
 
@@ -40,6 +41,9 @@ const age = computed(() => {
     const value = d.value.birthdate ? ageFromBirthdate(d.value.birthdate) : null;
     return value !== null && value >= 0 ? value : null;
 });
+const adult = computed(() => age.value !== null && age.value >= 18);
+const familyReveal = ref<number | null>(null);
+const tidy = (field: 'first_name' | 'middle_name' | 'last_name') => { d.value[field] = tidyName(d.value[field]); };
 const presentAddress = computed(() => [d.value.house_no_street, d.value.barangay, d.value.municipality, d.value.province].filter(Boolean).join(', '));
 const marriageChosen = computed(() => d.value.cefmu_classifications.some(code => MARRIAGE_CLASSIFICATIONS.includes(code)));
 const unionChosen = computed(() => d.value.cefmu_classifications.some(code => UNION_CLASSIFICATIONS.includes(code)));
@@ -71,6 +75,8 @@ async function focusSummary() {
 }
 /** Opens the step that holds the field and puts the cursor in it. */
 async function visitError(field: string) {
+    const member = /^family_members\.(\d+)\./.exec(field);
+    familyReveal.value = member ? Number(member[1]) : null;
     const target = intakeStepForField(field);
     if (target !== step.value) { step.value = target; emit('stepChanged', target); }
     await nextTick();
@@ -101,6 +107,10 @@ defineExpose({ goTo, focusSummary });
             <h3 class="font-bold">Check these before continuing</h3>
             <ul class="mt-2 list-disc space-y-1 pl-5"><li v-for="(message, field) in errors" :key="field"><button type="button" class="min-h-11 text-left underline" @click="visitError(String(field))">{{ message }}</button></li></ul>
         </section>
+        <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <p class="text-base font-semibold text-slate-700">Step {{ step }} of {{ INTAKE_STEPS.length }}</p>
+            <TextSizeControl compact />
+        </div>
         <Stepper :steps="[...INTAKE_STEPS]" :current="step" :busy="busy" @select="goTo" />
 
         <!-- 1. Privacy notice -->
@@ -111,7 +121,7 @@ defineExpose({ goTo, focusSummary });
                 <p class="mt-1">The Department of Social Welfare and Development collects and processes personal and, when needed, sensitive personal information for CEFMU case intake, case management, referrals, monitoring and reporting, as allowed by law and the Kalinga program. Only authorized staff can see it, and it is kept only as long as records rules allow.</p>
                 <p class="mt-2 text-xs text-brand-800">Explain this in clear, age-appropriate words. This acknowledgement is not the child's consent.</p>
             </div>
-            <label class="flex min-h-11 items-start gap-2 rounded-xl border border-slate-200 bg-white p-3 text-sm font-semibold">
+            <label class="flex min-h-12 cursor-pointer items-start gap-3 rounded-xl border p-4 text-sm font-semibold" :class="d.privacy_notice_acknowledged ? 'border-brand-600 bg-brand-50' : 'border-slate-300 bg-white'">
                 <input id="intake-privacy_notice_acknowledged" v-model="d.privacy_notice_acknowledged" type="checkbox" class="mt-0.5 rounded border-slate-300 text-brand-700" :aria-invalid="Boolean(errors.privacy_notice_acknowledged)">
                 <span>I gave the privacy notice in clear language, or I will give it at the next practical opportunity because urgent safety action is needed.</span>
             </label>
@@ -128,20 +138,20 @@ defineExpose({ goTo, focusSummary });
         </fieldset>
 
         <!-- 2. Child and safe contact -->
-        <fieldset v-if="step === 2" :disabled="busy" :aria-busy="busy" class="space-y-5">
+        <fieldset v-if="step === 2" :disabled="busy" :aria-busy="busy" class="space-y-6">
             <legend tabindex="-1" class="step-legend"><b>2</b> Child and safe contact</legend>
-            <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <label class="text-sm font-medium" for="intake-first_name">First name <span class="text-rose-700">*</span><input id="intake-first_name" v-model="d.first_name" maxlength="80" autocomplete="off" class="mt-1 block min-h-11 w-full rounded-xl border-slate-300" :aria-invalid="Boolean(errors.first_name)"></label>
-                <label class="text-sm font-medium" for="intake-middle_name">Middle name<input id="intake-middle_name" v-model="d.middle_name" maxlength="80" autocomplete="off" class="mt-1 block min-h-11 w-full rounded-xl border-slate-300"></label>
-                <label class="text-sm font-medium" for="intake-last_name">Last name <span class="text-rose-700">*</span><input id="intake-last_name" v-model="d.last_name" maxlength="80" autocomplete="off" class="mt-1 block min-h-11 w-full rounded-xl border-slate-300" :aria-invalid="Boolean(errors.last_name)"></label>
+            <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <label class="text-sm font-medium" for="intake-first_name">First name <span class="text-rose-700">*</span><input id="intake-first_name" v-model="d.first_name" @blur="tidy('first_name')" maxlength="80" autocomplete="off" class="mt-1 block min-h-11 w-full rounded-xl border-slate-300" :aria-invalid="Boolean(errors.first_name)"></label>
+                <label class="text-sm font-medium" for="intake-middle_name">Middle name<input id="intake-middle_name" v-model="d.middle_name" @blur="tidy('middle_name')" maxlength="80" autocomplete="off" class="mt-1 block min-h-11 w-full rounded-xl border-slate-300"></label>
+                <label class="text-sm font-medium" for="intake-last_name">Last name <span class="text-rose-700">*</span><input id="intake-last_name" v-model="d.last_name" @blur="tidy('last_name')" maxlength="80" autocomplete="off" class="mt-1 block min-h-11 w-full rounded-xl border-slate-300" :aria-invalid="Boolean(errors.last_name)"></label>
                 <label class="text-sm font-medium" for="intake-suffix">Suffix
                     <select id="intake-suffix" v-model="d.suffix" class="mt-1 block min-h-11 w-full rounded-xl border-slate-300"><option value="">None</option><option>Jr.</option><option>Sr.</option><option>II</option><option>III</option><option>IV</option><option>V</option></select>
                 </label>
                 <label class="text-sm font-medium sm:col-span-2" for="intake-alias">Alias or nickname
                     <input id="intake-alias" v-model="d.alias" maxlength="80" autocomplete="off" class="mt-1 block min-h-11 w-full rounded-xl border-slate-300" placeholder="Optional" aria-describedby="intake-alias-hint">
                 </label>
-                <p id="intake-alias-hint" class="-mt-2 text-xs text-slate-600 sm:col-span-2 sm:-mt-1 lg:mt-0 lg:self-end lg:pb-3">Forms show the masked name ({{ maskedName(d) === 'Not recorded' ? 'for example J**S***D**UZ' : maskedName(d) }}) unless you choose the alias or the full name.</p>
-                <label class="text-sm font-medium" for="intake-birthdate">Date of birth <span class="text-rose-700">*</span><input id="intake-birthdate" v-model="d.birthdate" type="date" :max="todayIso" class="mt-1 block min-h-11 w-full rounded-xl border-slate-300" :aria-invalid="Boolean(errors.birthdate)"><span v-if="age !== null" class="mt-1 block text-xs font-normal text-slate-600">{{ age }} years old</span></label>
+                <p id="intake-alias-hint" class="-mt-2 text-xs text-slate-600 sm:col-span-2 sm:-mt-1 xl:mt-0 xl:self-end xl:pb-3">Forms show the masked name ({{ maskedName(d) === 'Not recorded' ? 'for example J**S***D**UZ' : maskedName(d) }}) unless you choose the alias or the full name.</p>
+                <label class="text-sm font-medium" for="intake-birthdate">Date of birth <span class="text-rose-700">*</span><input id="intake-birthdate" v-model="d.birthdate" type="date" :max="todayIso" class="mt-1 block min-h-11 w-full rounded-xl border-slate-300" :aria-invalid="Boolean(errors.birthdate)"><span v-if="age !== null && !adult" class="mt-1 block text-xs font-normal text-slate-600">{{ age }} years old</span><span v-if="adult" class="f-warn font-normal" role="status"><TriangleAlert class="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />{{ age }} years old. CEFMU cases are for children under 18 - check the date of birth.</span></label>
                 <label class="text-sm font-medium" for="intake-sex">Sex <span class="text-rose-700">*</span>
                     <select id="intake-sex" v-model="d.sex" class="mt-1 block min-h-11 w-full rounded-xl border-slate-300" :aria-invalid="Boolean(errors.sex)"><option value="">Select</option><option>Female</option><option>Male</option></select>
                 </label>
@@ -156,7 +166,7 @@ defineExpose({ goTo, focusSummary });
                 </label>
             </div>
 
-            <section class="space-y-3 rounded-xl border border-slate-200 p-4" aria-labelledby="present-title">
+            <section class="f-card space-y-3" aria-labelledby="present-title">
                 <h3 id="present-title" class="text-sm font-bold text-slate-900">Present address</h3>
                 <p v-if="assignedLocation" class="text-xs text-slate-600">The case is recorded in your assigned LGU. Choose the barangay where the child lives now.</p>
                 <AddressFields v-model:street="d.house_no_street" v-model:region="d.region" v-model:province="d.province" v-model:municipality="d.municipality" v-model:barangay="d.barangay"
@@ -169,9 +179,9 @@ defineExpose({ goTo, focusSummary });
                 </div>
             </section>
 
-            <section class="grid gap-3 rounded-xl border border-slate-200 p-4 sm:grid-cols-3" aria-labelledby="contact-title">
-                <h3 id="contact-title" class="text-sm font-bold text-slate-900 sm:col-span-3">Safe contact</h3>
-                <label class="text-sm font-medium" for="intake-phone">Mobile number<input id="intake-phone" v-model="d.phone" inputmode="tel" maxlength="13" placeholder="09XXXXXXXXX" class="mt-1 block min-h-11 w-full rounded-xl border-slate-300" :aria-invalid="Boolean(errors.phone)"></label>
+            <section class="f-card grid gap-4 md:grid-cols-3" aria-labelledby="contact-title">
+                <h3 id="contact-title" class="text-sm font-bold text-slate-900 md:col-span-3">Safe contact</h3>
+                <label class="text-sm font-medium" for="intake-phone">Mobile Number (<i>Parent or Child</i>)<input id="intake-phone" v-model="d.phone" type="tel" inputmode="tel" maxlength="16" placeholder="09XXXXXXXXX" autocomplete="off" class="mt-1 block min-h-11 w-full rounded-xl border-slate-300" :aria-invalid="Boolean(errors.phone)" aria-describedby="intake-phone-hint" @blur="d.phone = normalizePhone(d.phone)"><span id="intake-phone-hint" class="mt-1 block text-xs font-normal text-slate-600">11 digits starting with 09. Spaces and +63 are tidied for you.</span></label>
                 <label class="text-sm font-medium" for="intake-safe_contact_method">Safe way to contact
                     <select id="intake-safe_contact_method" v-model="d.safe_contact_method" class="mt-1 block min-h-11 w-full rounded-xl border-slate-300">
                         <option>Not recorded</option><option>Direct call</option><option>SMS</option><option>Trusted adult / caregiver</option><option>In-person through authorized worker</option><option>Do not contact without safety check</option>
@@ -180,12 +190,12 @@ defineExpose({ goTo, focusSummary });
                 <label class="text-sm font-medium" for="intake-safe_contact_notes">Notes<input id="intake-safe_contact_notes" v-model="d.safe_contact_notes" maxlength="1000" class="mt-1 block min-h-11 w-full rounded-xl border-slate-300" placeholder="Safe time, cautions"></label>
             </section>
 
-            <section class="space-y-3 rounded-xl border border-slate-200 p-4" aria-labelledby="caregiver-title">
+            <section class="f-card space-y-3" aria-labelledby="caregiver-title">
                 <h3 id="caregiver-title" class="text-sm font-bold text-slate-900">Primary caregiver / custody</h3>
                 <div class="grid gap-3 sm:grid-cols-3">
-                    <label class="text-sm font-medium" for="intake-primary_caregiver_name">Name<input id="intake-primary_caregiver_name" v-model="d.primary_caregiver_name" maxlength="160" class="mt-1 block min-h-11 w-full rounded-xl border-slate-300"></label>
+                    <label class="text-sm font-medium" for="intake-primary_caregiver_name">Name<input id="intake-primary_caregiver_name" v-model="d.primary_caregiver_name" maxlength="160" @blur="d.primary_caregiver_name = tidyName(d.primary_caregiver_name)" class="mt-1 block min-h-11 w-full rounded-xl border-slate-300"></label>
                     <label class="text-sm font-medium">Relationship to the child<OptionSelect id="intake-primary_caregiver_relationship" v-model="d.primary_caregiver_relationship" :options="RELATIONSHIPS" select-class="mt-1 block min-h-11 w-full rounded-xl border-slate-300" /></label>
-                    <label class="text-sm font-medium" for="intake-primary_caregiver_contact">Contact number<input id="intake-primary_caregiver_contact" v-model="d.primary_caregiver_contact" maxlength="80" class="mt-1 block min-h-11 w-full rounded-xl border-slate-300"></label>
+                    <label class="text-sm font-medium" for="intake-primary_caregiver_contact">Contact number<input id="intake-primary_caregiver_contact" v-model="d.primary_caregiver_contact" type="tel" inputmode="tel" maxlength="80" @blur="d.primary_caregiver_contact = normalizePhone(d.primary_caregiver_contact)" class="mt-1 block min-h-11 w-full rounded-xl border-slate-300"></label>
                 </div>
                 <label class="flex min-h-11 items-start gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm">
                     <input id="intake-caregiver_same_address" v-model="d.caregiver_same_address" type="checkbox" class="mt-0.5 rounded border-slate-300 text-brand-700">
@@ -195,7 +205,7 @@ defineExpose({ goTo, focusSummary });
                     v-model:municipality="d.caregiver_municipality" v-model:barangay="d.caregiver_barangay" id-prefix="intake-caregiver_" />
             </section>
 
-            <FamilyMembers v-model="d.family_members" :child-address="presentAddress" />
+            <FamilyMembers v-model="d.family_members" :child-address="presentAddress" :caregiver="{ name: d.primary_caregiver_name, relationship: d.primary_caregiver_relationship }" :errors="errors" :reveal="familyReveal" />
         </fieldset>
 
         <!-- 3. Case details: CEFMU incidence -->
@@ -212,7 +222,7 @@ defineExpose({ goTo, focusSummary });
                 </div>
             </section>
 
-            <section v-if="marriageChosen || unionChosen" id="intake-union_forms" tabindex="-1" class="rounded-xl border border-slate-200 p-4" aria-labelledby="married-title">
+            <section v-if="marriageChosen || unionChosen" id="intake-union_forms" tabindex="-1" class="f-card" aria-labelledby="married-title">
                 <h3 id="married-title" class="text-sm font-bold text-slate-900">Married</h3>
                 <div class="mt-2 grid gap-4 lg:grid-cols-2">
                     <div v-if="marriageChosen">
@@ -234,7 +244,7 @@ defineExpose({ goTo, focusSummary });
                 </div>
             </section>
 
-            <section class="grid gap-4 rounded-xl border border-slate-200 p-4 lg:grid-cols-2" aria-labelledby="incidence-title">
+            <section class="f-card grid gap-4 lg:grid-cols-2" aria-labelledby="incidence-title">
                 <h3 id="incidence-title" class="text-sm font-bold text-slate-900 lg:col-span-2">CEFMU incidence</h3>
                 <div id="intake-union_status" tabindex="-1" role="radiogroup" aria-labelledby="status-label">
                     <p id="status-label" class="text-sm font-semibold text-slate-800">Married or cohabiting with a partner?</p>
@@ -269,7 +279,7 @@ defineExpose({ goTo, focusSummary });
                 </div>
             </section>
 
-            <section class="grid gap-3 rounded-xl border border-slate-200 p-4 sm:grid-cols-2 lg:grid-cols-3" aria-labelledby="other-title">
+            <section class="f-card grid gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-labelledby="other-title">
                 <h3 id="other-title" class="text-sm font-bold text-slate-900 sm:col-span-2 lg:col-span-3">Schooling, health and reporting</h3>
                 <label class="text-sm font-medium" for="intake-education_status_at_intake">Schooling now
                     <select id="intake-education_status_at_intake" v-model="d.education_status_at_intake" class="mt-1 block min-h-11 w-full rounded-xl border-slate-300">
@@ -292,7 +302,7 @@ defineExpose({ goTo, focusSummary });
                     <select id="intake-priority" v-model="d.priority" class="mt-1 block min-h-11 w-full rounded-xl border-slate-300"><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select>
                 </label>
             </section>
-            <section v-if="options.customFields?.length" class="grid gap-3 rounded-xl border border-slate-200 p-4 sm:grid-cols-2" aria-labelledby="custom-title">
+            <section v-if="options.customFields?.length" class="f-card grid gap-4 sm:grid-cols-2" aria-labelledby="custom-title">
                 <h3 id="custom-title" class="text-sm font-bold text-slate-900 sm:col-span-2">Additional information</h3>
                 <div v-for="field in options.customFields" :key="field.key" :class="field.type === 'textarea' ? 'sm:col-span-2' : ''">
                     <label :for="`intake-x-${field.key}`" class="text-sm font-medium">{{ field.label }}<span v-if="field.required" aria-hidden="true"> *</span></label>
@@ -357,14 +367,14 @@ defineExpose({ goTo, focusSummary });
 </template>
 
 <style scoped>
-.step-legend{display:flex;align-items:center;gap:.5rem;font-size:1rem;font-weight:800;color:var(--color-slate-900);margin-bottom:.25rem}
+.step-legend{display:flex;align-items:center;gap:.6rem;font-size:1.2rem;font-weight:800;color:var(--color-slate-900);margin-bottom:.25rem}
 .step-legend:focus{outline:none}
-.step-legend b{display:inline-grid;place-items:center;width:1.6rem;height:1.6rem;border-radius:999px;background:var(--color-brand-50);color:var(--color-brand-700);font-size:.8rem}
-.choice-card{display:flex;align-items:flex-start;gap:.6rem;min-height:3.5rem;border:1px solid var(--color-slate-200);border-radius:.75rem;background:#fff;padding:.7rem .8rem;cursor:pointer}
+.step-legend b{display:inline-grid;place-items:center;width:2rem;height:2rem;border-radius:999px;background:var(--color-brand-50);color:var(--color-brand-700);font-size:.8rem}
+.choice-card{display:flex;align-items:flex-start;gap:.75rem;min-height:3.75rem;border:1px solid var(--color-slate-200);border-radius:.75rem;background:#fff;padding:.7rem .8rem;cursor:pointer}
 .choice-card:has(input:checked){border-color:var(--color-brand-600);background:var(--color-brand-50)}
 .choice-card.danger:has(input:checked),.choice-card.level-critical:has(input:checked){border-color:#e11d48;background:#fff1f2}
 .choice-card.level-high:has(input:checked){border-color:#f59e0b;background:#fffbeb}
-.choice-row{display:flex;align-items:flex-start;gap:.55rem;min-height:2.75rem;border-radius:.6rem;padding:.4rem .5rem;cursor:pointer}
+.choice-row{display:flex;align-items:flex-start;gap:.7rem;min-height:3rem;border-radius:.6rem;padding:.4rem .5rem;cursor:pointer}
 .choice-row:hover{background:var(--color-slate-50)}
 .intake-actions{position:sticky;bottom:calc(4.75rem + env(safe-area-inset-bottom));z-index:5;margin-top:1.25rem;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:.75rem;border-top:1px solid var(--color-slate-200);background:rgb(255 255 255 / .97);padding:.75rem 0}
 @media (min-width:1024px){.intake-actions{bottom:0}}

@@ -32,12 +32,12 @@
             "statements": [
                 {
                     "number": 1,
-                    "text": "Kaya kong ipaliwanag ang aking mga karapatan bilang isang bata, kabilang ang aking karapatang maging ligtas mula sa child, early and forced marriage\/union.",
+                    "text": "Kaya kong ipaliwanag ang aking mga karapatan bilang isang bata, kabilang ang aking karapatang maging ligtas mula sa child, early and forced marriage/union.",
                     "reversed": false
                 },
                 {
                     "number": 2,
-                    "text": "Alam ko na may mga batas at polisiya na nagpoprotekta sa mga bata laban sa child, early and forced marriage\/union at iba pang uri ng pang-aabuso o pagsasamantala.",
+                    "text": "Alam ko na may mga batas at polisiya na nagpoprotekta sa mga bata laban sa child, early and forced marriage/union at iba pang uri ng pang-aabuso o pagsasamantala.",
                     "reversed": false
                 },
                 {
@@ -66,7 +66,7 @@
                 16
             ],
             "interpretations": [
-                "Kinakailangan ng masinsinang counseling at guidance \/ mataas ang panganib.",
+                "Kinakailangan ng masinsinang counseling at guidance / mataas ang panganib.",
                 "May kaalaman ngunit kailangan pa ng dagdag na suporta.",
                 "Malinaw ang kaalaman at kakayahan sa pag-iwas at paghingi ng proteksyon."
             ],
@@ -95,7 +95,7 @@
         },
         {
             "code": "III",
-            "title": "Relationship, Marriage\/Union, and Decision-Making",
+            "title": "Relationship, Marriage/Union, and Decision-Making",
             "items": [
                 9,
                 10,
@@ -160,7 +160,7 @@
                 },
                 {
                     "number": 14,
-                    "text": "Hindi madali para sa akin ang pag-access\/paglapit sa libreng health services at counseling o pakikipag-usap sa propesyonal or eksperto sa mental health na angkop sa aking edad at pangangailangan.",
+                    "text": "Hindi madali para sa akin ang pag-access/paglapit sa libreng health services at counseling o pakikipag-usap sa propesyonal or eksperto sa mental health na angkop sa aking edad at pangangailangan.",
                     "reversed": true
                 },
                 {
@@ -263,7 +263,7 @@
                 8
             ],
             "interpretations": [
-                "Mababa ang kakayahang i-regulate ang emosyon, nakakaramdam ng matinding takot\/alalahanin.",
+                "Mababa ang kakayahang i-regulate ang emosyon, nakakaramdam ng matinding takot/alalahanin.",
                 "Katamtaman ang emotional stability, may pangangailangan pa sa psychosocial support.",
                 "Maayos ang pag-iisip, matatag sa emosyon, at may positibong pananaw sa hinaharap."
             ],
@@ -294,13 +294,13 @@
                     "options": [
                         {
                             "code": "1",
-                            "label": "Child has no living parent and no stable primary caregiver \/ orphan",
+                            "label": "Child has no living parent and no stable primary caregiver / orphan",
                             "points": 10,
                             "detail": null
                         },
                         {
                             "code": "2",
-                            "label": "Living with a guardian\/relative and neither parent provides regular support",
+                            "label": "Living with a guardian/relative and neither parent provides regular support",
                             "points": 7,
                             "detail": null
                         },
@@ -328,7 +328,7 @@
         },
         {
             "number": 2,
-            "title": "Parental\/Family Support",
+            "title": "Parental/Family Support",
             "sensitive": false,
             "questions": [
                 {
@@ -344,7 +344,7 @@
                         },
                         {
                             "code": "2",
-                            "label": "Irregular\/limited support",
+                            "label": "Irregular/limited support",
                             "points": 5,
                             "detail": null
                         },
@@ -366,7 +366,7 @@
         },
         {
             "number": 3,
-            "title": "Presence of Children\/Dependent",
+            "title": "Presence of Children/Dependent",
             "sensitive": false,
             "questions": [
                 {
@@ -376,19 +376,19 @@
                     "options": [
                         {
                             "code": "1",
-                            "label": "The child has a child\/dependent and is the primary caregiver",
+                            "label": "The child has a child/dependent and is the primary caregiver",
                             "points": 10,
                             "detail": null
                         },
                         {
                             "code": "2",
-                            "label": "With child\/dependent and with shared caregiving responsibility",
+                            "label": "With child/dependent and with shared caregiving responsibility",
                             "points": 5,
                             "detail": null
                         },
                         {
                             "code": "3",
-                            "label": "No child\/dependent",
+                            "label": "No child/dependent",
                             "points": 0,
                             "detail": null
                         },
@@ -409,18 +409,18 @@
             "questions": [
                 {
                     "key": "education",
-                    "text": "Kasalukuyan ka bang nag-aaral o sumasailalim sa anumang education\/training program?",
+                    "text": "Kasalukuyan ka bang nag-aaral o sumasailalim sa anumang education/training program?",
                     "max": 10,
                     "options": [
                         {
                             "code": "1",
-                            "label": "Out of school and not enrolled in any alternative education\/training",
+                            "label": "Out of school and not enrolled in any alternative education/training",
                             "points": 10,
                             "detail": null
                         },
                         {
                             "code": "2",
-                            "label": "Temporarily stopped from schooling\/training for the current school year",
+                            "label": "Temporarily stopped from schooling/training for the current school year",
                             "points": 7,
                             "detail": null
                         },
@@ -448,7 +448,7 @@
         },
         {
             "number": 5,
-            "title": "Personal\/Household Economic Support",
+            "title": "Personal/Household Economic Support",
             "sensitive": false,
             "questions": [
                 {
@@ -464,7 +464,7 @@
                         },
                         {
                             "code": "2",
-                            "label": "Irregular\/inadequate support",
+                            "label": "Irregular/inadequate support",
                             "points": 3,
                             "detail": null
                         },
@@ -489,13 +489,13 @@
                     "options": [
                         {
                             "code": "yes",
-                            "label": "Yes \/ Oo",
+                            "label": "Yes / Oo",
                             "points": 5,
                             "detail": "Since when"
                         },
                         {
                             "code": "no",
-                            "label": "No \/ Hindi",
+                            "label": "No / Hindi",
                             "points": 0,
                             "detail": null
                         },
@@ -514,13 +514,13 @@
                     "options": [
                         {
                             "code": "yes",
-                            "label": "Yes \/ Oo",
+                            "label": "Yes / Oo",
                             "points": 3,
                             "detail": "Specify"
                         },
                         {
                             "code": "no",
-                            "label": "No \/ Hindi",
+                            "label": "No / Hindi",
                             "points": 0,
                             "detail": null
                         },
@@ -541,7 +541,7 @@
             "questions": [
                 {
                     "key": "partner_age_gap",
-                    "text": "Ilang taon ang iyong partner\/asawa\/ka-union?",
+                    "text": "Ilang taon ang iyong partner/asawa/ka-union?",
                     "max": 10,
                     "options": [
                         {
@@ -611,23 +611,23 @@
         },
         {
             "number": 7,
-            "title": "Child's Participation in the Decision to Enter\/Continue the Union",
+            "title": "Child's Participation in the Decision to Enter/Continue the Union",
             "sensitive": true,
             "questions": [
                 {
                     "key": "decision",
-                    "text": "Nakapagdesisyon ka ba nang malaya tungkol sa pagsisimula o pagpapatuloy ng inyong relasyon\/pagsasama?",
+                    "text": "Nakapagdesisyon ka ba nang malaya tungkol sa pagsisimula o pagpapatuloy ng inyong relasyon/pagsasama?",
                     "max": 10,
                     "options": [
                         {
                             "code": "1",
-                            "label": "Child reports no meaningful choice \/ was forced",
+                            "label": "Child reports no meaningful choice / was forced",
                             "points": 10,
                             "detail": null
                         },
                         {
                             "code": "2",
-                            "label": "There was strong pressure from family\/partner\/community",
+                            "label": "There was strong pressure from family/partner/community",
                             "points": 7,
                             "detail": null
                         },
@@ -655,23 +655,23 @@
         },
         {
             "number": 8,
-            "title": "History or Current Experience of Violence\/Abuse",
+            "title": "History or Current Experience of Violence/Abuse",
             "sensitive": true,
             "questions": [
                 {
                     "key": "violence",
-                    "text": "Naranasan mo na ba o kasalukuyan ka bang nakakaranas ng pananakit, sexual abuse, emotional\/psychological abuse, pagbabanta, o iba pang anyo ng karahasan?",
+                    "text": "Naranasan mo na ba o kasalukuyan ka bang nakakaranas ng pananakit, sexual abuse, emotional/psychological abuse, pagbabanta, o iba pang anyo ng karahasan?",
                     "max": 10,
                     "options": [
                         {
                             "code": "yes",
-                            "label": "Yes \/ Oo",
+                            "label": "Yes / Oo",
                             "points": 10,
                             "detail": "What"
                         },
                         {
                             "code": "no",
-                            "label": "No \/ Hindi",
+                            "label": "No / Hindi",
                             "points": 0,
                             "detail": null
                         },
@@ -692,18 +692,18 @@
             "questions": [
                 {
                     "key": "safety",
-                    "text": "Sa kasalukuyan, nararamdaman mo ba na hindi ka ligtas sa iyong tahanan, relasyon\/pagsasama, o komunidad?",
+                    "text": "Sa kasalukuyan, nararamdaman mo ba na hindi ka ligtas sa iyong tahanan, relasyon/pagsasama, o komunidad?",
                     "max": 10,
                     "options": [
                         {
                             "code": "yes",
-                            "label": "Yes \/ Oo",
+                            "label": "Yes / Oo",
                             "points": 10,
                             "detail": null
                         },
                         {
                             "code": "no",
-                            "label": "No \/ Hindi",
+                            "label": "No / Hindi",
                             "points": 0,
                             "detail": null
                         },
@@ -722,9 +722,15 @@
     "part2Max": 98,
     "threshold": 70,
     "occasions": {
-        "baseline": "Baseline (start of case management)",
-        "review": "Review",
+        "quarterly": "Quarterly KaVAT",
         "closure": "At closure",
-        "other": "Other"
-    }
+        "other": "Other",
+        "baseline": "Baseline (start of case management)",
+        "review": "Review"
+    },
+    "startOccasions": [
+        "quarterly",
+        "closure",
+        "other"
+    ]
 }

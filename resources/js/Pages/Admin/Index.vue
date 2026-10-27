@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { formatPh } from '@/utils/philippineTime';
+import { askConfirm } from '@/utils/confirmDialog';
+import { formatPh, manilaToday } from '@/utils/philippineTime';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue'
 import SectionNav from '@/Components/SectionNav.vue'
 import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3'
@@ -71,7 +72,7 @@ const deleteError = ref('')
 const deleteBusy = ref(false)
 const editForm = useForm({ role: '', cpu_discipline: '', active: true, region: '', province: '', municipality: '', region_scope: [] as string[] })
 const nationalScope = computed({ get: () => editForm.region_scope.includes('*'), set: (value: boolean) => { editForm.region_scope = value ? ['*'] : [] } })
-const editLgu = useForm({ lgu_id: '', effective_from: new Date().toISOString().slice(0, 10) })
+const editLgu = useForm({ lgu_id: '', effective_from: manilaToday() })
 const detailTab = ref<'settings' | 'devices'>('settings')
 const locations = ref<LocationDataset | null>(null)
 const selectedRegion = computed(() => locations.value?.regions.find(region => region.name === editForm.region) ?? null)
@@ -194,15 +195,15 @@ const roleColor = (role: string) => {
 
 const approvalRole = ref<Record<number, string>>({})
 
-const approve = (reg: any) => {
+const approve = async (reg: any) => {
   const role = approvalRole.value[reg.id] || reg.requested_role
-  if (!confirm(`Approve ${reg.name} as ${roleName(role)}?`)) return
+  if (!(await askConfirm({ title: `Approve ${reg.name}?`, message: `The account is activated as ${roleName(role)}.`, confirmLabel: 'Approve' }))) return
   const form = useForm({ role })
   form.post(route('admin.registrations.approve', reg.id), { preserveScroll: true })
 }
 
-const decline = (reg: any) => {
-  if (!confirm(`Decline registration for ${reg.name}? This action cannot be undone.`)) return
+const decline = async (reg: any) => {
+  if (!(await askConfirm({ title: `Decline ${reg.name}'s registration?`, message: 'This cannot be undone.', confirmLabel: 'Decline', tone: 'danger' }))) return
   useForm({}).post(route('admin.registrations.decline', reg.id), { preserveScroll: true })
 }
 

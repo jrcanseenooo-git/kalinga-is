@@ -135,6 +135,7 @@ final class AuditCatalogue
         'case.risk_level_lowered' => ['data_modification', 'UPDATE', 'Initial risk level set lower than suggested'],
         'document.uploaded' => ['document_file', 'UPLOAD', 'Document uploaded'],
         'kavat.created' => ['data_creation', 'CREATE', 'KaVAT started'],
+        'kavat.baseline_recorded' => ['data_modification', 'UPDATE', 'Baseline KaVAT result recorded'],
         'kavat.finalized' => ['workflow_status', 'SUBMIT', 'KaVAT finalized'],
         'kavat.discarded' => ['data_deletion', 'DELETE', 'Unfinished KaVAT discarded'],
         'case_form.updated' => ['data_modification', 'UPDATE', 'Kalinga form edited'],

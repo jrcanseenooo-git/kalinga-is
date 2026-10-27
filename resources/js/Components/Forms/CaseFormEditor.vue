@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { askConfirm } from '@/utils/confirmDialog';
 /**
  * One Kalinga form as a working document. Narrative forms (Case Summary,
  * Social Case Study Report) are written in paragraphs per section; the
@@ -89,7 +90,7 @@ async function finalize() {
 
 const insertSuggestion = (key: string) => { content.sections![key] = props.suggestions[key]; };
 const addRow = (row?: PlanRow) => content.rows!.push({ ...emptyPlanRow(columns.value), ...(row ?? {}) });
-const removeRow = (index: number) => { if (window.confirm('Remove this row?')) content.rows!.splice(index, 1); };
+const removeRow = async (index: number) => { if (await askConfirm({ title: 'Remove this row?', confirmLabel: 'Remove', tone: 'danger' })) content.rows!.splice(index, 1); };
 const moveRow = (index: number, by: number) => { const rows = content.rows!; const [row] = rows.splice(index, 1); rows.splice(index + by, 0, row); };
 const unusedSuggestions = computed(() => (props.planSuggestions ?? []).filter((suggestion) => !content.rows!.some((row) => row.problem.trim() === suggestion.problem)));
 

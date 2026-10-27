@@ -105,3 +105,24 @@
   .nav-item.nav-active::before { content: ''; @apply absolute left-0 top-2 bottom-2 w-1 rounded-r-full bg-brand-700; }
   .field-card { @apply transition-colors hover:brightness-[.98]; }
 }
+
+/* Kalinga Intake: larger, easier-to-read fields for field use and older eyes.
+   Unlayered on purpose so it also reaches the address pickers, dropdowns and
+   family cards inside the form. */
+.intake-form label, .intake-form legend:not(.step-legend) { font-size: 0.975rem; line-height: 1.45rem; }
+.intake-form :is(input:not([type=checkbox]):not([type=radio]):not([type=file]), select, textarea) { min-height: 3rem; font-size: 1rem; border-radius: 0.75rem; }
+.intake-form :is(input[type=checkbox], input[type=radio]) { width: 1.25rem; height: 1.25rem; flex-shrink: 0; }
+.intake-form :is(small, .text-xs) { font-size: 0.875rem; line-height: 1.35rem; }
+.intake-form h3 { font-size: 1.0625rem; }
+.intake-form .f-card { border: 1px solid var(--color-slate-200); border-radius: 1rem; background: #fff; padding: 1rem; }
+@media (min-width: 40rem) { .intake-form .f-card { padding: 1.25rem; } }
+.intake-form .f-hint { margin-top: 0.35rem; font-size: 0.875rem; color: var(--color-slate-600); }
+.intake-form .f-warn { margin-top: 0.35rem; display: flex; gap: 0.4rem; border-radius: 0.6rem; background: #fffbeb; padding: 0.4rem 0.6rem; font-size: 0.875rem; color: #78350f; }
+
+/* Printing: white page, no app chrome or floating messages, cards kept whole. */
+@media print {
+  html, body { background: #fff !important; }
+  .no-print, [data-print-hide] { display: none !important; }
+  details > summary { display: none !important; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

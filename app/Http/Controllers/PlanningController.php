@@ -7,9 +7,12 @@ use App\Services\CaseAccessScope;
 use App\Services\CaseAssignmentEligibility;
 use App\Services\CaseClosureHistory;
 use App\Services\CaseVersionGuard;
+use App\Services\ConsentFormImage;
 use App\Support\AuditLog;
+use App\Support\PhilippineDate;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class PlanningController extends Controller
@@ -105,7 +108,7 @@ class PlanningController extends Controller
     {
         $this->access($request, $case);
         $this->authorize('assessments.manage');
-        $data = $request->validate(['assessment_date' => 'required|date|before_or_equal:today', 'previous_assessment_id' => 'nullable|integer', 'record_type' => 'required|in:full_revision,addendum', 'amendment_reason' => 'nullable|string|max:2000']);
+        $data = $request->validate(['assessment_date' => 'required|date|before_or_equal:' . PhilippineDate::today(), 'previous_assessment_id' => 'nullable|integer', 'record_type' => 'required|in:full_revision,addendum', 'amendment_reason' => 'nullable|string|max:2000']);
         $previousId = $data['previous_assessment_id'] ?? null;
         $prior = $previousId ? DB::table('case_assessments')->where('case_id', $case)->where('status', 'final')->where('id', $previousId)->first() : null;
         abort_if($previousId && !$prior, 422, 'Choose a finalized assessment to revise or supplement.');
@@ -204,7 +207,7 @@ class PlanningController extends Controller
         return DB::transaction(function () use ($data, $case, $request) {
             // Deprecated compatibility route. It creates a governed draft rather
             // than silently replacing an active plan from the old one-screen form.
-            $plan = DB::table('case_plans')->insertGetId(['case_id' => $case, 'summary' => $data['summary'] ?? null, 'overall_objective' => $data['summary'] ?? null, 'plan_date' => today(), 'review_due_at' => $data['review_due_at'] ?? null, 'version' => (DB::table('case_plans')->where('case_id', $case)->max('version') ?? 0) + 1, 'authored_by' => $request->user()->id, 'is_current' => false, 'status' => 'draft', 'created_at' => now(), 'updated_at' => now()]);
+            $plan = DB::table('case_plans')->insertGetId(['case_id' => $case, 'summary' => $data['summary'] ?? null, 'overall_objective' => $data['summary'] ?? null, 'plan_date' => PhilippineDate::today(), 'review_due_at' => $data['review_due_at'] ?? null, 'version' => (DB::table('case_plans')->where('case_id', $case)->max('version') ?? 0) + 1, 'authored_by' => $request->user()->id, 'is_current' => false, 'status' => 'draft', 'created_at' => now(), 'updated_at' => now()]);
             foreach ($data['interventions'] ?? [] as $intervention) {
                 validator($intervention, ['need' => 'required|string|max:255', 'goal' => 'required|string|max:255', 'service_category' => 'required|string|max:255', 'target_date' => 'nullable|date'])->validate();
                 $goal = DB::table('case_plan_goals')->insertGetId(['case_plan_id' => $plan, 'domain' => 'other', 'need_problem' => $intervention['need'], 'goal_statement' => $intervention['goal'], 'priority' => 'normal', 'target_date' => $intervention['target_date'] ?? null, 'status' => 'active', 'created_at' => now(), 'updated_at' => now()]);
@@ -233,29 +236,23 @@ class PlanningController extends Controller
         }, 3);
     }
 
-    public function consent(Request $request, int $case)
+    /**
+     * Attach (or replace) the photo of the signed consent / assent form after
+     * intake, for a case whose form was not photographed at intake. The
+     * intake privacy notice and this form are the case's consent record
+     * (the separate consent register was removed on 2026-10-28).
+     */
+    public function consentForm(Request $request, int $case)
     {
-        $this->authorize('consents.record');
+        $this->authorize('cases.update');
         $this->access($request, $case);
-        $data = $request->validate(['lawful_basis' => 'required|string|max:255', 'purposes' => 'required|array|min:1', 'purposes.*' => 'string|max:255', 'sharing_allowed' => 'required|boolean', 'granted_at' => 'required|date']);
-        $this->contextWrite($request, $case, 'consents.record', function ($record, $actor) use ($data, $case) {
-            $id = DB::table('consents')->insertGetId(['case_id' => $case, 'lawful_basis' => $data['lawful_basis'], 'purposes' => json_encode($data['purposes']), 'sharing_allowed' => $data['sharing_allowed'], 'granted_at' => $data['granted_at'], 'recorded_by' => $actor->id, 'created_at' => now(), 'updated_at' => now()]);
-            AuditLog::insert(['user_id' => $actor->id, 'event' => 'consent.recorded', 'auditable_type' => 'consent', 'auditable_id' => $id, 'created_at' => now(), 'updated_at' => now()]);
+        $data = $request->validate(['consent_form_type' => ['required', Rule::in(ConsentFormImage::TYPES)], 'consent_photo' => ['required', ...ConsentFormImage::rule()]]);
+        $this->contextWrite($request, $case, 'cases.update', function ($record, $actor) use ($data, $case) {
+            $documentId = app(ConsentFormImage::class)->store($data['consent_photo'], $case, $actor->id, $data['consent_form_type'], 'case page');
+            DB::table('cases')->where('id', $case)->update(['consent_document_id' => $documentId, 'consent_form_type' => $data['consent_form_type'], 'updated_at' => now()]);
         });
 
-        return back()->with('success', 'Consent record saved.');
-    }
-
-    public function withdrawConsent(Request $request, int $case, int $consent)
-    {
-        $this->contextWrite($request, $case, 'consents.record', function ($record, $actor) use ($case, $consent) {
-            $entry = DB::table('consents')->where('id', $consent)->where('case_id', $case)->whereNull('withdrawn_at')->lockForUpdate()->first();
-            abort_unless($entry, 404);
-            DB::table('consents')->where('id', $consent)->update(['withdrawn_at' => now(), 'updated_at' => now()]);
-            AuditLog::insert(['user_id' => $actor->id, 'event' => 'consent.withdrawn', 'auditable_type' => 'consent', 'auditable_id' => $consent, 'created_at' => now(), 'updated_at' => now()]);
-        });
-
-        return back()->with('success', 'Consent withdrawn.');
+        return back()->with('success', 'Signed form attached to the case.');
     }
 
     public function relationship(Request $request, int $case)

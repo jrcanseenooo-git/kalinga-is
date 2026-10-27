@@ -279,7 +279,7 @@ class OperationsController extends Controller
         $d = $r->validate(['case_id' => 'required|integer', 'service_category' => 'required|string|max:255', 'reason' => 'nullable|string|max:5000', 'lawful_basis' => 'required|in:consent,legal_obligation,vital_interests,public_task']);
         $this->caseAccess($r, (int) $d['case_id']);
         if ($d['lawful_basis'] === 'consent' && !$this->hasSharingConsent((int) $d['case_id'])) {
-            throw ValidationException::withMessages(['lawful_basis' => 'This case has no active consent that allows sharing. Record it in the case (Client & Intake, Consent register) or choose another documented basis.']);
+            throw ValidationException::withMessages(['lawful_basis' => 'This case has no signed consent / assent form yet. Add the photo in Client & Intake, or choose another documented basis.']);
         }$id = DB::transaction(function () use ($d, $r) {
             $id = DB::table('referrals')->insertGetId($d + ['sharing_authorized_by' => $r->user()->id, 'sharing_authorized_at' => now(), 'status' => 'DRAFT', 'created_by' => $r->user()->id, 'created_at' => now(), 'updated_at' => now()]);
             DB::table('referral_events')->insert(['referral_id' => $id, 'from_status' => null, 'to_status' => 'DRAFT', 'actor_id' => $r->user()->id, 'created_at' => now()]);

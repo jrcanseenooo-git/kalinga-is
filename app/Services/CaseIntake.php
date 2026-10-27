@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\User;
 use App\Support\AuditLog;
+use App\Support\PhilippineDate;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -46,7 +47,7 @@ final class CaseIntake
 
             'first_name' => 'required|string|max:80', 'middle_name' => 'nullable|string|max:80', 'last_name' => 'required|string|max:80', 'suffix' => 'nullable|string|max:30',
             'alias' => 'nullable|string|max:80',
-            'birthdate' => 'required|date|before_or_equal:today', 'sex' => 'required|in:Male,Female', 'civil_status' => 'nullable|string|max:80',
+            'birthdate' => 'required|date|before_or_equal:' . PhilippineDate::today(), 'sex' => 'required|in:Male,Female', 'civil_status' => 'nullable|string|max:80',
             'religion' => 'nullable|string|max:120', 'ip_category' => 'nullable|string|max:120', 'education_attainment' => 'nullable|string|max:120',
             'phone' => ['nullable', 'regex:/^(?:\\+63|0)9\\d{9}$/'], 'disability_evidence' => 'nullable|string|max:100',
             'safe_contact_method' => 'nullable|string|max:100', 'safe_contact_notes' => 'nullable|string|max:1000',
@@ -55,8 +56,8 @@ final class CaseIntake
             'primary_caregiver_name' => 'nullable|string|max:160', 'primary_caregiver_relationship' => 'nullable|string|max:100', 'primary_caregiver_contact' => 'nullable|string|max:80',
             'caregiver_same_address' => 'nullable|boolean', ...$address('caregiver_'),
             'family_members' => 'nullable|array|max:30',
-            'family_members.*.name' => 'nullable|string|max:160', 'family_members.*.relationship_type' => 'nullable|string|max:100',
-            'family_members.*.sex' => 'nullable|string|max:24', 'family_members.*.birthdate' => 'nullable|date|before_or_equal:today',
+            'family_members.*.name' => 'nullable|required_with:family_members.*.relationship_type|string|max:160', 'family_members.*.relationship_type' => 'nullable|required_with:family_members.*.name|string|max:100',
+            'family_members.*.sex' => 'nullable|string|max:24', 'family_members.*.birthdate' => 'nullable|date|before_or_equal:' . PhilippineDate::today(),
             'family_members.*.civil_status' => 'nullable|string|max:80', 'family_members.*.education' => 'nullable|string|max:160', 'family_members.*.occupation' => 'nullable|string|max:160',
             'family_members.*.same_address' => 'nullable|boolean', ...$address('family_members.*.'),
 
@@ -64,7 +65,7 @@ final class CaseIntake
             ...CefmuIncidence::rules(),
             'education_status_at_intake' => 'nullable|string|max:100', 'pregnancy_parenting_status' => 'nullable|string|max:100', 'pregnancy_status' => 'nullable|string|max:100',
             'functional_difficulty' => 'nullable|string|max:100',
-            'mode_of_admission' => 'nullable|string|max:100', 'referred_by' => 'nullable|string|max:255', 'referral_date' => 'nullable|date|before_or_equal:today',
+            'mode_of_admission' => 'nullable|string|max:100', 'referred_by' => 'nullable|string|max:255', 'referral_date' => 'nullable|date|before_or_equal:' . PhilippineDate::today(),
             'priority' => 'required|in:low,normal,high,urgent',
 
             'risk_indicators' => 'nullable|array|max:40', 'risk_indicators.*' => 'string|max:100',
@@ -167,7 +168,7 @@ final class CaseIntake
             if (empty($member['name']) || empty($member['relationship_type'])) {
                 continue;
             }
-            $same = (bool) ($member['same_address'] ?? true);
+            $same = (bool) ($member['same_address'] ?? false);
             DB::table('relationships')->insert(['client_id' => $clientId, 'name' => $member['name'], 'relationship_type' => $member['relationship_type'], 'sex' => $member['sex'] ?? null,
                 'civil_status' => $member['civil_status'] ?? null, 'birthdate' => $member['birthdate'] ?? null, 'education' => $member['education'] ?? null, 'occupation' => $member['occupation'] ?? null,
                 'same_address_as_client' => $same, ...collect(self::ADDRESS)->mapWithKeys(fn ($max, $field) => [$field => $same ? null : ($member[$field] ?? null)])->all(),

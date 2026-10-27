@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { askConfirm } from '@/utils/confirmDialog';
 import OptionSelect from '@/Components/UI/OptionSelect.vue';
 import { VISIT_LOCATIONS } from '@/utils/caseOptions';
 import IntakeForm from '@/Components/Intake/IntakeForm.vue';
@@ -16,7 +17,7 @@ import type { OfflineOperation } from '@/Offline/offlineTypes';
 import { useConnectivity } from '@/Offline/connectivity';
 import type { IntakeDraft } from '@/Offline/intakeDraft';
 import { loadIntakeDrafts, saveIntakeDraft, promoteIntakeDraft, addOperation, configured, deviceId, loadPack, loadQueue, lock, savePack, updateOperation, removeOperation, recordSyncResult, setPassphrase, unlock, clearSecureWorkspace, workspaceOwnerId } from '@/Offline/secureStore';
-import { formatPh, parseStored } from '@/utils/philippineTime';
+import { formatPh, parseStored, manilaToday } from '@/utils/philippineTime';
 import KavatPanel from '@/Components/Kavat/KavatPanel.vue';
 import CaseFormEditor from '@/Components/Forms/CaseFormEditor.vue';
 import { emptyKavatAnswers, scoreKavat, type KavatAnswers, type KavatDefinition, type KavatRecord } from '@/Casework/kavat';
@@ -260,7 +261,7 @@ async function saveActivity() {
   if (!selectedCase.value || !body.value.trim()) return;
   const payload: Record<string, unknown> = activity.value === 'case_note'
     ? { case_id:selectedCase.value.id, body:body.value.trim() }
-    : { case_id:selectedCase.value.id, visited_at:new Date().toISOString().slice(0,10), observations:body.value.trim(), location:location.value.trim() || null };
+    : { case_id:selectedCase.value.id, visited_at:manilaToday(), observations:body.value.trim(), location:location.value.trim() || null };
   if (!await persistFieldOperation({ local_id:crypto.randomUUID(), entity_type:activity.value, operation:'create', payload, base_version:selectedCase.value.offline_version, sync_status:'pending', retry_count:0, created_offline_at:new Date().toISOString() })) return;
   body.value = ''; location.value = '';
   await refreshSecureData();
@@ -364,7 +365,7 @@ function overlayQueuedDocuments(fresh: OfflinePack, queue: OfflineOperation[]) {
  */
 async function resolveDocumentConflict(item: OfflineOperation, keepMine: boolean) {
   if (!online.value || syncing.value) { error.value = 'Connect to the internet to resolve this.'; return; }
-  if (!window.confirm(keepMine ? 'Replace the newer copy on the server with the one saved on this device?' : 'Discard the copy saved on this device and keep the newer one?')) return;
+  if (!(await askConfirm(keepMine ? { title: 'Keep the copy on this device?', message: 'It replaces the newer copy on the server.', confirmLabel: 'Keep mine' } : { title: 'Use the newer copy?', message: 'The copy saved on this device is discarded.', confirmLabel: 'Use the newer copy', tone: 'danger' }))) return;
   try {
     await removeOperation(item.local_id);
     await downloadPack();
@@ -419,7 +420,8 @@ async function sync() {
 }
 
 async function discardOperation(localId: string) {
-  if (syncing.value || !window.confirm('Permanently discard this unsynced local item? This cannot be undone.')) return;
+  if (syncing.value) return;
+  if (!(await askConfirm({ title: 'Discard this unsynced item?', message: 'It is deleted from this device and was never sent. This cannot be undone.', confirmLabel: 'Discard', tone: 'danger' }))) return;
   try { await removeOperation(localId); await refreshSecureData(); message.value = 'Discarded the selected local item.'; }
   catch { error.value = 'Could not update encrypted storage. The item is retained; recover storage and retry.'; }
 }
@@ -511,7 +513,7 @@ async function renameDevice(id: number) {
   } catch { error.value = 'Could not rename device.'; }
 }
 
-function lockWorkspace() { if (draftDirty.value && !window.confirm('The latest intake edits are not saved. Lock and retain only the last encrypted saved version?')) return; workspaceChannel?.postMessage('locked'); clearIntakeMemory(); syncSession++; lock(); isUnlocked.value = false; pack.value = null; operations.value = []; selectedCaseId.value = null; body.value = ''; location.value = ''; message.value = 'Offline workspace locked.'; }
+async function lockWorkspace() { if (draftDirty.value && !(await askConfirm({ title: 'Lock with unsaved edits?', message: 'The latest intake edits are not saved. Only the last encrypted saved version is kept.', confirmLabel: 'Lock anyway', tone: 'danger' }))) return; workspaceChannel?.postMessage('locked'); clearIntakeMemory(); syncSession++; lock(); isUnlocked.value = false; pack.value = null; operations.value = []; selectedCaseId.value = null; body.value = ''; location.value = ''; message.value = 'Offline workspace locked.'; }
 
 if (workspaceChannel) workspaceChannel.onmessage = event => {
   if (event.data !== 'locked' && event.data !== 'revoked') return;

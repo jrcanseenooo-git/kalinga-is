@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { askConfirm } from '@/utils/confirmDialog';
 /**
  * Kalinga Intake (online). Answers are saved automatically as a "saved
  * intake" once the privacy notice step is done, so the intake can be paused
@@ -103,8 +104,8 @@ function create() {
 }
 
 const stepName = (value: number) => INTAKE_STEPS[Math.max(0, Math.min(INTAKE_STEPS.length - 1, value - 1))];
-const discard = (item: SavedIntake) => {
-    if (!window.confirm(`Discard the saved intake ${item.label ?? ''}? The answers will be deleted.`)) return;
+const discard = async (item: SavedIntake) => {
+    if (!(await askConfirm({ title: 'Discard this saved intake?', message: `${item.label && item.label !== 'Not recorded' ? item.label + ': the' : 'The'} answers are deleted.`, confirmLabel: 'Discard', tone: 'danger' }))) return;
     router.delete(route('intake.drafts.destroy', item.id), { preserveScroll: true });
 };
 </script>

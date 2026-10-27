@@ -24,9 +24,15 @@ class ReferralTracking
         });
     }
 
+    /**
+     * Consent as the lawful basis for sharing: the signed consent / assent
+     * form photographed at intake (or added later on the case page), or an
+     * active sharing consent recorded in the former consent register.
+     */
     public function hasSharingConsent(int $case): bool
     {
-        return DB::table('consents')->where('case_id', $case)->where('sharing_allowed', true)->whereNull('withdrawn_at')->exists();
+        return DB::table('cases')->where('id', $case)->whereNotNull('consent_document_id')->exists()
+            || DB::table('consents')->where('case_id', $case)->where('sharing_allowed', true)->whereNull('withdrawn_at')->exists();
     }
 
     /** Follow-up targets shared with the interface. */

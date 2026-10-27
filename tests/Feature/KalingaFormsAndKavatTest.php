@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\User;
 use App\Services\Kavat;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -64,9 +65,11 @@ class KalingaFormsAndKavatTest extends TestCase
 
     public function test_case_manager_answers_and_finalizes_a_kavat(): void
     {
-        $this->actingAs($this->worker)->post(route('cases.kavat.store', $this->case), ['occasion' => 'baseline', 'administered_at' => now()->toDateString()])->assertRedirect();
+        // The baseline is done before intake in the separate tool, so it cannot be started here.
+        $this->actingAs($this->worker)->post(route('cases.kavat.store', $this->case), ['occasion' => 'baseline', 'administered_at' => now()->toDateString()])->assertSessionHasErrors('occasion');
+        $this->post(route('cases.kavat.store', $this->case), ['occasion' => 'quarterly', 'administered_at' => now()->toDateString()])->assertRedirect();
         $kavat = DB::table('kavat_assessments')->first();
-        $this->post(route('cases.kavat.store', $this->case), ['occasion' => 'review', 'administered_at' => now()->toDateString()])->assertStatus(422);
+        $this->post(route('cases.kavat.store', $this->case), ['occasion' => 'other', 'administered_at' => now()->toDateString()])->assertStatus(422);
 
         $this->putJson(route('cases.kavat.save', [$this->case, $kavat->id]), ['revision' => 1, 'answers' => ['part1' => [1 => 'yes'], 'part2' => []]])->assertOk()->assertJsonPath('revision', 2);
         $this->putJson(route('cases.kavat.save', [$this->case, $kavat->id]), ['revision' => 1, 'answers' => ['part1' => [], 'part2' => []]])->assertStatus(409);
@@ -115,7 +118,7 @@ class KalingaFormsAndKavatTest extends TestCase
         $this->actingAs($this->worker);
         $this->post(route('cases.grants.store', $this->case), ['grant_type' => 'educational', 'amount' => 3000, 'released_at' => now()->toDateString(), 'fund_source' => 'LGU'])->assertRedirect();
         $this->post(route('cases.grants.store', $this->case), ['grant_type' => 'financial', 'amount' => 2000, 'released_at' => now()->toDateString()])->assertRedirect();
-        $this->post(route('cases.grants.store', $this->case), ['grant_type' => 'nope', 'amount' => 0, 'released_at' => now()->addDay()->toDateString()])->assertSessionHasErrors(['grant_type', 'amount', 'released_at']);
+        $this->post(route('cases.grants.store', $this->case), ['grant_type' => 'nope', 'amount' => 0, 'released_at' => now('Asia/Manila')->addDay()->toDateString()])->assertSessionHasErrors(['grant_type', 'amount', 'released_at']);
         $grant = DB::table('case_grants')->where('grant_type', 'financial')->value('id');
         $this->post(route('cases.grants.void', [$this->case, $grant]), ['reason' => 'Entered twice by mistake.'])->assertRedirect();
         $this->assertSame(2, DB::table('case_grants')->count());
@@ -153,5 +156,50 @@ class KalingaFormsAndKavatTest extends TestCase
         $other = User::factory()->create(['role' => 'social_worker', 'active' => true]);
         $this->actingAs($other)->postJson('/sync', ['offline_id' => (string) Str::uuid(), 'resource' => 'case_form', 'operation' => 'update',
             'payload' => ['case_id' => $this->case, 'form_type' => 'study', 'revision' => 2, 'content' => ['sections' => []]]], ['X-Kalinga-Device-ID' => 'cbb90eda-653b-4c39-8120-5511cb2ea0bb'])->assertForbidden();
+    }
+
+    public function test_baseline_result_from_the_screening_tool_is_recorded_and_corrected(): void
+    {
+        $this->actingAs($this->worker)->get(route('cases.show', $this->case))->assertInertia(fn ($page) => $page->where('kavatBaseline', null)
+            ->where('kavatDefinition.startOccasions', ['quarterly', 'closure', 'other']));
+        $this->post(route('cases.kavat.baseline', $this->case), ['administered_at' => now('Asia/Manila')->addDay()->toDateString(), 'empowerment_rate' => 120, 'safety_rate' => 50])
+            ->assertSessionHasErrors(['administered_at', 'empowerment_rate']);
+        $this->post(route('cases.kavat.baseline', $this->case), ['administered_at' => now()->subMonth()->toDateString(), 'empowerment_rate' => 52, 'safety_rate' => 10.2])->assertSessionHasNoErrors();
+        // 52 x 0.4 + 10.2 x 0.6 = 26.92, High Priority (below 70).
+        $this->assertDatabaseHas('kavat_baselines', ['case_id' => $this->case, 'final_score' => 26.92, 'priority' => 'high']);
+        $this->post(route('cases.kavat.baseline', $this->case), ['administered_at' => now()->subMonth()->toDateString(), 'empowerment_rate' => 80, 'safety_rate' => 75, 'notes' => 'Corrected from the sheet.'])->assertSessionHasNoErrors();
+        $this->assertSame(1, DB::table('kavat_baselines')->where('case_id', $this->case)->count());
+        $this->assertDatabaseHas('kavat_baselines', ['case_id' => $this->case, 'final_score' => 77, 'priority' => 'standard']);
+        $this->assertDatabaseHas('audit_logs', ['event' => 'kavat.baseline_recorded', 'old_value' => '26.92', 'new_value' => '77']);
+        $this->get(route('cases.show', $this->case))->assertInertia(fn ($page) => $page->where('kavatBaseline.final_score', 77)->where('kavatBaseline.notes', 'Corrected from the sheet.'));
+        $stranger = User::factory()->create(['role' => 'social_worker', 'active' => true]);
+        $this->actingAs($stranger)->post(route('cases.kavat.baseline', $this->case), ['administered_at' => now()->toDateString(), 'empowerment_rate' => 1, 'safety_rate' => 1])->assertNotFound();
+    }
+
+    public function test_quarterly_kavat_is_due_once_per_quarter_after_the_intake_quarter(): void
+    {
+        $start = now('Asia/Manila')->firstOfQuarter();
+        DB::table('cases')->where('id', $this->case)->update(['opened_at' => $start->copy()->subMonth()]);
+        $this->assertSame([$this->case], Kavat::quarterlyDue([$this->case]));
+        DB::table('kavat_assessments')->insert(['case_id' => $this->case, 'instrument_version' => Kavat::VERSION, 'occasion' => 'quarterly', 'administered_at' => $start->copy()->subDay()->toDateString(),
+            'administered_by' => $this->worker->id, 'status' => 'final', 'answers' => '{}', 'final_score' => 80, 'priority' => 'standard', 'revision' => 1, 'created_at' => now(), 'updated_at' => now()]);
+        $this->assertSame([$this->case], Kavat::quarterlyDue([$this->case]), 'A KaVAT from last quarter does not count for this one.');
+        DB::table('kavat_assessments')->insert(['case_id' => $this->case, 'instrument_version' => Kavat::VERSION, 'occasion' => 'quarterly', 'administered_at' => $start->toDateString(),
+            'administered_by' => $this->worker->id, 'status' => 'final', 'answers' => '{}', 'final_score' => 80, 'priority' => 'standard', 'revision' => 1, 'created_at' => now(), 'updated_at' => now()]);
+        $this->assertSame([], Kavat::quarterlyDue([$this->case]));
+        DB::table('cases')->where('id', $this->case)->update(['opened_at' => $start->copy()->addDay()]);
+        DB::table('kavat_assessments')->delete();
+        $this->assertSame([], Kavat::quarterlyDue([$this->case]), 'Not due in the quarter the case was opened.');
+        $this->assertSame('Q4 2026', Kavat::quarterLabel('2026-10-28'));
+    }
+
+    public function test_today_in_the_philippines_is_accepted_before_8_am(): void
+    {
+        // 01:30 on 28 October in Manila is still 27 October on the UTC server clock.
+        $this->travelTo(Carbon::parse('2026-10-27 17:30:00', 'UTC'));
+        $this->actingAs($this->worker)->post(route('cases.kavat.store', $this->case), ['occasion' => 'quarterly', 'administered_at' => '2026-10-28'])->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('kavat_assessments', ['case_id' => $this->case, 'administered_at' => '2026-10-28']);
+        $this->post(route('cases.kavat.baseline', $this->case), ['administered_at' => '2026-10-29', 'empowerment_rate' => 50, 'safety_rate' => 50])->assertSessionHasErrors('administered_at');
+        $this->travelBack();
     }
 }

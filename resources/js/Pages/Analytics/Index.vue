@@ -7,7 +7,7 @@ import DrillMap, { type MapLevel } from '@/Components/Analytics/DrillMap.vue';
 import TrendLinesChart from '@/Components/Charts/TrendLinesChart.vue';
 import { formatPh } from '@/utils/philippineTime';
 import { ChevronRight, FileDown } from '@lucide/vue';
-import { computed, ref } from 'vue';
+import { computed, nextTick, ref } from 'vue';
 import { Sparkles } from '@lucide/vue';
 import DonutChart from '@/Components/Charts/DonutChart.vue';
 import FunnelChart from '@/Components/Charts/FunnelChart.vue';
@@ -75,10 +75,16 @@ const peso = (value: number | 'Suppressed') => value === 'Suppressed' ? 'Withhel
 
 // PDF: the browser saves the page as shown, with a watermark naming the user and the time. The export is audited first.
 const printing = ref(false);
-const watermark = computed(() => `${props.exportedBy.name} - ${formatPh(new Date().toISOString(), 'dateTimeShort')} - CONFIDENTIAL`);
+const printedAt = ref(formatPh(new Date().toISOString(), 'dateTimeShort'));
+const watermark = computed(() => `${props.exportedBy.name} - ${printedAt.value} - CONFIDENTIAL`);
 async function exportPdf() {
   printing.value = true;
-  try { await axios.post(route('analytics.printed'), { ...Object.fromEntries(Object.entries(props.filters).filter(([, v]) => v !== '' && v !== null)) }); window.print(); }
+  try {
+    await axios.post(route('analytics.printed'), { ...Object.fromEntries(Object.entries(props.filters).filter(([, v]) => v !== '' && v !== null)) });
+    printedAt.value = formatPh(new Date().toISOString(), 'dateTimeShort');
+    await nextTick();
+    window.print();
+  }
   finally { printing.value = false; }
 }
 
@@ -122,9 +128,25 @@ const trendTotal = computed(() => numericTrend.value.length === props.trend.leng
 <template>
   <Head title="Reports & analytics" />
   <AuthenticatedLayout>
-    <section class="w-full max-w-none space-y-5">
-      <SectionNav section="analytics" />
-      <header class="flex flex-col gap-4 ui-panel p-5 sm:flex-row sm:items-end sm:justify-between sm:p-7">
+    <section class="analytics-report w-full max-w-none space-y-5">
+      <div class="print:hidden"><SectionNav section="analytics" /></div>
+      <!-- Printed report heading (the PDF export); not shown on screen. -->
+      <header class="report-head hidden print:block" aria-hidden="true">
+        <div class="flex items-start justify-between gap-6 border-b-2 border-brand-700 pb-3">
+          <div>
+            <p class="text-xs font-bold uppercase tracking-wider text-brand-700">Department of Social Welfare and Development - Kalinga CEFMU Case Management Information System</p>
+            <p class="mt-1 text-2xl font-extrabold text-slate-900">Analytics report: {{ areaLabel }}</p>
+            <p class="text-sm text-slate-700">Period: {{ periodLabel }}</p>
+          </div>
+          <dl class="shrink-0 text-right text-xs text-slate-700">
+            <div><dt class="inline font-semibold">Prepared by: </dt><dd class="inline">{{ exportedBy.name }}</dd></div>
+            <div><dt class="inline font-semibold">Printed: </dt><dd class="inline">{{ printedAt }}</dd></div>
+            <div class="mt-1 font-bold text-rose-800">CONFIDENTIAL - aggregate figures only</div>
+          </dl>
+        </div>
+        <p class="mt-2 text-xs text-slate-600">Figures come from the case records in Kalinga IS for the area and period above. Groups smaller than five are withheld ("Suppressed") to protect the children; withheld does not mean zero.</p>
+      </header>
+      <header class="flex flex-col gap-4 ui-panel p-5 sm:flex-row sm:items-end sm:justify-between sm:p-7 print:hidden">
         <div>
           <p class="text-sm font-bold text-brand-700">Analytics</p>
           <h1 class="mt-1 text-2xl font-extrabold text-slate-900 sm:text-3xl">Operational summary</h1>
@@ -168,7 +190,7 @@ const trendTotal = computed(() => numericTrend.value.length === props.trend.leng
         </article>
       </div>
 
-      <article class="total-card total-violet"><div class="total-icon" aria-hidden="true">P</div><div class="min-w-0"><p class="text-sm font-semibold text-slate-600">Total grants disbursed</p><p class="mt-1 break-words text-2xl font-extrabold sm:text-3xl">{{ peso(grantsTotal) }}</p><p class="text-xs text-slate-600">{{ totals.grantsCount }} grants, from the grants log of each case (voided entries excluded).</p></div></article>
+      <article class="total-card total-violet"><div class="total-icon" aria-hidden="true">P</div><div class="min-w-0"><p class="text-sm font-semibold text-slate-600">Total grants disbursed</p><p class="mt-1 break-words text-2xl font-extrabold sm:text-3xl">{{ peso(grantsTotal) }}</p><p class="text-xs text-slate-600">{{ typeof totals.grantsCount === 'number' ? `${totals.grantsCount} grants` : 'Number of grants withheld' }}, from the grants log of each case (voided entries excluded).</p></div></article>
 
       <div class="grid gap-5 xl:grid-cols-[1.4fr_1fr]">
         <article class="chart-card"><h2>New and closed cases</h2><p class="mt-0.5 text-xs text-slate-500">Last 12 months in the selected area (period filter not applied).</p><div class="mt-3"><TrendLinesChart title="New and closed cases per month" :rows="monthly" :series="[{ key: 'opened', label: 'New cases', color: '#7c5cd6' }, { key: 'closed', label: 'Closed cases', color: '#2f9e6b' }]" /></div><ChartTable title="New and closed cases" :rows="monthly.map(row => ({ label: row.label, total: row.opened as number }))" label-header="Month" value-header="New cases" /></article>
@@ -258,7 +280,29 @@ const trendTotal = computed(() => numericTrend.value.length === props.trend.leng
 @media print {
   .print-watermark{position:fixed;inset:0;z-index:50;display:flex;flex-direction:column;justify-content:space-around;align-items:center;pointer-events:none;transform:rotate(-30deg)}
   .print-watermark span{font-size:18px;font-weight:700;color:rgb(91 33 182 / .12);white-space:nowrap}
-  .chart-card,.total-card{break-inside:avoid}
+  .chart-card,.total-card,.analytics-report :deep(section[aria-labelledby="drill-map-title"]){break-inside:avoid}
+  .analytics-report{page:analytics;gap:0}
+  .analytics-report > * + *{margin-top:10px}
+  .chart-card,.total-card{box-shadow:none!important}
+  /* Compact report: charts two per row, totals four per row, smaller drawings. */
+  .analytics-report > div.grid:has(> .chart-card){grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .analytics-report > div.grid:has(> .total-card){grid-template-columns:repeat(4,minmax(0,1fr))!important}
+  .analytics-report :deep(svg){max-height:58mm}
+  /* Report order: heading, totals, grants, then the map and charts. */
+  .analytics-report{display:flex!important;flex-direction:column}
+  .analytics-report > *{order:4}
+  .analytics-report > .report-head{order:0}
+  .analytics-report > div.grid:has(> .total-card){order:1}
+  .analytics-report > .total-card{order:2}
+  .total-card p.text-2xl{overflow-wrap:normal;word-break:normal;font-size:1.35rem}
+  .analytics-report :deep(section[aria-labelledby="drill-map-title"] svg){max-height:70mm}
+  .analytics-report :deep(section[aria-labelledby="drill-map-title"] ul){max-height:none}
+}
+@page analytics {
+  size: A4 landscape;
+  margin: 12mm 10mm 14mm;
+  @bottom-left { content: "Kalinga IS analytics report - CONFIDENTIAL"; font-size: 8pt; color: #64748b; }
+  @bottom-right { content: "Page " counter(page) " of " counter(pages); font-size: 8pt; color: #64748b; }
 }
 @media (max-width: 640px) {
   .total-card { padding: 1rem; gap: .75rem; }

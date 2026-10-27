@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
-import { login, expectNoHorizontalOverflow } from './helpers';
+import { login, expectNoHorizontalOverflow, dismissConfirm } from './helpers';
 test.use({timezoneId:'America/Los_Angeles'});
 
 async function openMonitoring(page:Page){
@@ -26,7 +26,7 @@ test('progress note addendum and explicit follow-up retain Philippine time on an
 
 test('unfinished monitoring work survives section switching and cancelled page navigation',async({page})=>{
  const panel=await openMonitoring(page);const url=page.url();await panel.getByRole('textbox',{name:'Observations',exact:true}).fill('Synthetic unfinished visit observations.');await page.getByRole('tab',{name:/^KaVAT/}).click();await page.getByRole('tab',{name:/^Progress notes/}).click();await expect(panel.getByRole('textbox',{name:'Observations',exact:true})).toHaveValue('Synthetic unfinished visit observations.');
- let prompted=false;page.once('dialog',async dialog=>{prompted=true;await dialog.dismiss();});await page.getByRole('link',{name:'Back to case registry',exact:true}).click();await expect.poll(()=>prompted).toBe(true);await expect(page).toHaveURL(url);await expect(panel.getByRole('textbox',{name:'Observations',exact:true})).toHaveValue('Synthetic unfinished visit observations.');
+ await page.getByRole('link',{name:'Back to case registry',exact:true}).click();await dismissConfirm(page);await expect(page).toHaveURL(url);await expect(panel.getByRole('textbox',{name:'Observations',exact:true})).toHaveValue('Synthetic unfinished visit observations.');
 });
 
 for(const width of [360,390,768,1024,1440,1920])test(`monitoring visit and note responsive review at ${width}px`,async({page})=>{

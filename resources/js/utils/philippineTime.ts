@@ -61,6 +61,9 @@ export function ageFromBirthdate(birthdate: string | null | undefined, on: strin
 /** Hour of day (0-23) in Philippine time. */
 export const manilaHour = (value: Date = new Date()) => Number(new Intl.DateTimeFormat('en', { timeZone: zone, hour: 'numeric', hourCycle: 'h23' }).format(value));
 
+/** Today's date "YYYY-MM-DD" in the Philippines (not the UTC date, which lags until 8 AM). */
+export const manilaToday = (value: Date = new Date()) => manilaDateTime(value).slice(0, 10);
+
 /** "YYYY-MM-DDTHH:MM" for a datetime-local input, in Philippine time. */
 export function manilaDateTime(value: Date = new Date()): string {
     const parts = new Intl.DateTimeFormat('en-CA', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(value);

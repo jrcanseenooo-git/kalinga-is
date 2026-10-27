@@ -5,8 +5,10 @@ namespace App\Http\Controllers;
 use App\Services\CaseAssignmentEligibility;
 use App\Services\CaseForms;
 use App\Services\CaseGrants;
+use App\Services\ConsentFormImage;
 use App\Services\Kavat;
 use App\Support\AuditLog;
+use App\Support\PhilippineDate;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -51,10 +53,58 @@ class CaseFormController extends Controller
         return back()->with('success', CaseForms::TYPES[$type] . " finalized as version {$version}. You can keep updating it; the next finalize makes a new version.");
     }
 
+    /**
+     * Record (or correct) the result of the baseline KaVAT done before intake in
+     * the project's separate tool. Only the result is kept: date, the two rates,
+     * the final score and priority computed with the KaVAT formula, notes and an
+     * optional photo or screenshot of the sheet.
+     */
+    public function saveKavatBaseline(Request $request, int $case)
+    {
+        $this->writable($request, $case);
+        $data = $request->validate([
+            'administered_at' => 'required|date|before_or_equal:' . PhilippineDate::today(),
+            'empowerment_rate' => 'required|numeric|min:0|max:100', 'safety_rate' => 'required|numeric|min:0|max:100',
+            'notes' => 'nullable|string|max:2000', 'photo' => ConsentFormImage::rule(), 'remove_photo' => 'nullable|boolean',
+        ]);
+        $final = Kavat::finalScore((float) $data['empowerment_rate'], (float) $data['safety_rate']);
+        $existing = DB::table('kavat_baselines')->where('case_id', $case)->first();
+        DB::transaction(function () use ($request, $case, $data, $final, $existing) {
+            $document = $existing?->document_id;
+            if (!empty($data['photo'])) {
+                $document = app(ConsentFormImage::class)->storeImage($data['photo'], $case, $request->user()->id, 'KaVAT baseline sheet', 'kavat_baseline');
+            } elseif (!empty($data['remove_photo'])) {
+                $document = null;
+            }
+            $values = ['administered_at' => $data['administered_at'], 'empowerment_rate' => $data['empowerment_rate'], 'safety_rate' => $data['safety_rate'],
+                'final_score' => $final, 'priority' => Kavat::priorityFor($final), 'notes' => $data['notes'] ?? null, 'document_id' => $document, 'recorded_by' => $request->user()->id, 'updated_at' => now()];
+            if ($existing) {
+                DB::table('kavat_baselines')->where('id', $existing->id)->update($values);
+            } else {
+                DB::table('kavat_baselines')->insert($values + ['case_id' => $case, 'created_at' => now()]);
+            }
+            AuditLog::record('kavat.baseline_recorded', 'case', $case, ['case_id' => $case, 'final_score' => $final], $request->user()->id, 'success',
+                ['description' => ($existing ? 'Baseline KaVAT result corrected' : 'Baseline KaVAT result recorded') . ' (from the separate tool)',
+                    'old_value' => $existing ? (string) $existing->final_score : null, 'new_value' => (string) $final]);
+        });
+
+        return back()->with('success', 'Baseline KaVAT result saved.');
+    }
+
+    /** The baseline result for the case page, or null. */
+    public static function kavatBaseline(int $case): ?array
+    {
+        $row = DB::table('kavat_baselines')->leftJoin('users', 'users.id', '=', 'kavat_baselines.recorded_by')->where('case_id', $case)->first(['kavat_baselines.*', 'users.name as recorded_by_name']);
+
+        return $row ? ['administered_at' => substr((string) $row->administered_at, 0, 10), 'empowerment_rate' => (float) $row->empowerment_rate, 'safety_rate' => (float) $row->safety_rate,
+            'final_score' => (float) $row->final_score, 'priority' => $row->priority, 'notes' => $row->notes, 'document_id' => $row->document_id, 'recorded_by' => $row->recorded_by_name,
+            'updated_at' => $row->updated_at] : null;
+    }
+
     public function startKavat(Request $request, int $case)
     {
         $this->writable($request, $case);
-        $data = $request->validate(['occasion' => ['required', Rule::in(array_keys(Kavat::OCCASIONS))], 'administered_at' => 'required|date|before_or_equal:today']);
+        $data = $request->validate(['occasion' => ['required', Rule::in(array_keys(Kavat::OCCASIONS))], 'administered_at' => 'required|date|before_or_equal:' . PhilippineDate::today()]);
         abort_if(DB::table('kavat_assessments')->where('case_id', $case)->where('status', 'draft')->exists(), 422, 'Finish or discard the KaVAT already in progress first.');
         $id = DB::table('kavat_assessments')->insertGetId(['case_id' => $case, 'instrument_version' => Kavat::VERSION, 'occasion' => $data['occasion'], 'administered_at' => $data['administered_at'],
             'administered_by' => $request->user()->id, 'status' => 'draft', 'answers' => json_encode(['part1' => (object) [], 'part2' => (object) [], 'details' => (object) []]),
@@ -69,7 +119,7 @@ class CaseFormController extends Controller
         $this->writable($request, $case);
         $data = $request->validate([
             'revision' => 'required|integer|min:1', 'answers' => 'required|array',
-            'notes' => 'nullable|string|max:5000', 'occasion' => ['nullable', Rule::in(array_keys(Kavat::OCCASIONS))], 'administered_at' => 'nullable|date|before_or_equal:today',
+            'notes' => 'nullable|string|max:5000', 'occasion' => ['nullable', Rule::in(array_keys(Kavat::OCCASION_LABELS))], 'administered_at' => 'nullable|date|before_or_equal:' . PhilippineDate::today(),
         ]);
         $result = self::applyKavatSave($case, $kavat, Kavat::cleanAnswers($data['answers']), (int) $data['revision'], $data);
 
@@ -137,7 +187,7 @@ class CaseFormController extends Controller
         $this->writable($request, $case);
         $data = $request->validate([
             'grant_type' => ['required', Rule::in(array_keys(CaseGrants::types()))], 'amount' => 'required|numeric|min:1|max:9999999',
-            'released_at' => 'required|date|before_or_equal:today', 'fund_source' => 'nullable|string|max:160', 'purpose' => 'nullable|string|max:255', 'received_by' => 'nullable|string|max:160',
+            'released_at' => 'required|date|before_or_equal:' . PhilippineDate::today(), 'fund_source' => 'nullable|string|max:160', 'purpose' => 'nullable|string|max:255', 'received_by' => 'nullable|string|max:160',
         ]);
         $id = DB::table('case_grants')->insertGetId($data + ['case_id' => $case, 'recorded_by' => $request->user()->id, 'created_at' => now(), 'updated_at' => now()]);
         DB::table('cases')->where('id', $case)->update(['last_activity_at' => now(), 'updated_at' => now()]);

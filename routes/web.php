@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AnalyticsController;
+use App\Http\Controllers\AssistController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\CaseArtifactController;
 use App\Http\Controllers\CaseClosureRecordController;
@@ -207,6 +208,7 @@ Route::middleware('auth')->group(function () {
     Route::delete('/cases/{case}', [CaseworkController::class, 'destroy'])->middleware('throttle:sensitive-write')->name('cases.destroy');
     Route::put('/cases/{case}/forms/{type}', [CaseFormController::class, 'save'])->middleware('throttle:intake-autosave')->name('cases.forms.save');
     Route::post('/cases/{case}/forms/{type}/finalize', [CaseFormController::class, 'finalize'])->middleware('throttle:sensitive-write')->name('cases.forms.finalize');
+    Route::post('/cases/{case}/kavat-baseline', [CaseFormController::class, 'saveKavatBaseline'])->middleware('throttle:file-upload')->name('cases.kavat.baseline');
     Route::post('/cases/{case}/kavat', [CaseFormController::class, 'startKavat'])->middleware('throttle:sensitive-write')->name('cases.kavat.store');
     Route::put('/cases/{case}/kavat/{kavat}', [CaseFormController::class, 'saveKavat'])->middleware('throttle:intake-autosave')->name('cases.kavat.save');
     Route::post('/cases/{case}/kavat/{kavat}/finalize', [CaseFormController::class, 'finalizeKavat'])->middleware('throttle:sensitive-write')->name('cases.kavat.finalize');
@@ -246,12 +248,12 @@ Route::middleware('auth')->group(function () {
     Route::put('/cases/{case}/child-participation/{record}/sections', [ChildParticipationController::class, 'saveSection'])->middleware('throttle:sensitive-write')->name('cases.child-participation.sections.save');
     Route::patch('/cases/{case}/child-participation/{record}/status', [ChildParticipationController::class, 'transition'])->middleware('throttle:sensitive-write')->name('cases.child-participation.transition');
     Route::post('/cases/{case}/plan', [PlanningController::class, 'plan'])->middleware('throttle:sensitive-write')->name('cases.plan.store');
-    Route::post('/cases/{case}/consents', [PlanningController::class, 'consent'])->middleware('throttle:sensitive-write')->name('cases.consents.store');
-    Route::patch('/cases/{case}/consents/{consent}/withdraw', [PlanningController::class, 'withdrawConsent'])->middleware('throttle:sensitive-write')->name('cases.consents.withdraw');
+    Route::post('/cases/{case}/consent-form', [PlanningController::class, 'consentForm'])->middleware('throttle:file-upload')->name('cases.consent-form.store');
     Route::post('/cases/{case}/relationships', [PlanningController::class, 'relationship'])->middleware('throttle:sensitive-write')->name('cases.relationships.store');
     Route::post('/cases/{case}/closure', [PlanningController::class, 'closure'])->middleware('throttle:sensitive-write')->name('cases.closure.store');
     Route::patch('/cases/{case}/closure-review', [PlanningController::class, 'reviewClosure'])->middleware('throttle:sensitive-write')->name('cases.closure.review');
     Route::get('/help', fn () => Inertia::render('Help/Guide'))->name('help.guide');
+    Route::get('/assist', [AssistController::class, 'index'])->name('assist.index');
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->middleware('throttle:sensitive-write')->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->middleware('throttle:sensitive-write')->name('profile.destroy');

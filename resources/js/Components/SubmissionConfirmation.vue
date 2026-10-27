@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import Modal from '@/Components/Modal.vue';
-import { AlertTriangle, CheckCircle2 } from '@lucide/vue';
+import ConfirmPanel from '@/Components/UI/ConfirmPanel.vue';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
 /**
@@ -73,20 +73,7 @@ onBeforeUnmount(() => document.removeEventListener('submit', interceptSubmission
 
 <template>
     <Modal :show="Boolean(pendingForm)" aria-labelledby="generic-submit-title" aria-describedby="generic-submit-message" max-width="md" @close="cancel" @closed="submitAfterClose">
-        <section class="p-5">
-            <div class="flex items-start gap-3">
-                <span class="grid h-10 w-10 shrink-0 place-items-center rounded-full" :class="copy.danger ? 'bg-rose-50 text-rose-700' : 'bg-brand-50 text-brand-700'" aria-hidden="true">
-                    <component :is="copy.danger ? AlertTriangle : CheckCircle2" class="h-5 w-5" />
-                </span>
-                <div class="min-w-0">
-                    <h2 id="generic-submit-title" class="text-lg font-semibold text-slate-900">{{ copy.title }}</h2>
-                    <p id="generic-submit-message" class="mt-1 text-sm leading-6 text-slate-600">{{ copy.message }}</p>
-                </div>
-            </div>
-            <div class="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-                <button type="button" class="ui-button min-h-11" @click="cancel">Go back</button>
-                <button id="generic-submit-confirm" type="button" class="ui-button min-h-11 border-transparent text-white" :class="copy.danger ? 'bg-rose-700 hover:bg-rose-800' : 'ui-button-primary'" @click="continueSubmission">{{ copy.action }}</button>
-            </div>
-        </section>
+        <ConfirmPanel id-prefix="generic-submit" confirm-id="generic-submit-confirm" :title="copy.title" :message="copy.message" :confirm-label="copy.action" cancel-label="Go back"
+            :tone="copy.danger ? 'danger' : 'success'" @confirm="continueSubmission" @cancel="cancel" />
     </Modal>
 </template>

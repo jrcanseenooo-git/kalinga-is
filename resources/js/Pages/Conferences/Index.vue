@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { askConfirm } from '@/utils/confirmDialog';
 import { PARTNER_AGENCIES, SERVICE_CATEGORIES } from '@/utils/caseOptions';
 import { computed, ref } from 'vue';
 import { Head, Link, usePage } from '@inertiajs/vue3';
@@ -45,7 +46,7 @@ const rescheduleFields:PlanningField[]=[field('scheduled_at','New schedule (Phil
 const addendumDefaults=()=>({reason:'',purpose:''});const addendumForm=bind('addendum',addendumDefaults);
 const addendumFields:PlanningField[]=[field('reason','Addendum reason','textarea',true,2000,true),field('purpose','Addendum purpose','textarea',false,5000,true)];
 const errorsFor=(name:string)=>failedKey.value===key(name)?errors.value:{};
-function discardCreation(){if(!busy.value&&window.confirm('Discard the unfinished new-conference form? Review saved records first if a previous response was interrupted.')){reset('create',creationDefaults());showCreate.value=false;}}
+async function discardCreation(){if(!busy.value&&await askConfirm({title:'Discard the new conference form?',message:'If a previous save was interrupted, check the saved records first.',confirmLabel:'Discard',tone:'danger'})){reset('create',creationDefaults());showCreate.value=false;}}
 function withTimes(body:PlanningData,fields:string[]):PlanningData{const result={...body};for(const name of fields)result[name]=manilaInputToUtc(String(body[name]??''));return result;}
 async function create(){const ok=await save({method:'post',url:route('cases.conferences.store',props.caseId),body:withTimes(createForm.value,['scheduled_at']),key:'create',defaults:creationDefaults(),selectCreated:true,success:'Conference draft created.'});if(ok){showCreate.value=false;view.value='record';}}
 async function write(name:string,endpoint:string,body:PlanningData,defaults:PlanningData,method:'post'|'patch'='post',selectCreated=false){if(!selectedId.value)return;await save({method,url:route(endpoint,[props.caseId,selectedId.value]),body,key:key(name),defaults,selectCreated,success:name==='addendum'?'Linked addendum draft created.':'Conference record saved.'});}
@@ -62,7 +63,7 @@ async function readyForStateChange(ignore:string):Promise<boolean>{
 }
 async function transition(status:string){
  if(disabled.value||!selectedId.value||!await readyForStateChange('review'))return;
- if(!window.confirm('Confirm conference status change to '+human(status)+'?'))return;
+ if(!(await askConfirm({title:'Change the conference status to '+human(status)+'?',confirmLabel:'Change status'})))return;
  await write('review','cases.conferences.transition',{status,comments:reviewForm.value.comments??''},{comments:''},'patch');
 }
 function choose(value:string){const id=Number(value);if(Number.isInteger(id)&&id>0)void load(id);}

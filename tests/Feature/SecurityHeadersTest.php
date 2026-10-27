@@ -18,6 +18,9 @@ class SecurityHeadersTest extends TestCase
         $response->assertHeader('X-Frame-Options', 'DENY');
         $response->assertHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
         $response->assertHeader('Permissions-Policy');
+        // Own pages may use the camera (photo of the signed consent form); other sites embedded in Kalinga may not, and the microphone stays off.
+        $this->assertStringContainsString('camera=(self)', $response->headers->get('Permissions-Policy'));
+        $this->assertStringContainsString('microphone=()', $response->headers->get('Permissions-Policy'));
         $response->assertHeader('Content-Security-Policy');
     }
 

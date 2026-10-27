@@ -52,6 +52,19 @@ Owner answers that still apply:
 - Risk factor points are set by the owner's team.
 - Grants are a separate log per case.
 
+### Batch of 2026-10-28 (owner request, in progress)
+
+| # | Item | Status |
+|---|---|---|
+| 1 | Remove the Consent register on the case page (intake privacy notice and consent/assent photo already cover consent) | Done (b44ef0b) |
+| 2 | Kalinga Intake: larger, clearer layout for older users; responsive; smart hints; address tickboxes off by default; label "Mobile Number (Parent or Child)"; family composition never adds a second empty card and drops empty entries | Done (a034a60) |
+| 3 | Consent/assent photo: Take photo must open the device camera; smart capture checks | Done (b44ef0b) |
+| 4 | Modern confirmation dialogs / modals system-wide | Done (c5d3038) |
+| 5 | KaVAT: owner info - the baseline KaVAT is done before intake in the project's separate tool (a Google Sheet with formulas) to identify vulnerable CEFMU. Owner decision 2026-10-28: Kalinga records the baseline RESULT only (date, scores, priority, optional photo of the sheet), no re-answering; the KaVAT in Kalinga is for the quarterly conduct, compared against the baseline. Improve form and make it smart | Done (c5d3038) |
+| 6 | Better PDF report (analytics print showed mobile chrome, 7 pages, blank map) | Done (b50d38d) |
+| 7 | Smart (rule-based, no external AI) assistance across the whole system; rename the cut-off "Office profile & signatories" nav label | Done (8637205) |
+| 8 | Bug sweep, tests, docs, push | Done (02edb5e) |
+
 ## 3. Current progress
 
 - All 8 phases built, tested and merged to `main` (PR #3, merged
@@ -126,6 +139,9 @@ Still open:
 
 | Date | Task | Commit |
 |---|---|---|
+| 2026-10-28 | Batch of 2026-10-28 finished; all tests green (PHP SQLite and PostgreSQL, front end, browser 246); not yet merged to main | 02edb5e |
+| 2026-10-28 | Analytics PDF report layout; Kalinga Assist on every page; nav label Office & signatories; release notes RELEASE-8 | b50d38d, 8637205 |
+| 2026-10-28 | Consent register removed; camera capture with smart checks; intake redesign + text size; modern dialogs; KaVAT baseline result + quarterly; Philippine date fix (dates were rejected before 8 AM) | b44ef0b..c5d3038 |
 | 2026-10-28 | Removed direct case reassignment (Assignment card, route, permission, tests) | 6b240ad |
 | 2026-10-28 | Owner decisions recorded; change notices also go to case managers, explicit for PMs, labels in the bell | 9dcc537 |
 | 2026-10-27 | Created this project memory folder | 98a00c6 |

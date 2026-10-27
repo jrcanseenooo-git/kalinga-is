@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\User;
+use App\Support\PhilippineDate;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -34,7 +35,7 @@ class NoteReferrals
             'referral.lgu_cpu_member_id' => 'nullable|integer',
             'referral.service_category' => 'required|string|max:255',
             'referral.purpose' => 'required|string|max:160',
-            'referral.target_date' => 'nullable|date|after_or_equal:today',
+            'referral.target_date' => 'nullable|date|after_or_equal:' . PhilippineDate::today(),
             'referral.lawful_basis' => 'required|in:consent,legal_obligation,vital_interests,public_task',
         ];
     }
@@ -45,7 +46,7 @@ class NoteReferrals
             $prefix . 'service_type' => 'required|in:' . implode(',', self::SERVICE_TYPES),
             $prefix . 'specific_detail' => 'nullable|string|max:255',
             $prefix . 'amount' => 'nullable|numeric|min:0|max:9999999',
-            $prefix . 'date_provided' => 'required|date|before_or_equal:today',
+            $prefix . 'date_provided' => 'required|date|before_or_equal:' . PhilippineDate::today(),
             $prefix . 'provided_by' => 'nullable|string|max:160',
             $prefix . 'referral_id' => 'nullable|integer',
         ];
@@ -55,7 +56,7 @@ class NoteReferrals
     public function createReferral(User $actor, object $case, int $noteId, array $data, string $occurredAt): int
     {
         if ($data['lawful_basis'] === 'consent' && !$this->tracking->hasSharingConsent((int) $case->id)) {
-            throw ValidationException::withMessages(['referral.lawful_basis' => 'This case has no active consent that allows sharing. Record it in Client & Intake (Consent register) or choose another documented basis.']);
+            throw ValidationException::withMessages(['referral.lawful_basis' => 'This case has no signed consent / assent form yet. Add the photo in Client & Intake, or choose another documented basis.']);
         }
         $member = null;
         if (!empty($data['lgu_cpu_member_id'])) {
