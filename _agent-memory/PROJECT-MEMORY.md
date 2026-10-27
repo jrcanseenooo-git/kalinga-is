@@ -74,10 +74,7 @@ Owner answers that still apply:
 3. Owner to finish the open items in section 5 (list defaults, Release 6
    KaVAT and form questions); apply the answers.
 4. Merge the README commit with the next pull request.
-5. Gap noticed (not changed): an organizer who lost access to the linked
-   case (case reassigned) can still reschedule the activity but cannot
-   cancel it. Decide whether both should be allowed or both refused.
-6. Housekeeping noticed: release note files RELEASE-6 and RELEASE-7 carry
+5. Housekeeping noticed: release note files RELEASE-6 and RELEASE-7 carry
    dates 2026-10-28 and 2026-10-29 in their names although work finished
    2026-10-27; rename if the owner wants accurate dates.
 
