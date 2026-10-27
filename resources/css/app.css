@@ -118,3 +118,11 @@
 @media (min-width: 40rem) { .intake-form .f-card { padding: 1.25rem; } }
 .intake-form .f-hint { margin-top: 0.35rem; font-size: 0.875rem; color: var(--color-slate-600); }
 .intake-form .f-warn { margin-top: 0.35rem; display: flex; gap: 0.4rem; border-radius: 0.6rem; background: #fffbeb; padding: 0.4rem 0.6rem; font-size: 0.875rem; color: #78350f; }
+
+/* Printing: white page, no app chrome or floating messages, cards kept whole. */
+@media print {
+  html, body { background: #fff !important; }
+  .no-print, [data-print-hide] { display: none !important; }
+  details > summary { display: none !important; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}

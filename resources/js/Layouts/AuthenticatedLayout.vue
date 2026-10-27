@@ -169,6 +169,8 @@ onUnmounted(()=>{ removeEventListener('storage', readOfflinePending); removeEven
 .workspace-main{min-width:0;padding:84px 16px calc(88px + env(safe-area-inset-bottom))}.workspace-mobile-nav{position:fixed;inset:auto 0 0;z-index:30;display:flex;justify-content:space-around;border-top:1px solid #e2e8f0;background:#fff;padding-bottom:env(safe-area-inset-bottom)}
 .skip-link{position:fixed;left:16px;top:-100px;z-index:80;border:2px solid #5a3a95;border-radius:4px;background:#fff;padding:12px 16px;color:#2d1a5e;font-weight:600}.skip-link:focus{top:8px}.sidebar-scroll{scrollbar-width:thin}
 @media(min-width:768px){.workspace-main{padding:88px 24px 96px}}
+/* Printing (PDF reports): only the page content, never the app frame. */
+@media print{.workspace-header,.workspace-sidebar,.workspace-mobile-nav,.skip-link{display:none!important}.min-h-screen{background:#fff!important}.workspace-main,.workspace-main.shell-collapsed{margin:0!important;padding:0!important}}
 @media(min-width:1024px){.workspace-sidebar{transform:none;width:248px}.sidebar-collapsed{width:96px}.workspace-header{padding-left:264px;padding-right:24px}.workspace-header.shell-collapsed{padding-left:112px}.workspace-main{margin-left:248px;padding:92px 28px 40px}.workspace-main.shell-collapsed{margin-left:96px}.workspace-mobile-nav{display:none}}
 @media(min-width:1440px){.workspace-main{padding:92px 32px 40px}}
 </style>

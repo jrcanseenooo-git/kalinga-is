@@ -35,3 +35,19 @@ for (const width of [390, 1280]) {
         void map;
     });
 }
+
+test('analytics PDF prints as a report: no app frame, report heading, landscape pages', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await login(page, { email: 'admin@kalinga.test', password: 'password' });
+    await page.goto('/analytics');
+    await expect(page.locator('section[aria-labelledby="drill-map-title"] svg[role="img"]')).toBeVisible({ timeout: 15000 });
+    await page.emulateMedia({ media: 'print' });
+    await expect(page.locator('.workspace-header')).toBeHidden();
+    await expect(page.locator('.workspace-sidebar')).toBeHidden();
+    await expect(page.locator('.workspace-mobile-nav')).toBeHidden();
+    await expect(page.locator('.report-head')).toBeVisible();
+    await expect(page.locator('.report-head')).toContainText('Analytics report: Philippines');
+    await expect(page.locator('.report-head')).toContainText('CONFIDENTIAL');
+    const pdf = await page.pdf({ preferCSSPageSize: true, printBackground: true });
+    expect(pdf.byteLength).toBeGreaterThan(10_000);
+});
