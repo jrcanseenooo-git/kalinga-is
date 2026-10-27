@@ -10,7 +10,7 @@ import AddressFields from '@/Components/Intake/AddressFields.vue';
 import FamilyMembers from '@/Components/Intake/FamilyMembers.vue';
 import { INTAKE_STEPS, RISK_LEVELS, intakeFieldId, intakeStepForField, isLowerThan, suggestRisk, validateIntakeStep, type AssignedLocation, type IntakeData, type IntakeOptions } from '@/Casework/intake';
 import { CEFMU_CLASSIFICATIONS, FORMAL_MARRIAGE_FORMS, INFORMAL_UNION_FORM, MARRIAGE_CLASSIFICATIONS, RESIDENCES, UNION_CLASSIFICATIONS, UNION_STATUSES } from '@/data/cefmu';
-import { CIVIL_STATUSES, EDUCATION_LEVELS, IP_MEMBERSHIP, REFERRAL_SOURCES, RELATIONSHIPS, RELIGIONS } from '@/utils/caseOptions';
+import { CIVIL_STATUSES, DISABILITY_TYPES, EDUCATION_LEVELS, IP_MEMBERSHIP, REFERRAL_SOURCES, RELATIONSHIPS, RELIGIONS } from '@/utils/caseOptions';
 import { intakeGuidance } from '@/utils/intakeGuidance';
 import { ageFromBirthdate } from '@/utils/philippineTime';
 import { maskedName } from '@/utils/clientName';
@@ -151,10 +151,7 @@ defineExpose({ goTo, focusSummary });
                 <label class="text-sm font-medium">Highest education reached<OptionSelect id="intake-education_attainment" v-model="d.education_attainment" :options="EDUCATION_LEVELS" select-class="mt-1 block min-h-11 w-full rounded-xl border-slate-300" /></label>
                 <label class="text-sm font-medium sm:col-span-2" for="intake-disability_evidence">Disability or support need
                     <select id="intake-disability_evidence" v-model="d.disability_evidence" class="mt-1 block min-h-11 w-full rounded-xl border-slate-300">
-                        <option value="">Not recorded</option><option value="no_support_need_declared">No disability support need declared</option><option value="deaf_hard_of_hearing">Deaf / hard of hearing</option>
-                        <option value="intellectual_disability">Intellectual disability</option><option value="learning_disability">Learning disability</option><option value="mental_disability">Mental disability</option>
-                        <option value="physical_disability">Physical disability</option><option value="psychosocial_disability">Psychosocial disability</option><option value="speech_language_impairment">Speech and language impairment</option>
-                        <option value="visual_disability">Visual disability</option><option value="cancer">Cancer</option><option value="rare_disease">Rare disease</option>
+                        <option value="">Not recorded</option><option v-for="item in DISABILITY_TYPES" :key="item.value" :value="item.value">{{ item.label }}</option>
                     </select>
                 </label>
             </div>
@@ -294,6 +291,18 @@ defineExpose({ goTo, focusSummary });
                 <label class="text-sm font-medium" for="intake-priority">Priority
                     <select id="intake-priority" v-model="d.priority" class="mt-1 block min-h-11 w-full rounded-xl border-slate-300"><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select>
                 </label>
+            </section>
+            <section v-if="options.customFields?.length" class="grid gap-3 rounded-xl border border-slate-200 p-4 sm:grid-cols-2" aria-labelledby="custom-title">
+                <h3 id="custom-title" class="text-sm font-bold text-slate-900 sm:col-span-2">Additional information</h3>
+                <div v-for="field in options.customFields" :key="field.key" :class="field.type === 'textarea' ? 'sm:col-span-2' : ''">
+                    <label :for="`intake-x-${field.key}`" class="text-sm font-medium">{{ field.label }}<span v-if="field.required" aria-hidden="true"> *</span></label>
+                    <select v-if="field.type === 'select'" :id="`intake-x-${field.key}`" v-model="d.custom_fields[field.key]" :required="field.required" class="mt-1 block min-h-11 w-full rounded-xl border-slate-300"><option value="">Choose</option><option v-for="choice in field.options" :key="choice" :value="choice">{{ choice }}</option></select>
+                    <select v-else-if="field.type === 'yes_no'" :id="`intake-x-${field.key}`" v-model="d.custom_fields[field.key]" :required="field.required" class="mt-1 block min-h-11 w-full rounded-xl border-slate-300"><option value="">Choose</option><option value="yes">Yes</option><option value="no">No</option></select>
+                    <textarea v-else-if="field.type === 'textarea'" :id="`intake-x-${field.key}`" v-model="d.custom_fields[field.key]" :required="field.required" rows="3" maxlength="2000" class="mt-1 block w-full rounded-xl border-slate-300"></textarea>
+                    <input v-else :id="`intake-x-${field.key}`" v-model="d.custom_fields[field.key]" :type="field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : 'text'" :required="field.required" maxlength="255" class="mt-1 block min-h-11 w-full rounded-xl border-slate-300">
+                    <p v-if="field.help_text" class="mt-1 text-xs text-slate-600">{{ field.help_text }}</p>
+                    <p v-if="errors[`custom_fields.${field.key}`]" class="mt-1 text-xs text-rose-700" role="alert">{{ errors[`custom_fields.${field.key}`] }}</p>
+                </div>
             </section>
         </fieldset>
 

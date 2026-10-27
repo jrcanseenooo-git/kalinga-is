@@ -171,32 +171,12 @@ class AdminController extends Controller
         ]);
     }
 
+    /** The earlier form builder became Administration > Form options. */
     public function forms(Request $r)
     {
         $this->guard($r);
 
-        return Inertia::render('Admin/Forms', ['fields' => DB::table('form_fields')->orderBy('form')->orderBy('sort_order')->get()]);
-    }
-
-    public function storeFormField(Request $r)
-    {
-        $this->guard($r);
-        $d = $r->validate(['form' => 'required|string|max:100', 'key' => 'required|string|max:100', 'label' => 'required|string|max:255', 'type' => 'required|string|max:50', 'required' => 'boolean', 'options_text' => 'nullable|string|max:3000', 'sort_order' => 'nullable|integer|min:0']);
-        DB::table('form_fields')->updateOrInsert(['form' => $d['form'], 'key' => $d['key']], ['label' => $d['label'], 'type' => $d['type'], 'required' => $d['required'] ?? false, 'options' => json_encode(collect(explode(',', $d['options_text'] ?? ''))->map(fn ($item) => trim($item))->filter()->values()), 'sort_order' => $d['sort_order'] ?? 0, 'updated_at' => now(), 'created_at' => now()]);
-        AuditLog::record('form_field.saved', 'form_field', DB::table('form_fields')->where('form', $d['form'])->where('key', $d['key'])->value('id'), ['form' => $d['form'], 'key' => $d['key'], 'type' => $d['type']]);
-
-        return back()->with('success', 'Form field saved.');
-    }
-
-    public function destroyFormField(Request $r, int $field)
-    {
-        $this->guard($r);
-        $record = DB::table('form_fields')->find($field);
-        abort_unless($record, 404);
-        DB::table('form_fields')->where('id', $field)->delete();
-        AuditLog::insert(['user_id' => $r->user()->id, 'event' => 'form_field.deleted', 'auditable_type' => 'form_field', 'auditable_id' => $field, 'changes' => json_encode(['form' => $record->form, 'key' => $record->key]), 'created_at' => now(), 'updated_at' => now()]);
-
-        return back()->with('success', 'Form field removed.');
+        return redirect()->route('admin.options');
     }
 
     public function updateUser(Request $r, int $user)

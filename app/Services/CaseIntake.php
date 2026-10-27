@@ -73,16 +73,53 @@ final class CaseIntake
             'immediate_safety_concern' => 'nullable|boolean',
             'next_review_at' => 'nullable|date',
             'narrative' => 'nullable|string|max:5000',
+            // Fields the administrator added to the intake (Administration > Form options).
+            'custom_fields' => 'nullable|array|max:60', 'custom_fields.*' => 'nullable',
             // Earlier intake versions (field-mode intakes saved before this release).
             'union_type' => 'nullable|string|max:60', 'partner_age_band' => 'nullable|string|max:60',
             ...collect(self::LEGACY_TEXT)->mapWithKeys(fn ($field) => [$field => 'nullable|string|max:5000'])->all(),
         ];
     }
 
+    /** Active supplemental intake fields (form_fields). */
+    public static function customFields(): array
+    {
+        return DB::table('form_fields')->where('form', 'intake')->where(fn ($q) => $q->whereNull('active')->orWhere('active', true))->orderBy('sort_order')->orderBy('id')
+            ->get(['id', 'key', 'label', 'type', 'required', 'options', 'help_text'])
+            ->map(fn ($field) => ['id' => $field->id, 'key' => $field->key, 'label' => $field->label, 'type' => $field->type, 'required' => (bool) $field->required,
+                'options' => json_decode($field->options ?? '[]', true) ?: [], 'help_text' => $field->help_text])->all();
+    }
+
+    /** Checks the answers to the supplemental fields against their definitions; unknown keys are dropped. */
+    private function checkCustomFields(Validator $validator, array $data): void
+    {
+        $answers = (array) ($data['custom_fields'] ?? []);
+        foreach (self::customFields() as $field) {
+            $value = $answers[$field['key']] ?? null;
+            $empty = $value === null || (is_string($value) && trim($value) === '');
+            $error = fn (string $message) => $validator->errors()->add('custom_fields.' . $field['key'], $message);
+            if ($empty) {
+                if ($field['required']) {
+                    $error('Answer "' . $field['label'] . '".');
+                }
+
+                continue;
+            }
+            match ($field['type']) {
+                'select' => in_array($value, $field['options'], true) ?: $error('Choose one of the options for "' . $field['label'] . '".'),
+                'number' => is_numeric($value) ?: $error('"' . $field['label'] . '" must be a number.'),
+                'date' => strtotime((string) $value) !== false ?: $error('"' . $field['label'] . '" must be a date.'),
+                'yes_no' => in_array($value, ['yes', 'no'], true) ?: $error('Answer yes or no for "' . $field['label'] . '".'),
+                default => (is_string($value) && mb_strlen($value) <= ($field['type'] === 'textarea' ? 2000 : 255)) ?: $error('"' . $field['label'] . '" is too long.'),
+            };
+        }
+    }
+
     public function after(Validator $validator): void
     {
         CefmuIncidence::after($validator);
         $data = $validator->getData();
+        $this->checkCustomFields($validator, $data);
         $suggested = OptionSets::suggestedRiskLevel((array) ($data['risk_indicators'] ?? []));
         $chosen = array_search($data['initial_risk_level'] ?? 'low', OptionSets::RISK_LEVELS, true);
         if ($chosen !== false && $chosen < array_search($suggested['level'], OptionSets::RISK_LEVELS, true) && trim((string) ($data['risk_level_reason'] ?? '')) === '') {
@@ -120,6 +157,7 @@ final class CaseIntake
             'risk_level_reason' => $data['risk_level_reason'] ?? null, 'risk_indicators' => json_encode(array_values($risk)),
             'immediate_safety_concern' => in_array('immediate_danger', $risk, true) || (bool) ($data['immediate_safety_concern'] ?? false),
             'next_review_at' => $data['next_review_at'] ?? null,
+            'custom_fields' => ($custom = collect(self::customFields())->mapWithKeys(fn ($field) => [$field['key'] => $data['custom_fields'][$field['key']] ?? null])->filter(fn ($v) => $v !== null && $v !== '')->all()) ? json_encode($custom) : null,
             'union_type' => $data['union_type'] ?? null, 'partner_age_band' => $data['partner_age_band'] ?? null,
             ...collect(self::LEGACY_TEXT)->mapWithKeys(fn ($field) => [$field => $data[$field] ?? null])->all(),
             'intake_completed_at' => now(), 'opened_at' => now(), 'last_activity_at' => now(), 'created_at' => now(), 'updated_at' => now(),

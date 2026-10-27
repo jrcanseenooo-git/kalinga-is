@@ -51,10 +51,15 @@ const label = (event: string) => event.replace(/[._]/g, ' ').replace(/\b\w/g, c 
           <p class="mt-4 text-sm font-extrabold text-slate-900 group-hover:text-brand-800">LGU registry</p>
           <p class="mt-1 text-xs leading-5 text-slate-500">Register and manage LGU references from the PSGC dataset.</p>
         </Link>
-        <Link :href="route('admin.forms')" class="group ui-panel p-5 transition hover:border-brand-200 hover:shadow-md">
+        <Link :href="route('admin.options')" class="group ui-panel p-5 transition hover:border-brand-200 hover:shadow-md">
           <FileText class="h-5 w-5 text-brand-700" aria-hidden="true" />
-          <p class="mt-4 text-sm font-extrabold text-slate-900 group-hover:text-brand-800">Form builder</p>
-          <p class="mt-1 text-xs leading-5 text-slate-500">Configurable supplemental fields for intake, report, and assessment forms.</p>
+          <p class="mt-4 text-sm font-extrabold text-slate-900 group-hover:text-brand-800">Form options</p>
+          <p class="mt-1 text-xs leading-5 text-slate-600">Edit dropdown lists, risk factor points and extra intake fields, with a preview.</p>
+        </Link>
+        <Link :href="route('admin.feedback')" class="group ui-panel p-5 transition hover:border-brand-200 hover:shadow-md">
+          <FileText class="h-5 w-5 text-brand-700" aria-hidden="true" />
+          <p class="mt-4 text-sm font-extrabold text-slate-900 group-hover:text-brand-800">User feedback</p>
+          <p class="mt-1 text-xs leading-5 text-slate-600">Suggestions and problem reports from users, with your replies.</p>
         </Link>
         <Link :href="route('management.dashboard')" class="group ui-panel p-5 transition hover:border-brand-200 hover:shadow-md">
           <ClipboardList class="h-5 w-5 text-brand-700" aria-hidden="true" />

@@ -48,6 +48,8 @@ class RolePermissions
         'lgu.profile.view', 'lgu.profile.manage',
         'cases.monitor', 'cases.remark', 'closure.approve', 'users.approve', 'lgu.registry.view', 'lgu.registry.manage',
         'identity.candidates.view', 'identity.review', 'identity.link', 'identity.merge.approve', 'identity.merge.execute', 'identity.merge.history.view', 'assessments.legacy.reconcile',
+        // Phase 7: form options and user feedback; Phase 8: Connect across regions.
+        'options.manage', 'feedback.review', 'connect.network',
     ];
 
     private const MONITOR = ['cases.monitor', 'cases.remark', 'analytics.view', 'analytics.export', 'analytics.quarterly', 'management.dashboard.view', 'management.report.export',
@@ -55,8 +57,10 @@ class RolePermissions
 
     private const GRANTS = [
         'system_admin' => ['admin.manage', 'audits.view', 'retention.manage', 'users.approve', 'lgu.registry.view', 'lgu.registry.manage',
-            'analytics.view', 'analytics.export', 'analytics.quarterly', 'management.dashboard.view', 'management.report.export', 'cpu.chat.view', 'cpu.chat.manage'],
-        'project_manager' => [...self::MONITOR, 'users.approve', 'lgu.registry.view', 'lgu.registry.manage', 'lgu.profile.view', 'lgu.profile.manage'],
+            'analytics.view', 'analytics.export', 'analytics.quarterly', 'management.dashboard.view', 'management.report.export', 'cpu.chat.view', 'cpu.chat.manage',
+            'options.manage', 'feedback.review'],
+        'project_manager' => [...self::MONITOR, 'users.approve', 'lgu.registry.view', 'lgu.registry.manage', 'lgu.profile.view', 'lgu.profile.manage',
+            'options.manage', 'feedback.review', 'connect.network'],
         'fo_user' => [...self::MONITOR, 'lgu.registry.view', 'lgu.profile.view'],
         // The LGU Head supervises: reads the LGU's cases, approves closure and the
         // other second-person reviews, reassigns cases; never writes case content.

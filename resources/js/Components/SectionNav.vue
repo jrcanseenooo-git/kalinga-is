@@ -22,7 +22,8 @@ const links = computed<SectionLink[]>(() => {
     { label: 'Users', route: 'admin.index', visible: can('users.approve') },
     { label: 'LGU registry', route: 'admin.lgus.index', visible: can('lgu.registry.view') },
     { label: 'Audit logs', route: 'admin.audits', visible: can('audits.view') },
-    { label: 'Form builder', route: 'admin.forms', visible: can('admin.manage') },
+    { label: 'Form options', route: 'admin.options', visible: can('options.manage') },
+    { label: 'Feedback', route: 'admin.feedback', visible: can('feedback.review') },
   ].filter(l => l.visible);
 
   if (props.section === 'analytics') return [

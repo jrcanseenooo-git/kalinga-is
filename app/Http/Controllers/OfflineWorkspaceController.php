@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Services\CaseAccessScope;
 use App\Services\CaseForms;
+use App\Services\CaseIntake;
 use App\Services\Kavat;
 use App\Services\OptionSets;
 use Illuminate\Http\Request;
@@ -18,7 +19,7 @@ class OfflineWorkspaceController extends Controller
     {
         $this->authorize('offline.use');
 
-        return Inertia::render('Offline/Workspace', ['intakeOptions' => ['riskFactors' => OptionSets::options(OptionSets::RISK_FACTORS), 'riskRule' => OptionSets::riskRule()]]);
+        return Inertia::render('Offline/Workspace', ['intakeOptions' => ['riskFactors' => OptionSets::options(OptionSets::RISK_FACTORS), 'riskRule' => OptionSets::riskRule(), 'customFields' => CaseIntake::customFields()]]);
     }
 
     public function pack(Request $request)

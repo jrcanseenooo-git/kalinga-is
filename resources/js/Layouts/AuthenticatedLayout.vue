@@ -3,9 +3,10 @@ import { formatPh } from '@/utils/philippineTime';
 import ConnectionStatus from '@/Components/UI/ConnectionStatus.vue';
 import { accessCheckPending } from '@/Security/browserHistory';
 import Breadcrumbs from '@/Components/UI/Breadcrumbs.vue';
+import FeedbackDialog from '@/Components/FeedbackDialog.vue';
 import NotificationPanel from '@/Components/UI/NotificationPanel.vue';
 import type { PageProps } from '@/types';
-import { Link, router, usePage } from '@inertiajs/vue3'; import AppIcon from '@/Components/AppIcon.vue'; import SubmissionConfirmation from '@/Components/SubmissionConfirmation.vue'; import MidnightSessionGuard from '@/Components/MidnightSessionGuard.vue'; import { Bell, CalendarDays, ChevronDown, CircleHelp, LogOut, Menu, Plus, Search, UserRound } from '@lucide/vue';
+import { Link, router, usePage } from '@inertiajs/vue3'; import AppIcon from '@/Components/AppIcon.vue'; import SubmissionConfirmation from '@/Components/SubmissionConfirmation.vue'; import MidnightSessionGuard from '@/Components/MidnightSessionGuard.vue'; import { Bell, CalendarDays, ChevronDown, CircleHelp, LogOut, Menu, MessageSquareText, Plus, Search, UserRound } from '@lucide/vue';
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import Modal from '@/Components/Modal.vue';
 import FlashToast from '@/Components/FlashToast.vue';
@@ -15,7 +16,7 @@ const desktop = ref(false);
 const navigationCollapsed = computed(() => desktop.value && collapsed.value);
 const menuButton = ref<HTMLButtonElement | null>(null);
 const sidebar = ref<HTMLElement | null>(null);
-const userMenuOpen = ref(false); const userMenu = ref<HTMLElement | null>(null); const searchTerm = ref('');
+const userMenuOpen = ref(false); const feedbackOpen = ref(false); const userMenu = ref<HTMLElement | null>(null); const searchTerm = ref('');
 const open = ref(false); const collapsed = ref(false); const confirmLogout = ref(false); const notificationsOpen = ref(false); const connectionOnline = ref(navigator.onLine); const page = usePage<PageProps>(); const unreadAlerts = computed(() => Number(page.props.unreadNotifications ?? 0)); const notificationPreview = computed(() => page.props.notificationPreview ?? []);
 const permissions = computed(() => new Set<string>(page.props.auth.permissions ?? []));
 const can = (permission: string) => permissions.value.has(permission);
@@ -41,9 +42,11 @@ const groups = computed<{ title: string; links: NavigationLink[] }[]>(() => [
     ...(can('management.dashboard.view') ? [{ label:'Management overview', icon:'home', route:'management.dashboard', match:['management.dashboard','management.section'] }] : []),
   ]}] : []),
   { title: can('admin.manage') ? 'Settings' : 'Management', links:[
-    ...(can('admin.manage') ? [{ label:'Administration', icon:'settings', route:'admin.overview', match:['admin.overview','admin.index','admin.lgus.index','admin.audits','admin.forms'] }] : [
+    ...(can('admin.manage') ? [{ label:'Administration', icon:'settings', route:'admin.overview', match:['admin.overview','admin.index','admin.lgus.index','admin.audits','admin.forms','admin.options','admin.feedback'] }] : [
       ...(can('users.approve') ? [{ label:'Users & approvals', icon:'settings', route:'admin.index', match:['admin.index'] }] : []),
       ...(can('lgu.registry.view') ? [{ label:'LGU registry', icon:'building', route:'admin.lgus.index', match:['admin.lgus.index'] }] : []),
+      ...(can('options.manage') ? [{ label:'Form options', icon:'settings', route:'admin.options', match:['admin.options'] }] : []),
+      ...(can('feedback.review') ? [{ label:'User feedback', icon:'bell', route:'admin.feedback', match:['admin.feedback'] }] : []),
     ]),
     ...(can('lgu.profile.view') ? [{ label:'Office profile & signatories', icon:'building', route:'lgu-profile.show', match:['lgu-profile.show'] }] : []),
   ]},
@@ -85,7 +88,8 @@ const pageTitle = computed(() => {
   if (route().current('admin.lgus.index')) return 'Administration · LGU registry';
   if (route().current('admin.index')) return 'Administration · Users';
   if (route().current('admin.audits')) return 'Administration · Audit logs';
-  if (route().current('admin.forms')) return 'Administration · Form builder';
+  if (route().current('admin.options')) return 'Administration - Form options';
+  if (route().current('admin.feedback')) return 'Administration - Feedback';
   return 'Kalinga IS';
 });
 function toggleSidebar(){ if(!desktop.value){ open.value=!open.value; return; } collapsed.value=!collapsed.value; try { localStorage.setItem('kalinga_sidebar_collapsed',String(collapsed.value)); } catch { /* Optional layout preference may be blocked by the browser. */ } }
@@ -134,11 +138,12 @@ onUnmounted(()=>{ removeEventListener('storage', readOfflinePending); removeEven
     <button type="button" class="ui-button relative h-11 w-11 border-0 bg-transparent px-0 hover:bg-slate-100" aria-label="Open notifications" aria-controls="notification-panel" :aria-expanded="notificationsOpen" @click="notificationsOpen=!notificationsOpen"><Bell class="h-5 w-5"/><span v-if="unreadAlerts" class="absolute right-1 top-1 grid min-h-4 min-w-4 place-items-center rounded-full bg-rose-600 px-1 text-[10px] font-semibold text-white">{{unreadAlerts>9?'9+':unreadAlerts}}</span></button>
     <div ref="userMenu" class="relative">
      <button type="button" class="flex min-h-11 items-center gap-2 rounded-xl px-1.5 hover:bg-slate-100 sm:px-2" aria-haspopup="menu" :aria-expanded="userMenuOpen" aria-controls="user-menu" @click.stop="userMenuOpen=!userMenuOpen"><span class="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-100 text-xs font-bold text-brand-800">{{initials}}</span><span class="hidden min-w-0 text-left min-[1024px]:block"><span class="block max-w-40 truncate text-sm font-semibold text-slate-900">{{page.props.auth.user.name}}</span><span class="block max-w-40 truncate text-xs text-slate-600">{{roleLabel}}</span></span><ChevronDown aria-hidden="true" class="hidden h-4 w-4 text-slate-500 min-[1024px]:block"/></button>
-     <div v-if="userMenuOpen" id="user-menu" role="menu" class="absolute right-0 top-12 z-50 w-56 overflow-hidden rounded-xl border border-[var(--color-line)] bg-white py-1 shadow-lg"><div class="border-b border-slate-100 px-4 py-3 min-[1024px]:hidden"><p class="truncate text-sm font-semibold text-slate-900">{{page.props.auth.user.name}}</p><p class="truncate text-xs text-slate-600">{{roleLabel}}</p></div><Link role="menuitem" :href="route('profile.edit')" class="flex min-h-11 items-center gap-3 px-4 text-sm text-slate-700 hover:bg-slate-50" @click="userMenuOpen=false"><UserRound aria-hidden="true" class="h-4 w-4"/>Profile and security</Link><Link role="menuitem" :href="route('help.guide')" class="flex min-h-11 items-center gap-3 px-4 text-sm text-slate-700 hover:bg-slate-50" @click="userMenuOpen=false"><CircleHelp aria-hidden="true" class="h-4 w-4"/>Help and guides</Link><button role="menuitem" type="button" class="flex min-h-11 w-full items-center gap-3 border-t border-slate-100 px-4 text-left text-sm text-rose-700 hover:bg-rose-50" @click="userMenuOpen=false;logout()"><LogOut aria-hidden="true" class="h-4 w-4"/>Sign out</button></div>
+     <div v-if="userMenuOpen" id="user-menu" role="menu" class="absolute right-0 top-12 z-50 w-56 overflow-hidden rounded-xl border border-[var(--color-line)] bg-white py-1 shadow-lg"><div class="border-b border-slate-100 px-4 py-3 min-[1024px]:hidden"><p class="truncate text-sm font-semibold text-slate-900">{{page.props.auth.user.name}}</p><p class="truncate text-xs text-slate-600">{{roleLabel}}</p></div><button type="button" role="menuitem" class="flex min-h-11 w-full items-center gap-3 px-4 text-left text-sm text-slate-700 hover:bg-slate-50" @click="userMenuOpen=false; feedbackOpen=true"><MessageSquareText aria-hidden="true" class="h-4 w-4"/>Send feedback</button><Link role="menuitem" :href="route('profile.edit')" class="flex min-h-11 items-center gap-3 px-4 text-sm text-slate-700 hover:bg-slate-50" @click="userMenuOpen=false"><UserRound aria-hidden="true" class="h-4 w-4"/>Profile and security</Link><Link role="menuitem" :href="route('help.guide')" class="flex min-h-11 items-center gap-3 px-4 text-sm text-slate-700 hover:bg-slate-50" @click="userMenuOpen=false"><CircleHelp aria-hidden="true" class="h-4 w-4"/>Help and guides</Link><button role="menuitem" type="button" class="flex min-h-11 w-full items-center gap-3 border-t border-slate-100 px-4 text-left text-sm text-rose-700 hover:bg-rose-50" @click="userMenuOpen=false;logout()"><LogOut aria-hidden="true" class="h-4 w-4"/>Sign out</button></div>
     </div>
     <Link v-if="can('cases.create')" :href="route('cases.create')" aria-label="Create new case" class="ui-button ui-button-primary ml-1"><Plus class="h-4 w-4"/><span class="hidden sm:inline">New case</span></Link>
    </div>
   </header>
+  <FeedbackDialog v-if="feedbackOpen" @close="feedbackOpen=false" />
   <NotificationPanel v-if="notificationsOpen" :items="notificationPreview" :unread="unreadAlerts" @close="notificationsOpen=false" @read-all="markAllAlertsRead" />
   <aside id="workspace-navigation" ref="sidebar" :inert="!desktop&&!open" :role="!desktop&&open?'dialog':undefined" :aria-modal="!desktop&&open?true:undefined" aria-label="Workspace navigation" class="workspace-sidebar" :class="{'sidebar-open':open,'sidebar-collapsed':navigationCollapsed}">
    <button v-if="open" type="button" class="ui-button m-3 justify-start lg:hidden" @click="closeNavigation">Close navigation</button>

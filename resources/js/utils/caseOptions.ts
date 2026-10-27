@@ -198,6 +198,30 @@ export const SERVICE_TYPES: (Option & { amount: boolean; detail: string })[] = [
   { value: 'Other', label: 'Other service', amount: false, detail: 'Describe the service' },
 ];
 
+/** Disability or support need (intake). Codes are stored; labels can be edited in Form options. */
+export const DISABILITY_TYPES: Option[] = [
+  { value: 'no_support_need_declared', label: 'No disability support need declared' }, { value: 'deaf_hard_of_hearing', label: 'Deaf / hard of hearing' },
+  { value: 'intellectual_disability', label: 'Intellectual disability' }, { value: 'learning_disability', label: 'Learning disability' },
+  { value: 'mental_disability', label: 'Mental disability' }, { value: 'physical_disability', label: 'Physical disability' },
+  { value: 'psychosocial_disability', label: 'Psychosocial disability' }, { value: 'speech_language_impairment', label: 'Speech and language impairment' },
+  { value: 'visual_disability', label: 'Visual disability' }, { value: 'cancer', label: 'Cancer' }, { value: 'rare_disease', label: 'Rare disease' },
+];
+
+/**
+ * Lists edited by the administrator (Administration > Form options) arrive
+ * with every page as `optionSets`. They replace the built-in lists above in
+ * place, so every form uses them; without them (or offline before the first
+ * load) the built-in lists stay.
+ */
+const OVERRIDABLE: Record<string, Option[]> = {} as Record<string, Option[]>;
+export function applyOptionSets(sets: Record<string, Option[]> | null | undefined): void {
+  if (!sets) return;
+  for (const [name, options] of Object.entries(sets)) {
+    const target = OVERRIDABLE[name];
+    if (target && Array.isArray(options) && options.length) target.splice(0, target.length, ...options.map(option => ({ value: String(option.value), label: String(option.label), ...(option.hint ? { hint: String(option.hint) } : {}) })));
+  }
+}
+
 /** Progress note types; "referral" and "service" open their own fields. */
 export const NOTE_TYPES: Option[] = [
   { value: 'contact', label: 'Contact / home visit' },
@@ -208,3 +232,5 @@ export const NOTE_TYPES: Option[] = [
   { value: 'case_review', label: 'Case review' },
   { value: 'other', label: 'Other' },
 ];
+
+Object.assign(OVERRIDABLE, { RELATIONSHIPS, CIVIL_STATUSES, RELIGIONS, IP_MEMBERSHIP, EDUCATION_LEVELS, OCCUPATIONS, REFERRAL_SOURCES, VISIT_LOCATIONS, SERVICE_CATEGORIES, PARTNER_AGENCIES, DISABILITY_TYPES });

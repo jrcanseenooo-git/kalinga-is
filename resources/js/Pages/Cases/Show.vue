@@ -54,6 +54,7 @@ const props = defineProps<{
     formSuggestions: Record<string, string>;
     grants: { items: GrantItem[]; total: number; count: number; types: Record<string, string> };
     canEditForms: boolean;
+    customFieldLabels?: Record<string, string>;
     timeline: any[];
     tasks: CaseTask[];
     transitions: string[];
@@ -230,6 +231,12 @@ const daysSinceActivity = computed(() => {
     if (!props.caseRecord.last_activity_at) return null;
     return Math.floor((Date.now() - (parseStored(props.caseRecord.last_activity_at)?.getTime() ?? Date.now())) / 86400000);
 });
+/** Answers to the extra intake fields added in Form options. */
+const customAnswers = computed(() => {
+    const raw = props.caseRecord.custom_fields;
+    const answers: Record<string, string> = typeof raw === 'string' ? (JSON.parse(raw || '{}') as Record<string, string>) : (raw ?? {});
+    return Object.entries(answers).map(([key, value]) => ({ key, label: props.customFieldLabels?.[key] ?? key, value: value === 'yes' ? 'Yes' : value === 'no' ? 'No' : String(value) }));
+});
 const clientAge = computed(() => ageFromBirthdate(props.caseRecord.birthdate));
 const priorityTone = (priority: string | null | undefined) => priority === 'high' ? 'overview-card-alert' : priority === 'standard' ? 'overview-card-done' : 'overview-card-pending';
 
@@ -302,6 +309,10 @@ const archiveCase = () => { if (window.confirm('Archive this case? The case will
 
                     <section v-show="activeSection === 'people'" id="case-panel-people" role="tabpanel" aria-labelledby="case-tab-people" class="scroll-mt-24 rounded-lg border border-slate-200 bg-white p-5">
                         <CaseClientContextPanel :record="caseRecord" :relationships="relationships" :consents="consents" :can-archive="canArchive" @archive="archiveCase" />
+                        <section v-if="customAnswers.length" class="mt-5 rounded-xl border border-slate-200 p-4" aria-labelledby="custom-answers-title">
+                            <h3 id="custom-answers-title" class="text-sm font-semibold text-slate-900">Additional information (intake)</h3>
+                            <dl class="mt-2 grid gap-2 sm:grid-cols-2"><div v-for="item in customAnswers" :key="item.key"><dt class="text-xs text-slate-600">{{ item.label }}</dt><dd class="text-sm text-slate-900">{{ item.value }}</dd></div></dl>
+                        </section>
                     </section>
                     <section v-show="activeSection === 'overview' || activeSection === 'people'" v-if="canAssignCase" class="ui-panel p-5">
                         <h2 class="font-bold">Assignment</h2><p class="mt-1 text-sm text-slate-600">Reassign this case using your existing assignment authority.</p><p v-if="!assignableWorkers.length" class="mt-3 text-sm text-slate-700">{{ caseRecord.lgu_id ? 'No active case workers have a current LGU assignment for this case.' : 'A verified case LGU assignment is required before reassignment. Request an authorized jurisdiction review.' }}</p><form v-else @submit.prevent="saveAssignment" class="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]"><label class="min-w-0 text-sm font-semibold text-slate-700">Assign case worker<select v-model="assignment.assigned_to" required class="mt-1 w-full rounded-md border-slate-300 text-sm"><option value="">Select worker</option><option v-for="worker in assignableWorkers" :key="worker.id" :value="worker.id">{{ worker.name }}</option></select></label><button :disabled="assignment.processing || !assignment.assigned_to" class="rounded-md bg-brand-700 px-4 py-2 text-sm font-bold text-white">Update assignment</button></form><p v-if="assignment.errors.assigned_to || assignment.errors.expected_version" role="alert" class="mt-2 text-sm text-rose-700">{{ assignment.errors.assigned_to || assignment.errors.expected_version }}</p></section>

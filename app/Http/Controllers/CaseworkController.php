@@ -233,6 +233,7 @@ class CaseworkController extends Controller
             'intakeOptions' => [
                 'riskFactors' => OptionSets::options(OptionSets::RISK_FACTORS),
                 'riskRule' => OptionSets::riskRule(),
+                'customFields' => CaseIntake::customFields(),
             ],
             'draft' => $draft,
             'savedIntakes' => $draft ? [] : IntakeDrafts::list($request->user()->id),
@@ -280,7 +281,7 @@ class CaseworkController extends Controller
         $record = DB::table('cases')->join('clients', 'clients.id', '=', 'cases.client_id')->leftJoin('users', 'users.id', '=', 'cases.assigned_to')->where('cases.id', $case)->whereNull('cases.deleted_at')->first([
             'cases.id', 'cases.case_number', 'cases.client_id', 'cases.assigned_to', 'cases.status', 'cases.stage', 'cases.priority',
             'cases.category', 'cases.case_type', 'cases.cefmu_classifications', 'cases.union_type', 'cases.partner_age_band', 'cases.union_forms', 'cases.union_status', 'cases.partner_current_age', 'cases.union_duration_months', 'cases.current_residence', 'clients.alias',
-            'cases.current_risk_level', 'cases.current_risk_assessed_at',
+            'cases.current_risk_level', 'cases.current_risk_assessed_at', 'cases.custom_fields',
             'cases.education_status_at_intake', 'cases.pregnancy_parenting_status', 'cases.circumstance', 'cases.mode_of_admission',
             'cases.referred_by', 'cases.referral_date', 'cases.immediate_safety_concern', 'cases.initial_risk_level', 'cases.risk_indicators',
             'cases.privacy_notice_provided_at', 'cases.privacy_notice_method', 'cases.intake_completed_at', 'cases.opened_at', 'cases.closed_at',
@@ -354,7 +355,9 @@ class CaseworkController extends Controller
             'remarks' => app(CaseRemarks::class)->thread($case),
             'kavatDefinition' => Kavat::definition(), 'kavat' => CaseFormController::kavatHistory($case),
             'formsDefinition' => CaseForms::definition(), 'forms' => CaseForms::forCase($case), 'formSuggestions' => CaseForms::suggestions($record, $record),
-            'grants' => CaseGrants::forCase($case) + ['types' => CaseGrants::TYPES],
+            'grants' => CaseGrants::forCase($case) + ['types' => CaseGrants::types()],
+            // Labels of the extra intake fields (answers are in caseRecord.custom_fields).
+            'customFieldLabels' => DB::table('form_fields')->where('form', 'intake')->pluck('label', 'key'),
             'canEditForms' => $request->user()->hasPermission('cases.update') && $record->status !== 'CLOSED',
             'timeline' => DB::table('audit_logs')->where('auditable_type', 'case')->where('auditable_id', $case)->where('event', '!=', 'case.viewed')->latest()->limit(30)->get(['id', 'event', 'changes', 'outcome', 'created_at']),
             'tasks' => app(WorkerTasks::class)->withIsoDates(DB::table('tasks')->where('case_id', $case)->orderBy('due_at')->get()),
