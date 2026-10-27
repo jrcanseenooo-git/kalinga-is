@@ -63,3 +63,18 @@ test('intake starts with address boxes unticked, labels the mobile number and ne
     await page.getByRole('button', { name: /Add Ana Cruz.*the primary caregiver/ }).click();
     await expect(page.getByRole('button', { name: /^Ana Cruz/ })).toBeVisible();
 });
+
+test('Kalinga Assist opens from any page with tips, attention items and answers from the guides', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 900 });
+    await login(page); await page.goto('/cases/create');
+    await page.getByRole('button', { name: 'Open Kalinga Assist' }).click();
+    const assist = page.getByRole('dialog', { name: 'Kalinga Assist' });
+    await expect(assist).toBeVisible();
+    await expect(assist).toContainText('Tips: Kalinga Intake');
+    await expect(assist.getByText(/Checking\.\.\.|Needs your attention/).first()).toBeVisible();
+    await assist.getByRole('searchbox', { name: 'Ask a question' }).fill('paano mag refer ng bata');
+    await expect(assist.getByRole('heading', { name: 'Refer a child to a CPU member or an external agency' })).toBeVisible();
+    await assist.getByRole('button', { name: 'Close', exact: true }).click();
+    await expect(assist).toBeHidden();
+    await expect(page.locator('#workspace-navigation').getByRole('link', { name: 'Office & signatories', exact: true })).toBeAttached();
+});

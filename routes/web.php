@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AnalyticsController;
+use App\Http\Controllers\AssistController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\CaseArtifactController;
 use App\Http\Controllers\CaseClosureRecordController;
@@ -252,6 +253,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/cases/{case}/closure', [PlanningController::class, 'closure'])->middleware('throttle:sensitive-write')->name('cases.closure.store');
     Route::patch('/cases/{case}/closure-review', [PlanningController::class, 'reviewClosure'])->middleware('throttle:sensitive-write')->name('cases.closure.review');
     Route::get('/help', fn () => Inertia::render('Help/Guide'))->name('help.guide');
+    Route::get('/assist', [AssistController::class, 'index'])->name('assist.index');
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->middleware('throttle:sensitive-write')->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->middleware('throttle:sensitive-write')->name('profile.destroy');

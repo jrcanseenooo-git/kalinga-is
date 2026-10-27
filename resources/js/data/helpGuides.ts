@@ -149,7 +149,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
       'Choose the report. For Progress Notes you can set a period (from and to dates).',
       'Check the draft. You can correct wording on screen; these edits are not saved to the case.',
       'Names print as initials unless you choose Show full name. Contact numbers are masked.',
-      'Choose Print / Save as PDF. You sign as Prepared by; the office head in Office profile & signatories signs as Noted by.',
+      'Choose Print / Save as PDF. You sign as Prepared by; the office head in Office & signatories signs as Noted by.',
     ],
     tips: ['Health and reproductive health details, restricted assessment sections and MDT notes are left out of the reports.', 'Each printed report gets a reference number (for example GIS, PN, IP, CSR or SCSR) and is recorded in the audit trail.'],
     keywords: 'report reports print pdf intake sheet gis progress notes intervention plan case summary social case study scsr sign signature noted by prepared by',
@@ -158,7 +158,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     id: 'lgu-profile', category: 'Settings', title: 'Set up your office profile and signatories', permission: 'lgu.profile.view',
     summary: 'Office name, logo, office head and CPU members used on reports and referrals.',
     steps: [
-      'Open Office profile & signatories in Settings.',
+      'Open Office & signatories in the menu (under Management).',
       'Enter the office name and short name, address and contact, and upload the LGU logo.',
       'Enter the office head or supervisor with position and designation. They sign reports as Noted by.',
       'Add CPU members with their position, office and role. Link a member to their Kalinga account so referrals reach them.',
@@ -330,8 +330,18 @@ export const HELP_ARTICLES: HelpArticle[] = [
 ];
 
 /** Simple, explainable search: scores articles by matching words; no external AI. */
+/** Everyday words (including common Filipino ones) mapped to the words the guides use. */
+const SYNONYMS: Record<string, string[]> = {
+  refer: ['referral'], referral: ['refer'], picture: ['photo', 'camera'], camera: ['photo'], photo: ['camera'], print: ['pdf', 'report'], pdf: ['print', 'report'],
+  delete: ['remove', 'discard'], remove: ['delete', 'discard'], phone: ['mobile', 'notification'], mobile: ['phone'], schedule: ['calendar', 'activity'], meeting: ['calendar', 'activity', 'conference'],
+  money: ['grant', 'assistance'], cash: ['grant'], assistance: ['grant'], signal: ['offline', 'field'], offline: ['signal', 'field'], internet: ['offline', 'signal'],
+  password: ['sign', 'login'], login: ['sign'], bigger: ['text', 'size'], font: ['text', 'size'], chat: ['message', 'connect'], message: ['chat', 'connect'],
+  paano: ['how'], bata: ['child'], larawan: ['photo'], tawag: ['contact'], pirma: ['signed', 'consent'],
+};
+
 export function searchHelp(query: string, articles: HelpArticle[]): HelpArticle[] {
-  const words = query.toLowerCase().split(/[^a-z0-9]+/).filter(word => word.length > 2);
+  const typed = query.toLowerCase().split(/[^a-z0-9]+/).filter(word => word.length > 2);
+  const words = [...new Set(typed.flatMap(word => [word, ...(SYNONYMS[word] ?? []), ...(word.endsWith('s') ? [word.slice(0, -1)] : [])]))];
   if (!words.length) return [];
   return articles
     .map(article => {

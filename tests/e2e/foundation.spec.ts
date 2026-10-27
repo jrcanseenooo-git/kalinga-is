@@ -108,7 +108,7 @@ for (const width of [360, 768, 1440]) {
             await toggle.click();
         }
         await expect(sidebar.getByRole('link', { name: 'Kalinga Connect', exact: true })).toHaveAttribute('href', /\/cpu\/coordination$/);
-        await expect(sidebar.getByRole('link', { name: 'Office profile & signatories', exact: true })).toHaveAttribute('href', /\/lgu-profile$/);
+        await expect(sidebar.getByRole('link', { name: 'Office & signatories', exact: true })).toHaveAttribute('href', /\/lgu-profile$/);
         const calendar = sidebar.getByRole('link', { name: 'Calendar', exact: true });
         await expect(calendar).toHaveAttribute('href', /\/calendar$/);
         await calendar.click();
