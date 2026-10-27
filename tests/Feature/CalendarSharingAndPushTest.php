@@ -104,6 +104,38 @@ class CalendarSharingAndPushTest extends TestCase
         $this->get(route('calendar.index'))->assertInertia(fn ($page) => $page->has('tasks.0.history', 4));
     }
 
+    public function test_change_notice_reaches_the_case_manager_and_is_explicit_for_project_managers(): void
+    {
+        $caseManager = $this->user('social_worker', 'Synthetic Case Manager', $this->lgu);
+        $pm = $this->user('project_manager', 'Synthetic PM', null, ['region_scope' => ['*']]);
+        $client = DB::table('clients')->insertGetId(['first_name' => 'A', 'last_name' => 'B', 'created_at' => now(), 'updated_at' => now()]);
+        $case = DB::table('cases')->insertGetId(['case_number' => 'CAL-CASE-2', 'client_id' => $client, 'lgu_id' => $this->lgu, 'assigned_to' => $caseManager->id, 'status' => 'OPEN', 'priority' => 'normal', 'opened_at' => now(), 'offline_version' => 1, 'created_at' => now(), 'updated_at' => now()]);
+        // An activity another worker organizes for this case (for example a joint visit).
+        $task = DB::table('tasks')->insertGetId(['title' => 'Synthetic joint visit', 'case_id' => $case, 'assigned_to' => $this->worker->id, 'status' => 'open', 'due_at' => now()->addDays(2), 'created_at' => now(), 'updated_at' => now()]);
+
+        $this->actingAs($this->worker)->patch(route('tasks.update', $task), ['title' => 'Synthetic joint visit', 'due_at' => now()->addDays(6)->format('Y-m-d\\TH:i'), 'reason' => 'The road is closed by a landslide.'])->assertSessionHasNoErrors();
+        $toManager = DB::table('notifications')->where('user_id', $caseManager->id)->where('type', 'calendar.rescheduled')->first();
+        $this->assertNotNull($toManager);
+        $this->assertSame('Rescheduled: Synthetic joint visit', $toManager->title);
+        $this->assertStringContainsString('moved this activity from', $toManager->body);
+        $this->assertStringContainsString('case CAL-CASE-2', $toManager->body);
+        $this->assertStringNotContainsString('For your information', $toManager->body);
+        $toPm = DB::table('notifications')->where('user_id', $pm->id)->where('type', 'calendar.rescheduled')->first();
+        $this->assertStringStartsWith('For your information: this activity was RESCHEDULED.', $toPm->body);
+        $this->assertStringContainsString('The road is closed by a landslide.', $toPm->body);
+
+        // A case manager invited to an activity hears about a cancellation even after answering Not going.
+        $invited = $this->user('social_worker', 'Synthetic Invited Case Manager', $this->lgu);
+        $meeting = $this->activity([$invited->id]);
+        $this->actingAs($invited)->post(route('tasks.respond', $meeting), ['response' => 'declined'])->assertRedirect();
+        $this->actingAs($this->worker)->patch(route('tasks.transition', $meeting), ['status' => 'cancelled', 'reason' => 'The family moved to another town.'])->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('notifications', ['user_id' => $invited->id, 'type' => 'calendar.cancelled', 'title' => 'Cancelled: Synthetic family meeting']);
+        $cancel = DB::table('notifications')->where('user_id', $pm->id)->where('type', 'calendar.cancelled')->first();
+        $this->assertStringStartsWith('For your information: this activity was CANCELLED.', $cancel->body);
+        $this->assertStringContainsString('it was set for', $cancel->body);
+        $this->assertDatabaseMissing('notifications', ['user_id' => $this->worker->id, 'type' => 'calendar.cancelled']);
+    }
+
     public function test_phone_notifications_send_a_contentless_signed_push_and_drop_expired_subscriptions(): void
     {
         $this->actingAs($this->worker)->postJson(route('push.subscribe'), ['endpoint' => 'https://push.example.test/abc'])->assertNotFound();

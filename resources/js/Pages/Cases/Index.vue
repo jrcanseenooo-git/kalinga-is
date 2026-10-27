@@ -12,7 +12,7 @@ import { computed, ref } from 'vue';
 import { priorityTone, statusTone, titleCase } from '@/utils/caseDisplay';
 
 type Filters = { search:string; status?:string; active?:boolean; attention?:boolean; region?:string; priority?:string; from?:string; to?:string; sort?:string };
-const props = defineProps<{ cases:CaseListPage; canCreate:boolean; statusCounts?:Record<string,number>; assignmentUpdated?:boolean; filters:Filters }>();
+const props = defineProps<{ cases:CaseListPage; canCreate:boolean; statusCounts?:Record<string,number>; filters:Filters }>();
 
 const search = ref(props.filters.search || '');
 const selectedStatus = ref(props.filters.status ?? '');
@@ -79,7 +79,6 @@ const stepHref = (item:CaseListItem) => `${route('cases.show', item.id)}?section
   <AuthenticatedLayout>
     <section class="w-full max-w-none space-y-3 sm:space-y-4">
       <SectionNav section="cases" />
-      <p v-if="assignmentUpdated" role="status" class="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">Case assignment updated. Your list reflects current access.</p>
 
       <header class="flex items-center justify-between gap-3">
         <div class="min-w-0">

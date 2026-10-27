@@ -132,7 +132,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
       'Open Calendar and tap a date (or Add activity).',
       'Choose the type (home visit, case conference, medical, court hearing and others), the case and the time. The title fills itself.',
       'Under Invite people, pick colleagues to add. They get a notification and see the activity in their own calendar, where they answer Going or Not going.',
-      'Tap an activity to edit it, mark it done or cancel it. Moving the date or cancelling needs a short reason; the people invited, your supervisor, the Field Office and the Project Managers covering the area are told.',
+      'Tap an activity to edit it, mark it done or cancel it. Moving the date or cancelling needs a short reason. The people invited, the case manager, your supervisor, the Field Office and the Project Managers covering the area are told, with a Rescheduled or Cancelled label.',
       'Open History on an activity to see every change and the reason given.',
       'Dashed items come from case records: conferences, safety reviews, care plan reviews and referral due dates.',
     ],

@@ -32,7 +32,6 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class CaseworkController extends Controller
@@ -203,7 +202,6 @@ class CaseworkController extends Controller
         return Inertia::render('Cases/Index', [
             'canCreate' => $request->user()->can('cases.create'),
             'statusCounts' => collect((array) $statusCounts)->map(fn ($value) => (int) $value)->all(),
-            'assignmentUpdated' => (bool) $request->session()->pull('case_assignment_updated', false),
             'cases' => $query->select([
                 'cases.id', 'cases.case_number', 'cases.category', 'cases.priority', 'cases.status', 'cases.opened_at', 'cases.created_at',
                 'clients.first_name', 'clients.last_name', 'clients.municipality', 'clients.province', 'clients.region',
@@ -330,7 +328,7 @@ class CaseworkController extends Controller
         $canManageMdt = $request->user()->hasPermission('mdt.assign');
 
         return Inertia::render('Cases/Show', [
-            'caseRecord' => $record, 'assignmentUpdated' => (bool) $request->session()->pull('case_assignment_updated', false), 'assessmentSummary' => $assessmentSummary, 'childParticipationSummary' => $childParticipationSummary,
+            'caseRecord' => $record, 'assessmentSummary' => $assessmentSummary, 'childParticipationSummary' => $childParticipationSummary,
             'conferenceSummary' => $conferenceSummary, 'conferenceActionSummary' => $conferenceActionSummary, 'planSummary' => $planSummary,
             'notes' => DB::table('case_notes')->join('users', 'users.id', '=', 'case_notes.created_by')->where('case_id', $case)->latest('occurred_at')->latest('case_notes.id')->get(['case_notes.*', 'users.name as author']),
             'referrals' => app(ReferralTracking::class)->withEvents(DB::table('referrals')->leftJoin('service_providers', 'service_providers.id', '=', 'referrals.service_provider_id')->where('case_id', $case)->get(['referrals.*', 'service_providers.name as provider'])),
@@ -362,8 +360,7 @@ class CaseworkController extends Controller
             'timeline' => DB::table('audit_logs')->where('auditable_type', 'case')->where('auditable_id', $case)->where('event', '!=', 'case.viewed')->latest()->limit(30)->get(['id', 'event', 'changes', 'outcome', 'created_at']),
             'tasks' => app(WorkerTasks::class)->withIsoDates(DB::table('tasks')->where('case_id', $case)->orderBy('due_at')->get()),
             'canGenerateReport' => $request->user()->can('reports.social.generate'),
-            'transitions' => self::CASE_TRANSITIONS[$record->status] ?? [], 'canAssessRisk' => $request->user()->hasPermission('risk.assess'), 'canAssignCase' => $request->user()->active && $request->user()->hasPermission('cases.assign'), 'canArchive' => $request->user()->hasPermission('cases.archive'), 'canReviewClosure' => $request->user()->hasPermission('cases.close'), 'canGovernRecords' => $request->user()->hasPermission('records.retention.review'),
-            'assignableWorkers' => $request->user()->hasPermission('cases.assign') ? $this->assignments->candidates($record) : [],
+            'transitions' => self::CASE_TRANSITIONS[$record->status] ?? [], 'canAssessRisk' => $request->user()->hasPermission('risk.assess'), 'canArchive' => $request->user()->hasPermission('cases.archive'), 'canReviewClosure' => $request->user()->hasPermission('cases.close'), 'canGovernRecords' => $request->user()->hasPermission('records.retention.review'),
             'canManageMdt' => $canManageMdt, 'mdtAssignments' => $canManageMdt ? DB::table('mdt_case_access')->join('users', 'users.id', '=', 'mdt_case_access.user_id')->where('mdt_case_access.case_id', $case)->latest('mdt_case_access.assigned_at')->get(['mdt_case_access.*', 'users.name as member_name']) : [], 'mdtUsers' => $canManageMdt ? DB::table('users')->where('role', 'cpu_member')->where('active', true)->orderBy('name')->get(['id', 'name']) : [],
         ]);
     }
@@ -484,62 +481,6 @@ class CaseworkController extends Controller
         });
 
         return back()->with('success', 'Progress-note addendum finalized. The original record was preserved.');
-    }
-
-    public function assign(Request $request, int $case)
-    {
-        $this->authorize('cases.assign');
-        $stillAuthorized = DB::transaction(function () use ($request, $case) {
-            $record = DB::table('cases')->where('id', $case)->whereNull('deleted_at')->lockForUpdate()->first();
-            abort_unless($record, 404);
-            $this->caseAccess($request, $record);
-            $data = $request->validate([
-                'assigned_to' => ['required', 'integer', 'exists:users,id'],
-                'expected_version' => ['required', 'integer', 'min:1'],
-            ], [
-                'assigned_to.exists' => 'Choose an available case worker from the current list.',
-                'expected_version.required' => 'Reload this case before updating its assignment.',
-            ]);
-            $users = User::query()->whereIn('id', [$request->user()->id, (int) $data['assigned_to']])
-                ->orderBy('id')->lockForUpdate()->get()->keyBy('id');
-            $actor = $users->get($request->user()->id);
-            $worker = $users->get((int) $data['assigned_to']);
-            DB::table('user_lgu_assignments')->whereIn('user_id', [$request->user()->id, (int) $data['assigned_to']])
-                ->orderBy('user_id')->orderBy('id')->lockForUpdate()->get(['id']);
-            abort_unless($actor && $this->assignments->mayAssign($actor, $record), 403);
-            if ((int) $data['expected_version'] !== (int) $record->offline_version) {
-                throw ValidationException::withMessages(['assigned_to' => 'This case changed. Reload it and review the assignment before retrying.']);
-            }
-            if (empty($record->lgu_id)) {
-                throw ValidationException::withMessages(['assigned_to' => 'Verify this case LGU assignment before reassigning it.']);
-            }
-            if (!$worker || !$this->assignments->allows($worker, $record)) {
-                throw ValidationException::withMessages(['assigned_to' => 'Choose an active case worker with current access to this case.']);
-            }
-            DB::table('cases')->where('id', $case)->update([
-                'assigned_to' => $worker->id, 'offline_version' => DB::raw('offline_version + 1'), 'updated_at' => now(),
-            ]);
-            app(OperationalNotification::class)->send($worker->id, 'case_assigned', 'Case assigned', 'You were assigned ' . $record->case_number . '.', '/cases/' . $case);
-            AuditLog::insert([
-                'user_id' => $request->user()->id, 'event' => 'case.reassigned', 'auditable_type' => 'case',
-                'auditable_id' => $case, 'changes' => json_encode(['from' => $record->assigned_to, 'to' => $worker->id]),
-                'created_at' => now(), 'updated_at' => now(),
-            ]);
-            // Time windows can expire while an audit/notification write waits.
-            abort_unless($this->assignments->mayAssign($actor, $record), 403);
-            if (!$this->assignments->allows($worker, $record)) {
-                throw ValidationException::withMessages(['assigned_to' => 'Choose an active case worker with current access to this case.']);
-            }
-            $record->assigned_to = $worker->id;
-
-            return $this->assignments->canRead($actor, $record);
-        }, 3);
-        if (!$stillAuthorized) {
-            Inertia::clearHistory();
-        }
-
-        return ($stillAuthorized ? redirect()->route('cases.show', $case) : redirect()->route('cases.index'))
-            ->with('case_assignment_updated', true);
     }
 
     public function transition(Request $request, int $case)

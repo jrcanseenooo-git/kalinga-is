@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { badgeTitle, changeBadge } from '@/utils/notificationBadges';
 import { formatPh, parseStored } from '@/utils/philippineTime';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import { Head, Link, router } from '@inertiajs/vue3';
@@ -6,7 +7,7 @@ import { computed } from 'vue';
 
 const props = defineProps<{
   items: {
-    data: Array<{ id: number; title: string; body: string; action_url?: string; read_at?: string | null; created_at: string }>;
+    data: Array<{ id: number; type?: string; title: string; body: string; action_url?: string; read_at?: string | null; created_at: string }>;
     current_page: number;
     last_page: number;
     next_page_url?: string | null;
@@ -67,7 +68,7 @@ const timeAgo = (d: string) => {
           </div>
           <div class="min-w-0 flex-1">
             <div class="flex items-start justify-between gap-3">
-              <p class="text-sm font-bold text-slate-900">{{ item.title }}</p>
+              <p class="text-sm font-bold text-slate-900"><span v-if="changeBadge(item.type)" class="mr-1.5 inline-block rounded px-1.5 py-0.5 align-middle text-[11px] font-bold uppercase" :class="changeBadge(item.type)!.tone">{{ changeBadge(item.type)!.label }}</span>{{ badgeTitle(item.type, item.title) }}</p>
               <time class="shrink-0 text-[11px] text-slate-500">{{ timeAgo(item.created_at) }}</time>
             </div>
             <p class="mt-0.5 text-sm leading-relaxed text-slate-600">{{ item.body }}</p>

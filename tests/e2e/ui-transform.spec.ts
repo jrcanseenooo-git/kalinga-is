@@ -1,17 +1,30 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { login, expectNoHorizontalOverflow } from './helpers';
 
 
+/** Hand a case over through the formal handover in the plan workspace (the only way a case changes case manager). */
+async function completeHandover(page:Page,caseUrl:string,objective:string){
+ await page.goto(caseUrl.replace(/\/cases\/(\d+).*/,'/cases/$1/plan-workspace'));
+ await page.getByRole('textbox',{name:'Overall objective',exact:true}).fill(objective);await page.getByRole('button',{name:'Create draft',exact:true}).click();await page.getByRole('dialog').locator('#generic-submit-confirm').click();
+ await expect(page.getByRole('heading',{name:'Version 1 · draft',exact:true})).toBeVisible();
+ await page.getByRole('navigation',{name:'Planning activities',exact:true}).getByRole('button',{name:'Formal handover',exact:true}).click();
+ const handover=page.locator('section').filter({has:page.getByRole('heading',{name:'Formal handover',exact:true})}).last();
+ await handover.getByPlaceholder('Originating office',{exact:true}).fill('Synthetic origin office');await handover.getByPlaceholder('Receiving office',{exact:true}).fill('Synthetic receiving office');
+ await handover.getByRole('combobox').selectOption({label:'Synthetic eligible recipient · social worker'});await handover.getByPlaceholder('Reason for handover',{exact:true}).fill('Synthetic continuity transfer.');
+ await handover.getByRole('button',{name:'Create handover draft',exact:true}).click();await page.getByRole('dialog').locator('#generic-submit-confirm').click();
+ for(const name of ['Request','Endorse','Accept']){await handover.getByRole('button',{name,exact:true}).click();await page.getByRole('dialog').getByRole('button',{name:'Confirm status change',exact:true}).click();}
+ await handover.getByRole('button',{name:'Complete handover',exact:true}).click();await page.getByRole('dialog').getByRole('button',{name:'Confirm status change',exact:true}).click();
+ await expect(page.getByRole('heading',{name:'You do not have access to this page',exact:true})).toBeVisible();
+}
+
 test.describe('case browser history privacy',()=>{
- test('case browser history reauthorizes after an external reassignment',async({page,browser})=>{
+ test('case browser history reauthorizes after the case is handed over elsewhere',async({page,browser})=>{
   await login(page);await page.goto('/cases?search=SYN-HISTORY-REVOKE-2026-0001');await page.getByRole('link',{name:/SYN-HISTORY-REVOKE-2026-0001/}).first().click();await expect(page).toHaveURL(/\/cases\/\d+$/);const caseUrl=page.url();const casePath=new URL(caseUrl).pathname;
   await page.getByRole('link',{name:'Back to case registry',exact:true}).click();await expect(page).toHaveURL(/\/cases$/);
   const context=await browser.newContext();const reviewer=await context.newPage();
   try{
-   await login(reviewer,{email:'assessment-reviewer@kalinga.test',password:'password'});await reviewer.goto(caseUrl);
-   await reviewer.getByRole('combobox',{name:'Assign case worker',exact:true}).selectOption({label:'Synthetic eligible recipient'});
-   await reviewer.getByRole('button',{name:'Update assignment',exact:true}).click();await reviewer.getByRole('dialog').locator('#generic-submit-confirm').click();await expect(reviewer.getByRole('status').filter({hasText:'Case assignment updated.'})).toBeVisible();
+   await login(reviewer);await completeHandover(reviewer,caseUrl,'Synthetic history handover objective.');
    const reauthorization=page.waitForResponse(response=>response.request().method()==='GET'&&new URL(response.url()).pathname===casePath,{timeout:10_000}).catch(()=>null);
    await page.goBack();await expect(page.getByRole('heading',{name:'SYN-HISTORY-REVOKE-2026-0001',exact:true})).toHaveCount(0);
    expect((await reauthorization)?.status()).toBe(403);
@@ -98,33 +111,6 @@ for(const width of [360,390,768,1024,1440,1920]) test(`KaVAT and Kalinga forms r
  await expectNoHorizontalOverflow(page);
  scan=await new AxeBuilder({page}).include('main').analyze();
  expect(scan.violations.filter(item=>['critical','serious'].includes(item.impact??''))).toEqual([]);
-});
-
-test('case reassignment preserves eligibility and safely ends former-owner access', async ({ page, browser }) => {
- await page.setViewportSize({width:390,height:1080}); await login(page);
- await page.goto('/cases?search=SYN-TRANSFER-2026-0001');
- await page.getByRole('link',{name:/SYN-TRANSFER-2026-0001/}).first().click();
- await expect(page).toHaveURL(/\/cases\/\d+$/); const caseUrl=page.url();
- const previousHistoryKey=await page.evaluate(()=>sessionStorage.getItem('historyKey'));
- const selection=page.getByRole('combobox',{name:'Assign case worker',exact:true});
- expect(await selection.locator('option').allTextContents()).not.toContain('Synthetic empty workspace');
- await selection.selectOption({label:'Synthetic eligible recipient'});
- await expectNoHorizontalOverflow(page);
- await page.getByRole('button',{name:'Update assignment',exact:true}).click();
- await page.getByRole('dialog').locator('#generic-submit-confirm').click();
- await expect(page).toHaveURL(/\/cases$/);
- await expect(page.getByRole('status').filter({hasText:'Case assignment updated.'})).toBeVisible();
- await expect(page.getByRole('link',{name:/SYN-TRANSFER-2026-0001/})).toHaveCount(0);
- expect(await page.evaluate(()=>sessionStorage.getItem('historyKey'))).not.toBe(previousHistoryKey);
- const denied=await page.request.get(caseUrl); expect(denied.status()).toBe(403);
- const recipientContext=await browser.newContext(); const recipient=await recipientContext.newPage();
- try {
-  await login(recipient,{email:'transfer-worker@kalinga.test',password:'password'});
-  await recipient.goto('/cases');
-  await expect(recipient.getByRole('link',{name:/SYN-TRANSFER-2026-0001/}).first()).toBeVisible();
-  const authorized=await recipient.goto(caseUrl); expect(authorized?.status()).toBe(200);
-  await expect(recipient.getByRole('heading',{name:'SYN-TRANSFER-2026-0001',exact:true})).toBeVisible();
- } finally { await recipientContext.close(); }
 });
 
 test.describe('Philippine case opening date',()=>{
@@ -298,16 +284,7 @@ await page.goto(page.url().replace(/\/cases\/(\d+).*/,'/cases/$1/plan-workspace'
 });
 test('formal handover completes for an eligible recipient and removes the former worker view',async({page,browser})=>{
  await login(page);await page.goto('/cases?search=SYN-UI-2026-0002');await page.getByRole('link',{name:/SYN-UI-2026-0002/}).first().click();await expect(page).toHaveURL(/\/cases\/\d+$/);const caseUrl=page.url();
- await page.goto(page.url().replace(/\/cases\/(\d+).*/,'/cases/$1/plan-workspace'));
- await page.getByRole('textbox',{name:'Overall objective',exact:true}).fill('Synthetic handover continuity objective.');await page.getByRole('button',{name:'Create draft',exact:true}).click();await page.getByRole('dialog').locator('#generic-submit-confirm').click();
- await expect(page.getByRole('heading',{name:'Version 1 · draft',exact:true})).toBeVisible();
- await page.getByRole('navigation',{name:'Planning activities',exact:true}).getByRole('button',{name:'Formal handover',exact:true}).click();
- const handover=page.locator('section').filter({has:page.getByRole('heading',{name:'Formal handover',exact:true})}).last();
- await handover.getByPlaceholder('Originating office',{exact:true}).fill('Synthetic origin office');await handover.getByPlaceholder('Receiving office',{exact:true}).fill('Synthetic receiving office');
- await handover.getByRole('combobox').selectOption({label:'Synthetic eligible recipient · social worker'});await handover.getByPlaceholder('Reason for handover',{exact:true}).fill('Synthetic continuity transfer.');
- await handover.getByRole('button',{name:'Create handover draft',exact:true}).click();await page.getByRole('dialog').locator('#generic-submit-confirm').click();
- for(const name of ['Request','Endorse','Accept']){await handover.getByRole('button',{name,exact:true}).click();await page.getByRole('dialog').getByRole('button',{name:'Confirm status change',exact:true}).click();}
- await handover.getByRole('button',{name:'Complete handover',exact:true}).click();await page.getByRole('dialog').getByRole('button',{name:'Confirm status change',exact:true}).click();
- await expect(page.getByRole('heading',{name:'You do not have access to this page',exact:true})).toBeVisible();await expect(page.getByRole('heading',{name:'Case plan',exact:true})).toHaveCount(0);
+ await completeHandover(page,caseUrl,'Synthetic handover continuity objective.');
+ await expect(page.getByRole('heading',{name:'Case plan',exact:true})).toHaveCount(0);
  const context=await browser.newContext();try{const recipient=await context.newPage();await login(recipient,{email:'transfer-worker@kalinga.test',password:'password'});await recipient.goto(caseUrl);await expect(recipient.getByRole('heading',{name:'SYN-UI-2026-0002',exact:true})).toBeVisible();}finally{await context.close();}
 });

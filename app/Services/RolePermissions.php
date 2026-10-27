@@ -35,7 +35,7 @@ class RolePermissions
 
     public const PERMISSIONS = [
         'reports.create', 'reports.view', 'reports.screen', 'reports.validate', 'reports.accept', 'reports.reject',
-        'risk.assess', 'assessments.manage', 'assessments.review', 'assessments.restricted_view', 'participation.manage', 'participation.review', 'participation.restricted_view', 'cases.view', 'cases.create', 'cases.update', 'cases.archive', 'cases.assign', 'cases.close', 'cases.reopen', 'cases.note',
+        'risk.assess', 'assessments.manage', 'assessments.review', 'assessments.restricted_view', 'participation.manage', 'participation.review', 'participation.restricted_view', 'cases.view', 'cases.create', 'cases.update', 'cases.archive', 'cases.close', 'cases.reopen', 'cases.note',
         'relationships.manage', 'consents.record', 'plans.manage', 'plans.review', 'transfers.manage',
         'referrals.view', 'referrals.create', 'referrals.respond', 'referrals.close',
         'documents.upload', 'documents.download', 'documents.delete',
@@ -64,14 +64,14 @@ class RolePermissions
         'fo_user' => [...self::MONITOR, 'lgu.registry.view', 'lgu.profile.view'],
         // The LGU Head supervises: reads the LGU's cases, approves closure and the
         // other second-person reviews, reassigns cases; never writes case content.
-        'lgu_head' => [...self::MONITOR, 'closure.approve', 'cases.view', 'cases.assign', 'cases.close', 'documents.download', 'reports.social.generate',
+        'lgu_head' => [...self::MONITOR, 'closure.approve', 'cases.view', 'cases.close', 'documents.download', 'reports.social.generate',
             'assessments.review', 'plans.review', 'participation.review', 'conferences.review', 'transfers.manage',
             'assessments.restricted_view', 'participation.restricted_view',
             'identity.candidates.view', 'identity.review', 'identity.link', 'identity.merge.approve', 'identity.merge.execute', 'identity.merge.history.view',
             'records.classify', 'records.restricted_view', 'records.retention.review', 'records.hold.manage', 'records.disposition.propose', 'records.disposition.review', 'records.disposition.approve', 'records.disclosure.record'],
         'social_worker' => [
             'reports.create', 'reports.view', 'reports.screen', 'reports.validate', 'reports.accept', 'reports.reject',
-            'risk.assess', 'cases.view', 'cases.create', 'cases.update', 'cases.archive', 'cases.assign', 'cases.close', 'cases.reopen', 'cases.note', 'cases.remark',
+            'risk.assess', 'cases.view', 'cases.create', 'cases.update', 'cases.archive', 'cases.close', 'cases.reopen', 'cases.note', 'cases.remark',
             'relationships.manage', 'consents.record', 'plans.manage',
             'referrals.view', 'referrals.create', 'referrals.respond', 'referrals.close',
             'documents.upload', 'documents.download', 'documents.delete',

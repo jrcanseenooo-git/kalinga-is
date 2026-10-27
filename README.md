@@ -40,8 +40,10 @@ Development accounts (password `password`, local only):
 
 | Account | Role |
 |---|---|
-| worker@kalinga.test | Social worker (case manager) |
-| supervisor@kalinga.test | Social worker (second reviewer) |
+| worker@kalinga.test | Case manager |
+| supervisor@kalinga.test | LGU Head (supervisor) |
+| pm@kalinga.test | Project Manager (national) |
+| fo@kalinga.test | Field Office (CAR) |
 | cpu@kalinga.test | CPU member |
 | admin@kalinga.test | System administrator |
 
