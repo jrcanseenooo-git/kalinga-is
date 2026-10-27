@@ -284,8 +284,8 @@ test('dashboard empty state is honest and shell collapse stays keyboard usable',
 });
 
 test('case planning selects the newly acknowledged draft instead of the prior version',async({page})=>{
- await login(page);await page.goto('/cases?search=SYN-UI-2026-0003');await page.getByRole('link',{name:/SYN-UI-2026-0003/}).first().click();
- await page.goto(page.url().replace(/\/cases\/(\d+).*/,'/cases/$1/plan-workspace'));
+ await login(page);await page.goto('/cases?search=SYN-UI-2026-0003');await page.getByRole('link',{name:/SYN-UI-2026-0003/}).first().click();await expect(page).toHaveURL(/\/cases\/\d+$/);
+await page.goto(page.url().replace(/\/cases\/(\d+).*/,'/cases/$1/plan-workspace'));
  await page.getByRole('textbox',{name:'Overall objective',exact:true}).fill('Synthetic first plan cycle objective.');
  await page.getByRole('button',{name:'Create draft',exact:true}).click();await page.getByRole('dialog').locator('#generic-submit-confirm').click();
  await expect(page.getByRole('heading',{name:'Version 1 · draft',exact:true})).toBeVisible();

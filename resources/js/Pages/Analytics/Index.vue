@@ -161,14 +161,14 @@ const trendTotal = computed(() => numericTrend.value.length === props.trend.leng
           { key: 'clients', label: 'Unique clients', icon: 'o', tone: 'violet' },
         ]" :key="idx" class="total-card" :class="`total-${item.tone}`">
           <div class="total-icon" aria-hidden="true">{{ item.icon }}</div>
-          <div>
-            <p class="text-sm font-semibold text-slate-600">{{ item.label }}</p>
-            <p class="mt-1 text-3xl font-extrabold">{{ props.totals[item.key] ?? 0 }}</p>
+          <div class="min-w-0">
+            <p class="break-words text-sm font-semibold text-slate-600">{{ item.label }}</p>
+            <p class="mt-1 break-words text-2xl font-extrabold sm:text-3xl">{{ props.totals[item.key] ?? 0 }}</p>
           </div>
         </article>
       </div>
 
-      <article class="total-card total-violet"><div class="total-icon" aria-hidden="true">P</div><div><p class="text-sm font-semibold text-slate-600">Total grants disbursed</p><p class="mt-1 text-3xl font-extrabold">{{ peso(grantsTotal) }}</p><p class="text-xs text-slate-600">{{ totals.grantsCount }} grants, from the grants log of each case (voided entries excluded).</p></div></article>
+      <article class="total-card total-violet"><div class="total-icon" aria-hidden="true">P</div><div class="min-w-0"><p class="text-sm font-semibold text-slate-600">Total grants disbursed</p><p class="mt-1 break-words text-2xl font-extrabold sm:text-3xl">{{ peso(grantsTotal) }}</p><p class="text-xs text-slate-600">{{ totals.grantsCount }} grants, from the grants log of each case (voided entries excluded).</p></div></article>
 
       <div class="grid gap-5 xl:grid-cols-[1.4fr_1fr]">
         <article class="chart-card"><h2>New and closed cases</h2><p class="mt-0.5 text-xs text-slate-500">Last 12 months in the selected area (period filter not applied).</p><div class="mt-3"><TrendLinesChart title="New and closed cases per month" :rows="monthly" :series="[{ key: 'opened', label: 'New cases', color: '#7c5cd6' }, { key: 'closed', label: 'Closed cases', color: '#2f9e6b' }]" /></div><ChartTable title="New and closed cases" :rows="monthly.map(row => ({ label: row.label, total: row.opened as number }))" label-header="Month" value-header="New cases" /></article>

@@ -94,7 +94,7 @@ for (const width of [360, 768, 1440]) {
     test(`flat shell keyboard and navigation at ${width}px`, async ({ page }) => {
         await page.setViewportSize({ width, height: 1000 });
         await login(page);
-        await expect(page.getByRole('heading', { name: 'Dashboard', exact: true })).toBeVisible();
+        await expect(page.getByRole('heading', { name: /your to-do list/i })).toBeVisible();
         await expectNoHorizontalOverflow(page);
         const sidebar = page.locator('#workspace-navigation');
         const toggle = page.locator('[aria-controls="workspace-navigation"]');
@@ -195,25 +195,23 @@ for (const width of [360, 768, 1440]) {
 }
 
 for (const width of [360, 768, 1440]) {
-    test(`worker priorities drill down at ${width}px`, async ({ page }) => {
+    test(`worker to-do list drills down at ${width}px`, async ({ page }) => {
         await page.setViewportSize({ width, height: 1000 });
         await login(page);
-        const priorities = page.getByRole('region', { name: 'Casework priorities' });
-        await expect(priorities.getByRole('link')).toHaveCount(4);
+        await expect(page.getByRole('heading', { name: /your to-do list/i })).toBeVisible();
         await expect(page.getByRole('heading', { name: 'My cases requiring action' })).toBeVisible();
         await expectNoHorizontalOverflow(page);
         await expect(page.locator('#nprogress')).toHaveCount(0);
         const results = await new AxeBuilder({ page }).analyze();
         expect(results.violations.filter(item => ['serious', 'critical'].includes(item.impact ?? ''))).toEqual([]);
-        await page.screenshot({ path: `test-results/foundation/worker-priorities-${width}.png`, fullPage: true });
-        await priorities.getByRole('link', { name: /Due within 24 hours/ }).click();
+        await page.screenshot({ path: `test-results/foundation/worker-todo-${width}.png`, fullPage: true });
+        await page.getByRole('region', { name: 'Coming up' }).getByRole('link', { name: 'Calendar', exact: true }).click();
         await expect(page).toHaveURL(/\/calendar$/);
         await expect(page.getByRole('heading', { name: 'Calendar', exact: true })).toBeVisible();
         await expectNoHorizontalOverflow(page);
         await page.goto('/dashboard');
-        await page.getByRole('region', { name: 'Casework priorities' }).getByRole('link', { name: /Follow-up cases/ }).click();
-        await expect(page).toHaveURL(/\/cases\?.*status=FOR_FOLLOW_UP/);
-        await expect(page.getByLabel('Status', { exact: true })).toHaveValue('FOR_FOLLOW_UP');
+        await page.getByRole('navigation', { name: 'Shortcuts' }).getByRole('link', { name: /My cases/ }).click();
+        await expect(page).toHaveURL(/\/cases$/);
         await expectNoHorizontalOverflow(page);
     });
 }
