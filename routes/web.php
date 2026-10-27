@@ -216,7 +216,6 @@ Route::middleware('auth')->group(function () {
     Route::post('/cases/{case}/notes', [CaseworkController::class, 'note'])->middleware('throttle:sensitive-write')->name('cases.notes.store');
     Route::post('/cases/{case}/notes/{note}/addendum', [CaseworkController::class, 'noteAddendum'])->middleware('throttle:sensitive-write')->name('cases.notes.addendum');
     Route::patch('/cases/{case}/status', [CaseworkController::class, 'transition'])->middleware('throttle:sensitive-write')->name('cases.transition');
-    Route::patch('/cases/{case}/assignment', [CaseworkController::class, 'assign'])->middleware('throttle:sensitive-write')->name('cases.assign');
     Route::get('/cases/{case}/mdt', [MdtCollaborationController::class, 'caseData'])->name('cases.mdt.show');
     Route::get('/cases/{case}/mdt/workspace', [MdtCollaborationController::class, 'workspace'])->name('cases.mdt.workspace');
     Route::post('/cases/{case}/mdt/access', [MdtCollaborationController::class, 'storeAccess'])->middleware('throttle:sensitive-write')->name('cases.mdt.access.store');

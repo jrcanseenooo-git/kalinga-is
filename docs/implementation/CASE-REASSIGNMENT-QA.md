@@ -1,5 +1,12 @@
 # R06-C case reassignment integrity QA - 2026-10-18
 
+> **Removed 2026-10-28 (owner decision).** The direct Assignment card
+> ("Assign case worker" / "Update assignment"), its route `cases.assign`
+> and permission were removed. A case now changes case manager only through
+> the formal handover in the case plan workspace. This page is kept as a
+> historical QA record.
+
+
 Status: VERIFIED bounded integrity package. Final evidence below supersedes historical intermediate results.
 
 Initial new regression run: 11 failed / 1 passed (29 assertions). Existing endpoint accepted outside-LGU, missing, expired, revoked and future memberships; stale versions were overwritten; candidate payload included ineligible workers; former-owner redirect led to denied content. Original audit rollback already passed.

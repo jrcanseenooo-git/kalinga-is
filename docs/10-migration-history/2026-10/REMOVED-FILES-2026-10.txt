@@ -12,3 +12,7 @@ resources/js/composables/useCurrentCasePlan.ts (only used by the removed tabs)
 tests/e2e/ui-assessment.spec.ts, tests/e2e/ui-participation.spec.ts (tested the removed tabs)
 The server endpoints and data for earlier safety assessments, comprehensive assessments,
 child participation and case plans are unchanged.
+
+2026-10-28 - direct case reassignment removed (owner decision)
+tests/Feature/CaseAssignmentTest.php - removed with the feature
+tests/Feature/CaseReassignmentIntegrityTest.php - renamed CaseHandoverIntegrityTest.php (reassignment tests dropped)

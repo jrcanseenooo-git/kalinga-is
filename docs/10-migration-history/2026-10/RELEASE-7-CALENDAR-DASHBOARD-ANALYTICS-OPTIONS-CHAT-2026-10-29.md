@@ -85,6 +85,22 @@ phone switch is hidden and everything else works.
 - Separate from the LGU coordination circles; never linked to a case.
   Sending is limited to 40 messages a minute per user.
 
+## Removed after release (owner decision 2026-10-28)
+
+- The Assignment card on the case page ("Assign case worker", "Update
+  assignment") is gone, with its route (`PATCH /cases/{case}/assignment`,
+  `cases.assign`), controller method, the `cases.assign` permission
+  (migration `2026_10_29_000400_remove_direct_case_reassignment` deletes it
+  from the database) and the "Case assignment updated" messages.
+- A case now changes case manager only through the formal handover in the
+  case plan workspace (unchanged). Earlier `case.reassigned` audit entries
+  are kept and still display.
+- Tests: `CaseAssignmentTest` removed; `CaseReassignmentIntegrityTest`
+  renamed `CaseHandoverIntegrityTest` (handover tests kept, direct
+  reassignment tests replaced by one test that the route and props are
+  gone). Browser: the direct reassignment test was removed; the history
+  privacy test now hands the case over formally.
+
 ## Owner review
 
 Decided by the owner on 2026-10-28:

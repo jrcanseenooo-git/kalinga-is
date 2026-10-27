@@ -60,6 +60,10 @@ Owner answers that still apply:
   37 passed; browser suite 242 passed.
 - After the merge: README development-account table corrected (commit on
   `feature-enhancements`, not yet merged to `main`).
+- 2026-10-28: direct case reassignment removed at the owner's request (the
+  Assignment card, route `cases.assign`, permission and messages). Cases
+  change case manager only through the formal handover in the plan
+  workspace. Do not reintroduce it.
 - Phone notification keys (VAPID) were generated on 2026-10-27 and given to
   the owner to add in Render > Environment (`VAPID_PUBLIC_KEY`,
   `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`). Not yet confirmed as set. Never
@@ -122,6 +126,7 @@ Still open:
 
 | Date | Task | Commit |
 |---|---|---|
+| 2026-10-28 | Removed direct case reassignment (Assignment card, route, permission, tests) | (pending) |
 | 2026-10-28 | Owner decisions recorded; change notices also go to case managers, explicit for PMs, labels in the bell | 9dcc537 |
 | 2026-10-27 | Created this project memory folder | 98a00c6 |
 | 2026-10-27 | README: current development accounts | d745097 |
