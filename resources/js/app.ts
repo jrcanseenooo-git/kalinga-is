@@ -4,6 +4,7 @@ import './bootstrap';
 import { prepareFieldApp } from '@/Offline/fieldApp';
 import { protectBrowserHistory, reloadAfterAccessDenial } from '@/Security/browserHistory';
 import { createInertiaApp, router } from '@inertiajs/vue3';
+import { applyTextSize, savedTextSize } from '@/utils/textSize';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { createApp, DefineComponent, h } from 'vue';
 import { ZiggyVue } from '../../vendor/tightenco/ziggy';
@@ -31,6 +32,9 @@ router.on('navigate', event => {
 });
 
 const appName = import.meta.env.VITE_APP_NAME || 'Kalinga';
+
+// The reader's chosen text size, before the first paint.
+applyTextSize(savedTextSize());
 
 createInertiaApp({
     title: (title) => `${title} - ${appName}`,

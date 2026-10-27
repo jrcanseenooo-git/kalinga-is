@@ -60,7 +60,7 @@ Owner answers that still apply:
 | 2 | Kalinga Intake: larger, clearer layout for older users; responsive; smart hints; address tickboxes off by default; label "Mobile Number (Parent or Child)"; family composition never adds a second empty card and drops empty entries | Pending |
 | 3 | Consent/assent photo: Take photo must open the device camera; smart capture checks | Pending |
 | 4 | Modern confirmation dialogs / modals system-wide | Pending |
-| 5 | KaVAT: owner info - the project team does the KaVAT before intake to identify vulnerable CEFMU; in the system it is for the quarterly conduct. Improve form and make it smart | Pending |
+| 5 | KaVAT: owner info - the baseline KaVAT is done before intake in the project's separate tool (a Google Sheet with formulas) to identify vulnerable CEFMU. Owner decision 2026-10-28: Kalinga records the baseline RESULT only (date, scores, priority, optional photo of the sheet), no re-answering; the KaVAT in Kalinga is for the quarterly conduct, compared against the baseline. Improve form and make it smart | Pending |
 | 6 | Better PDF report (analytics print showed mobile chrome, 7 pages, blank map) | Pending |
 | 7 | Smart (rule-based, no external AI) assistance across the whole system; rename the cut-off "Office profile & signatories" nav label | Pending |
 | 8 | Bug sweep, tests, docs, push | Pending |

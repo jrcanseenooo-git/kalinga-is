@@ -26,3 +26,40 @@ test('Take photo opens the device camera in Kalinga and checks the picture', asy
     await page.getByRole('button', { name: 'Remove photo', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Take photo', exact: true })).toBeVisible();
 });
+
+test('intake starts with address boxes unticked, labels the mobile number and never stacks empty family cards', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await login(page); await page.goto('/cases/create');
+    await page.getByRole('button', { name: 'Start new intake', exact: true }).click();
+    await page.getByRole('checkbox', { name: /I gave the privacy notice/ }).check();
+    await page.getByRole('combobox', { name: /^How was the privacy notice given/ }).selectOption('explained_verbally');
+    await page.getByRole('button', { name: 'Continue', exact: true }).click();
+    await expect(page.getByRole('checkbox', { name: /Permanent \(primary\) address is the same/ })).not.toBeChecked();
+    await expect(page.locator('#intake-caregiver_same_address')).not.toBeChecked();
+    await expect(page.locator('label[for="intake-phone"]')).toContainText('Mobile Number (Parent or Child)');
+    await expect(page.locator('label[for="intake-phone"] i')).toHaveText('Parent or Child');
+    // Smart tidy-ups.
+    await page.locator('#intake-phone').fill('+63 917 123 4567'); await page.locator('#intake-phone').blur();
+    await expect(page.locator('#intake-phone')).toHaveValue('09171234567');
+    await page.locator('#intake-first_name').fill('MARIA'); await page.locator('#intake-first_name').blur();
+    await expect(page.locator('#intake-first_name')).toHaveValue('Maria');
+    // Family composition: a second tap opens the same empty card instead of adding another.
+    const add = page.getByRole('button', { name: 'Add family member', exact: true });
+    await add.click(); await add.click();
+    await expect(page.getByRole('button', { name: /^Family member \d/ })).toHaveCount(1);
+    await expect(page.getByText('Family member 1 is still empty - fill it in first.')).toBeVisible();
+    await expect(page.locator('#family-0-same_address, #family-0 input[type=checkbox]').first()).not.toBeChecked();
+    // Closing the empty card removes it.
+    await page.getByRole('button', { name: /^Family member 1/ }).click();
+    await expect(page.getByRole('button', { name: /^Family member \d/ })).toHaveCount(0);
+    // A half-filled member is not silently dropped.
+    await add.click(); await page.locator('#family-0-name').fill('Pedro Cruz');
+    await page.locator('#intake-last_name').fill('Cruz'); await page.locator('#intake-birthdate').fill('2012-03-04');
+    await page.locator('#intake-sex').selectOption('Female');
+    await page.getByRole('button', { name: 'Continue', exact: true }).click();
+    await expect(page.getByRole('alert', { name: 'Review intake errors' })).toContainText('Family member 1: choose the relationship to the child.');
+    // The caregiver can be added to the family in one tap.
+    await page.locator('#intake-primary_caregiver_name').fill('ana cruz'); await page.locator('#intake-primary_caregiver_name').blur();
+    await page.getByRole('button', { name: /Add Ana Cruz.*the primary caregiver/ }).click();
+    await expect(page.getByRole('button', { name: /^Ana Cruz/ })).toBeVisible();
+});

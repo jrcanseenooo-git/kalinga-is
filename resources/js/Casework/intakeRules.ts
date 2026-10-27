@@ -30,5 +30,9 @@ const STEP_FIELDS: Record<number, readonly string[]> = {
     4: ['risk_indicators', 'initial_risk_level', 'risk_level_reason'],
 };
 export const intakeStepForField = (field: string) => Number(Object.keys(STEP_FIELDS).find(step => STEP_FIELDS[Number(step)].includes(field.split('.')[0])) ?? 4);
-export const intakeFieldId = (field: string) => `intake-${field.split('.')[0].replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+export const intakeFieldId = (field: string) => {
+    const member = /^family_members\.(\d+)\.(\w+)$/.exec(field);
+    if (member) return `family-${member[1]}-${member[2]}`;
+    return `intake-${field.split('.')[0].replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+};
 
