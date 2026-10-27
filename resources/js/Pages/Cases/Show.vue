@@ -22,7 +22,7 @@ import StatusBadge from '@/Components/UI/StatusBadge.vue';
 import { progressTone, shortDate, titleCase } from '@/utils/caseDisplay';
 import { followUp, type TrackedReferral } from '@/utils/referralTracking';
 import { CheckCircle2, Circle, FileText, Plus, ShieldCheck, Upload, UserPlus, Users, X } from '@lucide/vue';
-import type { ConsentEntry, SupportRelationship } from '@/types/clientContext';
+import type { ConsentForm, SupportRelationship } from '@/types/clientContext';
 import type { CaseTask } from '@/types/casework';
 import type { Remark } from '@/types/remarks';
 import type { GrantItem } from '@/types/reports';
@@ -44,7 +44,7 @@ const props = defineProps<{
     hasSharingConsent?: boolean;
     visits: MonitoringVisit[];
     documents: any[];
-    consents: ConsentEntry[];
+    consentForm: ConsentForm;
     relationships: SupportRelationship[];
     remarks: Remark[];
     kavatDefinition: KavatDefinition;
@@ -177,7 +177,7 @@ const smartAlerts = computed(() => {
     if (overdueTasks.value.length) alerts.push({ level: 'warning', text: `${overdueTasks.value.length} overdue ${overdueTasks.value.length === 1 ? 'task' : 'tasks'}` });
     const pending = props.referrals.filter((r: any) => r.status === 'PENDING' || r.status === 'SENT');
     if (pending.length) alerts.push({ level: 'info', text: `${pending.length} ${pending.length === 1 ? 'referral' : 'referrals'} awaiting response`, tab: 'notes' });
-    if (props.consents.length === 0) alerts.push({ level: 'info', text: 'No consent record - document the lawful basis', tab: 'people' });
+    if (!props.consentForm.document_id) alerts.push({ level: 'info', text: 'No photo of the signed consent / assent form - add it in Client & Intake', tab: 'people' });
     if (status === 'FOR_CLOSURE_REVIEW') alerts.push({ level: 'warning', text: 'Case is for closure review - check the closure checklist', tab: 'closure' });
     return alerts;
 });
@@ -294,7 +294,7 @@ const archiveCase = () => { if (window.confirm('Archive this case? The case will
                     </section>
 
                     <section v-show="activeSection === 'people'" id="case-panel-people" role="tabpanel" aria-labelledby="case-tab-people" class="scroll-mt-24 rounded-lg border border-slate-200 bg-white p-5">
-                        <CaseClientContextPanel :record="caseRecord" :relationships="relationships" :consents="consents" :can-archive="canArchive" @archive="archiveCase" />
+                        <CaseClientContextPanel :record="caseRecord" :relationships="relationships" :consent-form="consentForm" :can-archive="canArchive" @archive="archiveCase" />
                         <section v-if="customAnswers.length" class="mt-5 rounded-xl border border-slate-200 p-4" aria-labelledby="custom-answers-title">
                             <h3 id="custom-answers-title" class="text-sm font-semibold text-slate-900">Additional information (intake)</h3>
                             <dl class="mt-2 grid gap-2 sm:grid-cols-2"><div v-for="item in customAnswers" :key="item.key"><dt class="text-xs text-slate-600">{{ item.label }}</dt><dd class="text-sm text-slate-900">{{ item.value }}</dd></div></dl>

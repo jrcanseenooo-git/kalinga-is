@@ -36,7 +36,7 @@ class RolePermissions
     public const PERMISSIONS = [
         'reports.create', 'reports.view', 'reports.screen', 'reports.validate', 'reports.accept', 'reports.reject',
         'risk.assess', 'assessments.manage', 'assessments.review', 'assessments.restricted_view', 'participation.manage', 'participation.review', 'participation.restricted_view', 'cases.view', 'cases.create', 'cases.update', 'cases.archive', 'cases.close', 'cases.reopen', 'cases.note',
-        'relationships.manage', 'consents.record', 'plans.manage', 'plans.review', 'transfers.manage',
+        'relationships.manage', 'plans.manage', 'plans.review', 'transfers.manage',
         'referrals.view', 'referrals.create', 'referrals.respond', 'referrals.close',
         'documents.upload', 'documents.download', 'documents.delete',
         'records.classify', 'records.restricted_view', 'records.retention.review', 'records.hold.manage', 'records.disposition.propose', 'records.disposition.review', 'records.disposition.approve', 'records.disclosure.record',
@@ -72,7 +72,7 @@ class RolePermissions
         'social_worker' => [
             'reports.create', 'reports.view', 'reports.screen', 'reports.validate', 'reports.accept', 'reports.reject',
             'risk.assess', 'cases.view', 'cases.create', 'cases.update', 'cases.archive', 'cases.close', 'cases.reopen', 'cases.note', 'cases.remark',
-            'relationships.manage', 'consents.record', 'plans.manage',
+            'relationships.manage', 'plans.manage',
             'referrals.view', 'referrals.create', 'referrals.respond', 'referrals.close',
             'documents.upload', 'documents.download', 'documents.delete',
             'activities.manage', 'analytics.view', 'analytics.export', 'analytics.quarterly',

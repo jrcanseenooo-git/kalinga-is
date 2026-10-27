@@ -349,7 +349,7 @@ class CaseworkController extends Controller
             ],
             'riskAssessments' => DB::table('risk_assessments')->join('users', 'users.id', '=', 'risk_assessments.assessed_by')->where('case_id', $case)->latest('assessed_at')->get(['risk_assessments.*', 'users.name as assessor'])->map(fn ($assessment) => ['assessment' => $assessment, 'factors' => DB::table('risk_assessment_factors')->where('risk_assessment_id', $assessment->id)->get()]),
             // Detailed plans are fetched only by the dedicated scoped workspace.
-            'consents' => DB::table('consents')->where('case_id', $case)->latest('granted_at')->get(), 'relationships' => DB::table('relationships')->where('client_id', $record->client_id)->latest()->get(),
+            'consentForm' => $this->consentForm($case), 'relationships' => DB::table('relationships')->where('client_id', $record->client_id)->latest()->get(),
             'remarks' => app(CaseRemarks::class)->thread($case),
             'kavatDefinition' => Kavat::definition(), 'kavat' => CaseFormController::kavatHistory($case),
             'formsDefinition' => CaseForms::definition(), 'forms' => CaseForms::forCase($case), 'formSuggestions' => CaseForms::suggestions($record, $record),
@@ -481,6 +481,16 @@ class CaseworkController extends Controller
         });
 
         return back()->with('success', 'Progress-note addendum finalized. The original record was preserved.');
+    }
+
+    /** The consent recorded at intake: the signed form photo, if any, and its type. */
+    private function consentForm(int $case): array
+    {
+        $row = DB::table('cases')->leftJoin('documents', 'documents.id', '=', 'cases.consent_document_id')->where('cases.id', $case)
+            ->first(['cases.consent_document_id', 'cases.consent_form_type', 'documents.name', 'documents.created_at']);
+
+        return ['document_id' => $row?->consent_document_id, 'type' => $row?->consent_form_type, 'name' => $row?->name, 'added_at' => $row?->created_at,
+            'sharing' => app(ReferralTracking::class)->hasSharingConsent($case)];
     }
 
     public function transition(Request $request, int $case)

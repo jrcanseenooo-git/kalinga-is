@@ -35,6 +35,7 @@ export interface ClientContext {
     referred_by?: string | null;
     referral_date?: string | null;
     privacy_notice_method?: string | null;
+    privacy_notice_provided_at?: string | null;
     intake_completed_at?: string | null;
 }
 
@@ -50,11 +51,12 @@ export interface SupportRelationship {
     occupation?: string | null;
 }
 
-export interface ConsentEntry {
-    id: number;
-    lawful_basis: string;
-    purposes: string | string[];
-    sharing_allowed: boolean;
-    granted_at: string;
-    withdrawn_at: string | null;
+/** The consent recorded at intake: the signed consent / assent form photo, if any. */
+export interface ConsentForm {
+    document_id: number | null;
+    type: 'consent' | 'assent' | 'consent_and_assent' | null;
+    name: string | null;
+    added_at: string | null;
+    /** True when consent can be used as the basis for a referral. */
+    sharing: boolean;
 }

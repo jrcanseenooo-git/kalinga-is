@@ -33,7 +33,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     summary: 'Four steps: privacy notice and consent form, child and safe contact, case details (CEFMU incidence), safety triage.',
     steps: [
       'Open Case intake and choose Start new intake. A paused intake is listed under Saved intakes; choose Continue to pick it up.',
-      'Step 1: record how the privacy notice was given. You can take a photo of the signed consent or assent form.',
+      'Step 1: record how the privacy notice was given. Take a photo of the signed consent or assent form; Kalinga checks that it is clear and readable. This is the case consent record (there is no separate consent register).',
       'Step 2: enter the child\'s details, an alias or nickname if any, the present and permanent address, safe contact, the primary caregiver and the family composition. Tick "Same address as the child" where it applies.',
       'Step 3: choose the CEFMU classification (early marriage, early union, forced marriage, forced union), the marriage or union type, whether the child is married or living with a partner now or before, the partner\'s age, how long, and where the child lives now.',
       'Step 4: tick the risks you observed. Kalinga suggests a risk level from their points; if you choose a lower level, write why. Then create the case folder; the case opens next.',
@@ -111,7 +111,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
       'Write the reason for the referral and save. The referral is sent, and the response due date appears on your calendar.',
       'Use Track / update on the note to record Accepted, In progress, Completed (with the outcome) or why it did not proceed.',
     ],
-    tips: ['A CPU member with a Kalinga account gets access to this case for the referral only. Access ends when the referral is completed or closed.', 'Documented consent is available only when a sharing consent is recorded in Client & Intake.'],
+    tips: ['A CPU member with a Kalinga account gets access to this case for the referral only. Access ends when the referral is completed or closed.', 'Consent can be the basis for a referral only when the photo of the signed consent / assent form is in the case. Add it in Client & Intake if it was not taken at intake.'],
     keywords: 'refer referral mdt cpu agency wcpu pnp pao track status accepted completed declined consent sharing',
   },
   {

@@ -52,6 +52,19 @@ Owner answers that still apply:
 - Risk factor points are set by the owner's team.
 - Grants are a separate log per case.
 
+### Batch of 2026-10-28 (owner request, in progress)
+
+| # | Item | Status |
+|---|---|---|
+| 1 | Remove the Consent register on the case page (intake privacy notice and consent/assent photo already cover consent) | Pending |
+| 2 | Kalinga Intake: larger, clearer layout for older users; responsive; smart hints; address tickboxes off by default; label "Mobile Number (Parent or Child)"; family composition never adds a second empty card and drops empty entries | Pending |
+| 3 | Consent/assent photo: Take photo must open the device camera; smart capture checks | Pending |
+| 4 | Modern confirmation dialogs / modals system-wide | Pending |
+| 5 | KaVAT: owner info - the project team does the KaVAT before intake to identify vulnerable CEFMU; in the system it is for the quarterly conduct. Improve form and make it smart | Pending |
+| 6 | Better PDF report (analytics print showed mobile chrome, 7 pages, blank map) | Pending |
+| 7 | Smart (rule-based, no external AI) assistance across the whole system; rename the cut-off "Office profile & signatories" nav label | Pending |
+| 8 | Bug sweep, tests, docs, push | Pending |
+
 ## 3. Current progress
 
 - All 8 phases built, tested and merged to `main` (PR #3, merged

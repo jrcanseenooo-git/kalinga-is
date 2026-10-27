@@ -55,7 +55,7 @@ class NoteReferrals
     public function createReferral(User $actor, object $case, int $noteId, array $data, string $occurredAt): int
     {
         if ($data['lawful_basis'] === 'consent' && !$this->tracking->hasSharingConsent((int) $case->id)) {
-            throw ValidationException::withMessages(['referral.lawful_basis' => 'This case has no active consent that allows sharing. Record it in Client & Intake (Consent register) or choose another documented basis.']);
+            throw ValidationException::withMessages(['referral.lawful_basis' => 'This case has no signed consent / assent form yet. Add the photo in Client & Intake, or choose another documented basis.']);
         }
         $member = null;
         if (!empty($data['lgu_cpu_member_id'])) {
