@@ -4,7 +4,7 @@
     "scripts": {
         "build": "vue-tsc && vite build",
         "dev": "vite",
-        "test:frontend": "node --test tests/frontend/offlineSync.test.mjs tests/frontend/historyEncryption.test.mjs tests/frontend/philippineTime.test.mjs tests/frontend/caseSearch.test.mjs tests/frontend/kavat.test.mjs",
+        "test:frontend": "node --test tests/frontend/offlineSync.test.mjs tests/frontend/historyEncryption.test.mjs tests/frontend/philippineTime.test.mjs tests/frontend/caseSearch.test.mjs tests/frontend/kavat.test.mjs tests/frontend/photoQuality.test.mjs",
         "test:e2e": "playwright test",
         "test:e2e:headed": "playwright test --headed",
         "test:e2e:report": "playwright show-report"
