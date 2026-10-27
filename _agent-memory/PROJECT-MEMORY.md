@@ -119,7 +119,7 @@ Owner answers that still apply:
 
 | Date | Task | Commit |
 |---|---|---|
-| 2026-10-27 | Created this project memory folder | (this commit) |
+| 2026-10-27 | Created this project memory folder | 98a00c6 |
 | 2026-10-27 | README: current development accounts | d745097 |
 | 2026-10-27 | Generated VAPID keys for Render (given to owner, not stored) | - |
 | 2026-10-27 | PR #3 merged to main: Phases 5-8 | 1156bab |
@@ -128,5 +128,5 @@ Owner answers that still apply:
 | 2026-10-27 | Phase 8 team chat | 9cb96cb |
 | 2026-10-27 | Phase 7 form options and feedback | b0fa03c |
 | 2026-10-27 | Phase 6 to-do dashboard and analytics map | 7f82916 |
-| 2026-10-27 | Phase 5 calendar sharing and phone notifications | c30da33 |
-| 2026-10-26 | Phases 3-4 roles, monitoring, KaVAT, forms, grants | b399647 |
+| 2026-10-26 | Phase 5 calendar sharing and phone notifications | c30da33 |
+| 2026-10-26 | Phase 4 KaVAT, forms, case workspace, grants (Phase 3 just before) | b399647 |
