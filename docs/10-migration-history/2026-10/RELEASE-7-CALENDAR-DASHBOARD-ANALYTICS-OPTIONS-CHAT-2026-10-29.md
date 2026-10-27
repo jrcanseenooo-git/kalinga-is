@@ -13,8 +13,15 @@ plan, Phases 5 to 8. Branch `feature-enhancements`.
 - Rescheduling or cancelling needs a reason (at least 5 characters). The
   change and reason are kept in `task_history` (History on the activity) and
   audited as `task.rescheduled` / `task.cancelled`.
-- Who is told about a change: invitees, the LGU Head (supervisor), the Field
-  Office of the region and the Project Managers covering it.
+- Who is told about a change: invitees still going, invited case managers
+  (even if not going), the case manager assigned to the linked case, the LGU
+  Head (supervisor), the Field Office of the region and the Project Managers
+  covering it (owner decision 2026-10-28).
+- The notice title starts with "Rescheduled:" or "Cancelled:", gives the old
+  and new date and the reason, and shows a Rescheduled / Cancelled label in
+  the bell and on the Notifications page. Project Managers and Field Offices
+  get an extra first line: "For your information: this activity was
+  RESCHEDULED" (or CANCELLED).
 - Phone notifications: Web Push with VAPID keys (`App\Services\WebPush`, no
   outside library). Every in-app notification also sends a push with **no
   content** (nothing passes through the push service). On arrival the phone
@@ -80,22 +87,19 @@ phone switch is hidden and everything else works.
 
 ## Owner review
 
-1. VAPID keys must be generated and set on Render before phone
-   notifications work (see the deploy step above).
-2. Lock-screen text: when the phone is signed in, the notification title
-   and short text show on the lock screen. Confirm this is acceptable, or
-   switch to the generic prompt only.
-3. CPU members now have the calendar (needed to receive invitations).
-4. Who is told about a reschedule or cancellation (supervisor, Field Office,
-   Project Managers): confirm the list.
-5. Boundary data source and date (PSGC 3Q 2026, simplified) for the map.
-6. The default choices in each list were taken from the current screens;
-   confirm the lists, especially risk factor points and score levels
-   (risk points are the owner team's decision).
-7. Project team chat: only Project Managers start conversations; case
-   managers reply. Confirm whether Field Offices should also start them.
-8. Feedback categories (suggestion, something is not working, question,
-   something works well).
+Decided by the owner on 2026-10-28:
+
+1. Lock-screen text: keep (title and short text when signed in).
+2. CPU members keep the calendar: yes.
+3. Change notices: add the case manager and make the change explicit for
+   Project Managers - done (see Phase 5 above).
+4. Map boundary source (PSGC 3Q 2026, simplified): accepted.
+5. Default choices in the lists, risk points and score levels: owner to
+   check in Administration > Form options (open).
+6. Field Offices starting team chat conversations: no; Project Managers only.
+7. Feedback kinds: accepted.
+
+Still to do on deploy: set the VAPID keys on Render.
 
 ## Tests
 

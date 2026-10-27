@@ -193,17 +193,39 @@ class OperationsController extends Controller
     }
 
     /** Tells participants and the supervisor, Field Office and Project Manager about a moved or cancelled activity. */
-    private function announceChange(Request $r, object $record, string $what, string $reason): void
+    /**
+     * Tell the people concerned that an activity was rescheduled or cancelled:
+     * invitees still going, invited case managers (even if not going), the
+     * assigned case manager of the linked case, the
+     * LGU Head, the Field Office and the Project Managers covering the area.
+     * Owner rule (2026-10-28): the change must be unmistakable, so the title
+     * starts with "Rescheduled" or "Cancelled" and Project Managers and Field
+     * Offices get an explicit for-your-information line.
+     */
+    private function announceChange(Request $r, object $record, string $what, string $reason, ?Carbon $from = null, ?Carbon $to = null): void
     {
-        $title = $what === 'cancelled' ? 'Activity cancelled' : 'Activity rescheduled';
-        $participants = DB::table('task_participants')->where('task_id', $record->id)->whereIn('response', ['pending', 'accepted'])->pluck('user_id')->map(fn ($id) => (int) $id)->all();
-        $owner = DB::table('users')->find($record->assigned_to);
-        $watchers = $owner ? app(CalendarSharing::class)->watchers(User::find($owner->id)) : [];
-        foreach (array_unique(array_merge($participants, $watchers)) as $userId) {
-            if ($userId === (int) $r->user()->id) {
-                continue;
-            }
-            $this->notifications->send($userId, 'calendar.' . $what, $title, ($owner->name ?? 'A user') . ' ' . $what . ' "' . $record->title . '". Reason: ' . mb_strimwidth($reason, 0, 160, '...'), '/calendar');
+        // Invitees still going, plus every invited case manager whatever they answered.
+        $participants = DB::table('task_participants')->join('users', 'users.id', '=', 'task_participants.user_id')->where('task_id', $record->id)
+            ->where(fn ($q) => $q->whereIn('task_participants.response', ['pending', 'accepted'])->orWhere('users.role', 'social_worker'))
+            ->pluck('task_participants.user_id')->map(fn ($id) => (int) $id)->all();
+        $owner = User::find($record->assigned_to);
+        $watchers = $owner ? app(CalendarSharing::class)->watchers($owner) : [];
+        $case = !empty($record->case_id) ? DB::table('cases')->where('id', $record->case_id)->first(['case_number', 'assigned_to']) : null;
+        $caseManager = $case && $case->assigned_to && DB::table('users')->where('id', $case->assigned_to)->where('active', true)->exists() ? [(int) $case->assigned_to] : [];
+        $recipients = array_values(array_diff(array_unique(array_merge($participants, $caseManager, $watchers)), [(int) $r->user()->id]));
+        if ($recipients === []) {
+            return;
+        }
+        $at = fn (?Carbon $value) => $value ? $value->copy()->timezone('Asia/Manila')->format('M j, Y g:i A') : 'no date';
+        $title = ($what === 'cancelled' ? 'Cancelled: ' : 'Rescheduled: ') . mb_strimwidth($record->title, 0, 120, '...');
+        $change = $what === 'cancelled'
+            ? 'cancelled this activity' . ($from ? ' (it was set for ' . $at($from) . ')' : '')
+            : 'moved this activity from ' . $at($from) . ' to ' . $at($to);
+        $body = $r->user()->name . ' ' . $change . ($case ? ', case ' . $case->case_number : '') . '. Reason: ' . mb_strimwidth($reason, 0, 160, '...');
+        $roles = DB::table('users')->whereIn('id', $recipients)->pluck('role', 'id');
+        foreach ($recipients as $userId) {
+            $fyi = in_array($roles[$userId] ?? null, ['project_manager', 'fo_user'], true) ? 'For your information: this activity was ' . strtoupper($what) . '. ' : '';
+            $this->notifications->send($userId, 'calendar.' . $what, $title, $fyi . $body, '/calendar');
         }
     }
 
@@ -329,7 +351,7 @@ class OperationsController extends Controller
             $this->notifications->send($userId, 'calendar.invited', 'Calendar invitation', $r->user()->name . ' invited you to "' . $d['title'] . '".', '/calendar');
         }
         if ($moved && $old) {
-            $this->announceChange($r, (object) ['id' => $task, 'title' => $d['title'], 'assigned_to' => $record->assigned_to], 'rescheduled', $reason);
+            $this->announceChange($r, (object) ['id' => $task, 'title' => $d['title'], 'assigned_to' => $record->assigned_to, 'case_id' => array_key_exists('case_id', $d) ? $d['case_id'] : $record->case_id], 'rescheduled', $reason, $old, $d['due_at']);
             AuditLog::record('task.rescheduled', 'task', $task, ['reason' => $reason], $r->user()->id, 'success',
                 ['description' => 'Activity rescheduled: ' . mb_strimwidth($reason, 0, 120, '...'), 'old_value' => $old->timezone('Asia/Manila')->format('Y-m-d H:i'), 'new_value' => $d['due_at']?->copy()->timezone('Asia/Manila')->format('Y-m-d H:i') ?? 'No date']);
         } else {
@@ -355,7 +377,7 @@ class OperationsController extends Controller
         DB::table('tasks')->where('id', $task)->update(['status' => $d['status'], 'updated_at' => now()]);
         DB::table('task_history')->insert(['task_id' => $task, 'event' => $d['status'], 'actor_id' => $r->user()->id, 'reason' => $reason ?: null, 'created_at' => now()]);
         if ($d['status'] === 'cancelled') {
-            $this->announceChange($r, $record, 'cancelled', $reason);
+            $this->announceChange($r, $record, 'cancelled', $reason, $record->due_at ? Carbon::parse($record->due_at) : null);
             AuditLog::record('task.cancelled', 'task', $task, ['reason' => $reason], $r->user()->id, 'success', ['description' => 'Activity cancelled: ' . mb_strimwidth($reason, 0, 120, '...'), 'old_value' => 'open', 'new_value' => 'cancelled']);
         }
         AuditLog::insert(['user_id' => $r->user()->id, 'event' => 'task.transitioned', 'auditable_type' => 'task', 'auditable_id' => $task, 'changes' => json_encode(['from' => 'open', 'to' => $d['status']]), 'created_at' => now(), 'updated_at' => now()]);

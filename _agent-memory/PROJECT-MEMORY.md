@@ -10,7 +10,7 @@ build, tests or deployment reads it, and it is excluded from the Docker
 image. **To remove it before turnover:** delete the `_agent-memory/` folder
 and the one line marked `agent-memory` in `AGENTS.md`.
 
-Last updated: 2026-10-27 (Asia/Manila)
+Last updated: 2026-10-28 (Asia/Manila)
 
 ---
 
@@ -71,9 +71,13 @@ Owner answers that still apply:
    "Turn on phone notifications" from the bell on a phone.
 2. Owner: run the release-7 checklist (dashboard, calendar invite and
    reason, analytics map and PDF, form options, feedback, team chat).
-3. Get owner decisions on the open review items (section 5) and apply them.
+3. Owner to finish the open items in section 5 (list defaults, Release 6
+   KaVAT and form questions); apply the answers.
 4. Merge the README commit with the next pull request.
-5. Housekeeping noticed: release note files RELEASE-6 and RELEASE-7 carry
+5. Gap noticed (not changed): an organizer who lost access to the linked
+   case (case reassigned) can still reschedule the activity but cannot
+   cancel it. Decide whether both should be allowed or both refused.
+6. Housekeeping noticed: release note files RELEASE-6 and RELEASE-7 carry
    dates 2026-10-28 and 2026-10-29 in their names although work finished
    2026-10-27; rename if the owner wants accurate dates.
 
@@ -84,22 +88,19 @@ finished and the folder is being turned over.
 
 ## 5. Waiting for owner decision
 
-1. Lock-screen text: a signed-in phone shows the notification title and
-   short text; keep, or always show only the generic prompt?
-2. CPU members now have the calendar (needed for invitations) - confirm.
-3. Who is told about a reschedule or cancellation (supervisor, Field
-   Office, Project Managers) - confirm.
-4. Map boundary source: PSGC 3rd quarter 2026, simplified (MIT) - confirm.
-5. Default choices in the 13 lists, especially risk factor points and the
-   moderate / high / critical score levels - confirm.
-6. Team chat: only Project Managers start conversations; should Field
-   Offices too?
-7. Feedback kinds: suggestion, something is not working, question,
-   something works well - confirm.
-8. From Release 6 (still open): KaVAT section 6 maximum (10 vs 15), worked
-   example 54 vs 52, no "not applicable" in KaVAT sections 6-7, Kalinga form
-   section titles, grant types and fund source list, CPU vs external
-   referral grouping.
+Answered 2026-10-28: 1 keep lock-screen text; 2 CPU members keep the
+calendar; 3 add the case manager to change notices and make the change
+explicit for Project Managers (done); 4 map source OK; 6 team chat stays
+Project Managers only (Field Offices do not start conversations); 7
+feedback kinds OK.
+
+Still open:
+1. (5) Owner will check the default choices in the 13 lists, especially
+   risk factor points and the moderate / high / critical score levels.
+2. From Release 6: KaVAT section 6 maximum (10 vs 15), worked example 54
+   vs 52, no "not applicable" in KaVAT sections 6-7, Kalinga form section
+   titles, grant types and fund source list, CPU vs external referral
+   grouping.
 
 ## 6. How to work on this project
 
@@ -124,6 +125,7 @@ finished and the folder is being turned over.
 
 | Date | Task | Commit |
 |---|---|---|
+| 2026-10-28 | Owner decisions recorded; change notices also go to case managers, explicit for PMs, labels in the bell | (pending) |
 | 2026-10-27 | Created this project memory folder | 98a00c6 |
 | 2026-10-27 | README: current development accounts | d745097 |
 | 2026-10-27 | Generated VAPID keys for Render (given to owner, not stored) | - |
