@@ -36,6 +36,7 @@ const groups = computed<{ title: string; links: NavigationLink[] }[]>(() => [
   ]},
   { title:'Coordination', links:[
     ...(can('cpu.chat.view') ? [{ label:'Kalinga Connect', icon:'connect', route:'cpu.coordination.index', match:['cpu.coordination.index'] }] : []),
+    ...(can('connect.network') || can('cases.monitor') || can('cases.update') ? [{ label:'Project team chat', icon:'connect', route:'connect.network', match:['connect.network'] }] : []),
   ]},
   ...(can('analytics.view') || can('analytics.quarterly') ? [{ title:'Insights', links:[
     { label:'Analytics', icon:'bars', route:'analytics.index', match:['analytics.index','analytics.quarterly'] },
