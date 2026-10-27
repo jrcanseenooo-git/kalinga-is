@@ -77,6 +77,11 @@ Owner answers that still apply:
    dates 2026-10-28 and 2026-10-29 in their names although work finished
    2026-10-27; rename if the owner wants accurate dates.
 
+Standing note from the owner (2026-10-27): more enhancements, additions and
+fixes are coming. Do the project clean-up (this folder, the `AGENTS.md`
+line, obsolete files) only at the very end, when the owner says the work is
+finished and the folder is being turned over.
+
 ## 5. Waiting for owner decision
 
 1. Lock-screen text: a signed-in phone shows the notification title and
