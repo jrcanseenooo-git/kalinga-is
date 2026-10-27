@@ -126,7 +126,7 @@ Still open:
 
 | Date | Task | Commit |
 |---|---|---|
-| 2026-10-28 | Removed direct case reassignment (Assignment card, route, permission, tests) | (pending) |
+| 2026-10-28 | Removed direct case reassignment (Assignment card, route, permission, tests) | 6b240ad |
 | 2026-10-28 | Owner decisions recorded; change notices also go to case managers, explicit for PMs, labels in the bell | 9dcc537 |
 | 2026-10-27 | Created this project memory folder | 98a00c6 |
 | 2026-10-27 | README: current development accounts | d745097 |
