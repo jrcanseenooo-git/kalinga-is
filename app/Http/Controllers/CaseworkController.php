@@ -524,7 +524,7 @@ class CaseworkController extends Controller
                 // Reopening starts a new planning cycle. It never reactivates a
                 // former plan or copies a prior plan's narrative as new facts.
                 $prior = DB::table('case_plans')->where('case_id', $case)->orderByDesc('version')->first();
-                $plan = DB::table('case_plans')->insertGetId(['case_id' => $case, 'previous_plan_id' => $prior?->id, 'version' => ($prior->version ?? 0) + 1, 'plan_date' => today(), 'summary' => 'Reopened case: planning reassessment required.', 'overall_objective' => 'Reopened case: planning reassessment required.', 'status' => 'draft', 'authored_by' => $actor->id, 'is_current' => false, 'created_at' => now(), 'updated_at' => now()]);
+                $plan = DB::table('case_plans')->insertGetId(['case_id' => $case, 'previous_plan_id' => $prior?->id, 'version' => ($prior->version ?? 0) + 1, 'plan_date' => PhilippineDate::today(), 'summary' => 'Reopened case: planning reassessment required.', 'overall_objective' => 'Reopened case: planning reassessment required.', 'status' => 'draft', 'authored_by' => $actor->id, 'is_current' => false, 'created_at' => now(), 'updated_at' => now()]);
                 DB::table('case_plan_history')->insert(['case_plan_id' => $plan, 'event' => 'created_on_case_reopening', 'actor_id' => $actor->id, 'created_at' => now(), 'updated_at' => now()]);
             }
             DB::table('case_status_history')->insert(['case_id' => $case, 'from_status' => $record->status, 'to_status' => $data['status'], 'changed_by' => $actor->id, 'created_at' => now(), 'updated_at' => now()]);

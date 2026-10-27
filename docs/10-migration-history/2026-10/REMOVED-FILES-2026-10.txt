@@ -16,3 +16,6 @@ child participation and case plans are unchanged.
 2026-10-28 - direct case reassignment removed (owner decision)
 tests/Feature/CaseAssignmentTest.php - removed with the feature
 tests/Feature/CaseReassignmentIntegrityTest.php - renamed CaseHandoverIntegrityTest.php (reassignment tests dropped)
+
+2026-10-28 - consent register removed (owner decision)
+tests/Feature/ConsentWorkflowTest.php - removed with the register

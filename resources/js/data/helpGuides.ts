@@ -315,6 +315,28 @@ export const HELP_ARTICLES: HelpArticle[] = [
     keywords: 'chat message team project manager case manager region group direct conversation',
   },
   {
+    id: 'assist', category: 'Start here', title: 'Get help from Kalinga Assist',
+    summary: 'The Assist button at the top of every page: what needs you, tips for the page, and answers to your questions.',
+    steps: [
+      'Choose Assist (the sparkle button) at the top of any page.',
+      'Needs your attention lists the most urgent things first; tap one to go straight there.',
+      'Tips shows advice for the page you are on, with links to the related guides.',
+      'Type a question in your own words, in English or Filipino (for example "paano mag refer ng bata"), to see the matching guide steps.',
+    ],
+    tips: ['Assist follows written rules and the guides; nothing you type is sent outside Kalinga.'],
+    keywords: 'assist assistant help smart suggestions ai tips question ask paano',
+  },
+  {
+    id: 'text-size', category: 'Settings', title: 'Make the text bigger',
+    summary: 'Three sizes for all text, fields and buttons on this device.',
+    steps: [
+      'Open your name at the top right. Under Text size, choose the bigger A.',
+      'The Kalinga Intake also has the A buttons at the top of the form.',
+      'The size is kept on this device until you change it.',
+    ],
+    keywords: 'text size bigger font large small eyes read zoom older',
+  },
+  {
     id: 'audit-logs', category: 'Privacy & security', title: 'Review the system audit logs', permission: 'audits.view',
     summary: 'Who did what and when, in 14 log types, with filters, search and export.',
     steps: [
