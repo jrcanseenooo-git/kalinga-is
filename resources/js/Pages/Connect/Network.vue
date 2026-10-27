@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { askConfirm } from '@/utils/confirmDialog';
 /**
  * Kalinga Connect - project team: Project Managers find case managers, LGU
  * Heads and Field Office users in the regions they cover, message them
@@ -79,7 +80,7 @@ async function createGroup() {
   } catch (e: any) { finderError.value = Object.values(e?.response?.data?.errors ?? {}).flat().join(' ') || 'Could not save. Try again.'; }
 }
 async function leave() {
-  if (!active.value || !window.confirm(`Leave "${active.value.title}"? You will stop receiving its messages.`)) return;
+  if (!active.value || !(await askConfirm({ title: `Leave "${active.value.title}"?`, message: 'You will stop receiving its messages.', confirmLabel: 'Leave', tone: 'danger' }))) return;
   await axios.post(route('connect.network.leave', active.value.id)); activeId.value = null; router.reload({ only: ['threads'] });
 }
 </script>

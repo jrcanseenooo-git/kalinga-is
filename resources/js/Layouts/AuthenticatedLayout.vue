@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ConfirmDialogHost from '@/Components/UI/ConfirmDialogHost.vue';
 import TextSizeControl from '@/Components/UI/TextSizeControl.vue';
 import { formatPh } from '@/utils/philippineTime';
 import ConnectionStatus from '@/Components/UI/ConnectionStatus.vue';
@@ -158,7 +159,7 @@ onUnmounted(()=>{ removeEventListener('storage', readOfflinePending); removeEven
   <div v-if="open" class="fixed inset-0 z-30 bg-slate-950/35 lg:hidden" @click="closeNavigation" />
   <main id="main-content" tabindex="-1" :inert="open" class="workspace-main relative" :class="navigationCollapsed?'shell-collapsed':''"><slot/><PageSkeleton/></main><FlashToast/>
   <nav :inert="open" class="workspace-mobile-nav" aria-label="Primary navigation"><Link v-for="link in mobileLinks" :key="link.route" :href="route(link.route)" :aria-current="isActive(link)?'page':undefined" class="flex min-h-12 min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 py-2 text-[10px] font-medium" :class="isActive(link)?'text-brand-900':'text-slate-600'"><AppIcon :name="link.icon" class="h-5 w-5"/><span class="text-center leading-tight">{{link.label}}</span></Link></nav>
-  <SubmissionConfirmation/><MidnightSessionGuard/>
+  <SubmissionConfirmation/><ConfirmDialogHost/><MidnightSessionGuard/>
   <Modal aria-label="Sign out of Kalinga" :show="confirmLogout" max-width="md" @close="confirmLogout=false"><section class="p-5"><h2 class="text-lg font-semibold text-slate-900">Sign out of Kalinga?</h2><p class="mt-2 text-sm leading-6 text-slate-600">You will need to sign in again to access your authorized workspace.</p><div class="mt-5 flex flex-wrap justify-end gap-2"><button type="button" class="ui-button" @click="confirmLogout=false">Stay signed in</button><button type="button" class="ui-button border-rose-800 bg-rose-800 text-white hover:bg-rose-900" @click="completeLogout">Sign out</button></div></section></Modal>
  </div>
 </template>

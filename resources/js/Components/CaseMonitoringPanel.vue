@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { askConfirm } from '@/utils/confirmDialog';
 import OptionSelect from '@/Components/UI/OptionSelect.vue';
 import { ADDENDUM_REASONS, NOTE_TYPES, PARTNER_AGENCIES, CPU_RECIPIENTS, EXTERNAL_RECIPIENTS, SERVICE_CATEGORIES, SERVICE_TYPES, VISIT_LOCATIONS, isCpuReferral, purposesFor } from '@/utils/caseOptions';
 import ReferralTracker from '@/Components/Referrals/ReferralTracker.vue';
@@ -58,8 +59,8 @@ const human=(value:string)=>value.replaceAll('_',' ');
 // Entry forms open on demand so the record history leads the tab. A form with unsaved entries stays open.
 const showVisitForm=ref(false);const showNoteForm=ref(false);
 function openEntry(){if(view.value==='visits')showVisitForm.value=true;else showNoteForm.value=true;nextTick(()=>document.getElementById(view.value==='visits'?'monitor-visit-date':'monitor-note-type')?.focus());}
-function closeVisitForm(){if(visit.isDirty&&!window.confirm('Discard this unfinished visit record?'))return;visit.reset();showVisitForm.value=false;}
-function closeNoteForm(){if(note.isDirty&&!window.confirm('Discard this unfinished progress note?'))return;note.reset();showNoteForm.value=false;}
+async function closeVisitForm(){if(visit.isDirty&&!(await askConfirm({title:'Discard this unfinished visit record?',confirmLabel:'Discard',tone:'danger'})))return;visit.reset();showVisitForm.value=false;}
+async function closeNoteForm(){if(note.isDirty&&!(await askConfirm({title:'Discard this unfinished progress note?',confirmLabel:'Discard',tone:'danger'})))return;note.reset();showNoteForm.value=false;}
 const linkedTasks=(id:number)=>props.tasks.filter(task=>task.source_type==='case_note'&&Number(task.source_id)===id);
 async function failed(errors:Record<string,string>){failures.value=Object.values(errors).filter(Boolean);await nextTick();errorSummary.value?.focus();}
 function begin(){if(busy.value)return false;failures.value=[];message.value='';return true;}
@@ -70,7 +71,7 @@ async function chooseAddendum(id:number){
  if(addendumFor.value!==null&&addendumFor.value!==id&&addendum.isDirty){await failed({body:'Save or cancel the current addendum before choosing another original note.'});return;}
  addendumFor.value=id;await nextTick();addendumEditor.value?.scrollIntoView({block:'start'});addendumEditor.value?.focus({preventScroll:true});
 }
-function cancelAddendum(){if(busy.value)return;if(addendum.isDirty&&!window.confirm('Discard this unfinished addendum?'))return;addendum.reset();addendumFor.value=null;}
+async function cancelAddendum(){if(busy.value)return;if(addendum.isDirty&&!(await askConfirm({title:'Discard this unfinished addendum?',confirmLabel:'Discard',tone:'danger'})))return;addendum.reset();addendumFor.value=null;}
 function finalizeAddendum(){if(addendumFor.value===null||!begin())return;const source=addendumFor.value;addendum.transform(data=>({...data,occurred_at:manilaInputToUtc(data.occurred_at)})).post(route('cases.notes.addendum',[props.caseId,source]),{preserveScroll:true,onError:failed,onSuccess:()=>{addendum.reset();addendumFor.value=null;message.value='Progress-note addendum finalized. The original remains unchanged.';}});}
 function compose(kind:'referral_cpu'|'referral_external'|'service_delivery'){view.value='notes';if(!note.isDirty){note.note_type=kind==='service_delivery'?kind:'referral';if(kind!=='service_delivery')setReferralKind(kind==='referral_cpu'?'cpu':'external');}openEntry();}
 function setReferralKind(kind:'cpu'|'external'){if(referralKind.value!==kind){referralKind.value=kind;chooseRecipient('');}}

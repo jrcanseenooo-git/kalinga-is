@@ -3,6 +3,7 @@
  * Field names match App\Services\CaseIntake on the server, which checks
  * everything again; these checks only guide the case manager step by step.
  */
+import { manilaToday } from '@/utils/philippineTime';
 import { MARRIAGE_CLASSIFICATIONS } from '@/data/cefmu';
 import { isLowerThan, suggestRisk, type IntakeOptions, type RiskLevel } from '@/Casework/intakeRules';
 
@@ -67,7 +68,7 @@ export const emptyFamilyMember = (): FamilyMember => ({ name: '', relationship_t
     same_address: false, house_no_street: '', region: '', province: '', municipality: '', barangay: '' });
 
 const phoneOk = (value: string) => !value || /^(?:\+63|0)9\d{9}$/.test(value);
-const todayIso = () => new Date().toISOString().slice(0, 10);
+const todayIso = () => manilaToday();
 
 /** Problems on one step, keyed by field name. */
 export function validateIntakeStep(step: number, data: IntakeData, options: IntakeOptions): Record<string, string> {

@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -40,7 +42,15 @@ final class Kavat
 
     public const PRIORITY_THRESHOLD = 70;
 
-    public const OCCASIONS = ['baseline' => 'Baseline (start of case management)', 'review' => 'Review', 'closure' => 'At closure', 'other' => 'Other'];
+    /**
+     * Occasions offered when a KaVAT is started in Kalinga. The baseline is
+     * done before intake in the project's separate tool; only its result is
+     * recorded (kavat_baselines), so Kalinga holds the quarterly KaVATs.
+     */
+    public const OCCASIONS = ['quarterly' => 'Quarterly KaVAT', 'closure' => 'At closure', 'other' => 'Other'];
+
+    /** Labels for every occasion ever used, including ones no longer offered. */
+    public const OCCASION_LABELS = self::OCCASIONS + ['baseline' => 'Baseline (start of case management)', 'review' => 'Review'];
 
     private const ANSWERS = ['yes' => 'Oo (Yes)', 'maybe' => 'Hindi Sigurado (Maybe)', 'no' => 'Hindi (No)'];
 
@@ -157,6 +167,46 @@ final class Kavat
     ];
 
     /** The instrument for the browser (questions, options, points, bands). */
+    /** Final protection score from the two rates (the guideline formula). */
+    public static function finalScore(float $empowerment, float $safety): float
+    {
+        return round($empowerment * 0.4 + $safety * 0.6, 2);
+    }
+
+    public static function priorityFor(float $finalScore): string
+    {
+        return $finalScore < self::PRIORITY_THRESHOLD ? 'high' : 'standard';
+    }
+
+    /** "Q4 2026" for a date. */
+    public static function quarterLabel(string $date): string
+    {
+        $day = Carbon::parse($date);
+
+        return 'Q' . $day->quarter . ' ' . $day->year;
+    }
+
+    /**
+     * Open cases (of those given) whose quarterly KaVAT for the current
+     * quarter is not finalized yet. A case opened during this quarter is
+     * not due until the next quarter (its baseline was just done).
+     *
+     * @param  list<int>  $caseIds
+     * @return list<int>
+     */
+    public static function quarterlyDue(array $caseIds): array
+    {
+        if ($caseIds === []) {
+            return [];
+        }
+        $start = now('Asia/Manila')->firstOfQuarter()->toDateString();
+        $done = DB::table('kavat_assessments')->whereIn('case_id', $caseIds)->where('status', 'final')->where('administered_at', '>=', $start)->pluck('case_id')->all();
+
+        return DB::table('cases')->whereIn('id', $caseIds)->whereNotIn('id', $done)->whereNotIn('status', ['CLOSED', 'ARCHIVED'])->whereNull('deleted_at')
+            ->where(fn ($q) => $q->where('opened_at', '<', $start)->orWhere(fn ($w) => $w->whereNull('opened_at')->where('created_at', '<', $start)))
+            ->pluck('id')->map(fn ($id) => (int) $id)->all();
+    }
+
     public static function definition(): array
     {
         $domains = [];
@@ -173,7 +223,7 @@ final class Kavat
         }
 
         return ['version' => self::VERSION, 'answers' => self::ANSWERS, 'bandLabels' => self::BANDS, 'domains' => $domains, 'sections' => $sections,
-            'part1Max' => self::PART1_MAX, 'part2Max' => self::PART2_MAX, 'threshold' => self::PRIORITY_THRESHOLD, 'occasions' => self::OCCASIONS];
+            'part1Max' => self::PART1_MAX, 'part2Max' => self::PART2_MAX, 'threshold' => self::PRIORITY_THRESHOLD, 'occasions' => self::OCCASION_LABELS, 'startOccasions' => array_keys(self::OCCASIONS)];
     }
 
     /**

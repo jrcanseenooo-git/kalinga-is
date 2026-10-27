@@ -9,6 +9,7 @@ use App\Services\CaseClosureHistory;
 use App\Services\CaseVersionGuard;
 use App\Services\ConsentFormImage;
 use App\Support\AuditLog;
+use App\Support\PhilippineDate;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -107,7 +108,7 @@ class PlanningController extends Controller
     {
         $this->access($request, $case);
         $this->authorize('assessments.manage');
-        $data = $request->validate(['assessment_date' => 'required|date|before_or_equal:today', 'previous_assessment_id' => 'nullable|integer', 'record_type' => 'required|in:full_revision,addendum', 'amendment_reason' => 'nullable|string|max:2000']);
+        $data = $request->validate(['assessment_date' => 'required|date|before_or_equal:' . PhilippineDate::today(), 'previous_assessment_id' => 'nullable|integer', 'record_type' => 'required|in:full_revision,addendum', 'amendment_reason' => 'nullable|string|max:2000']);
         $previousId = $data['previous_assessment_id'] ?? null;
         $prior = $previousId ? DB::table('case_assessments')->where('case_id', $case)->where('status', 'final')->where('id', $previousId)->first() : null;
         abort_if($previousId && !$prior, 422, 'Choose a finalized assessment to revise or supplement.');

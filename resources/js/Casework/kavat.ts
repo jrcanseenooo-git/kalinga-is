@@ -13,6 +13,13 @@ export type KavatDomain = { code: string; title: string; items: number[]; bands:
 export type KavatDefinition = {
   version: string; answers: Record<KavatAnswer, string>; bandLabels: [string, string, string]; domains: KavatDomain[]; sections: KavatSection[];
   part1Max: number; part2Max: number; threshold: number; occasions: Record<string, string>;
+  /** Occasions offered when starting a KaVAT in Kalinga (the baseline is done in the separate tool). */
+  startOccasions?: string[];
+};
+/** Result of the baseline KaVAT done before intake in the project's screening tool. */
+export type KavatBaseline = {
+  administered_at: string; empowerment_rate: number; safety_rate: number; final_score: number; priority: 'high' | 'standard';
+  notes: string | null; document_id: number | null; recorded_by: string | null; updated_at: string | null;
 };
 export type KavatAnswers = { part1: Record<string, KavatAnswer>; part2: Record<string, string>; details?: Record<string, string> };
 export type DomainScore = { code: string; title: string; score: number; max: number; complete: boolean; band: string | null; level: number | null; interpretation: string | null };

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Services\CaseAccessScope;
 use App\Support\AuditLog;
+use App\Support\PhilippineDate;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -53,7 +54,7 @@ class ChildParticipationController extends Controller
     {
         $this->access($request, $case);
         $this->authorize('participation.manage');
-        $data = $request->validate(['occasion_type' => 'required|in:' . self::OCCASIONS, 'decision_title' => 'required|string|max:255', 'participation_date' => 'required|date|before_or_equal:today', 'participation_status' => 'required|in:' . self::PARTICIPATION_STATUSES, 'non_participation_reason' => 'nullable|string|max:5000', 'previous_record_id' => 'nullable|integer', 'record_type' => 'required|in:formal_record,full_revision,addendum', 'amendment_reason' => 'nullable|string|max:2000']);
+        $data = $request->validate(['occasion_type' => 'required|in:' . self::OCCASIONS, 'decision_title' => 'required|string|max:255', 'participation_date' => 'required|date|before_or_equal:' . PhilippineDate::today(), 'participation_status' => 'required|in:' . self::PARTICIPATION_STATUSES, 'non_participation_reason' => 'nullable|string|max:5000', 'previous_record_id' => 'nullable|integer', 'record_type' => 'required|in:formal_record,full_revision,addendum', 'amendment_reason' => 'nullable|string|max:2000']);
         $needsReason = in_array($data['participation_status'], ['child_declined', 'deferred', 'not_appropriate_unsafe', 'child_unable_to_participate', 'not_yet_conducted'], true);
         if ($needsReason && empty($data['non_participation_reason'])) {
             throw ValidationException::withMessages(['non_participation_reason' => 'Record a neutral reason for this participation status.']);

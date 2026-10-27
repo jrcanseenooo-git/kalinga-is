@@ -1,3 +1,4 @@
+import { askConfirm } from '@/utils/confirmDialog';
 import axios from 'axios';
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import { router } from '@inertiajs/vue3';
@@ -70,31 +71,34 @@ export function useMdtWorkspace(caseId: number, initialAssignment: number) {
             }
         } finally { saving.value = false; }
     }
-    function resolveUncertainty() {
-        if (!busy.value && reviewed.value && window.confirm('Have you reviewed the refreshed record and checked whether the last save succeeded? Do not submit the same entry again if it is already recorded.')) { uncertain.value = false; error.value = ''; }
+    async function resolveUncertainty() {
+        if (busy.value || !reviewed.value) return;
+        if (await askConfirm({ title: 'Did the last save go through?', message: 'Check the refreshed record first. Do not submit the same entry again if it is already recorded.', confirmLabel: 'I have checked' })) { uncertain.value = false; error.value = ''; }
     }
-    function discard() {
-        if (!busy.value && window.confirm('Discard the unfinished note, discussion message and selected file in this tab? This does not delete saved records.')) { clearEntries(); error.value = ''; }
+    async function discard() {
+        if (busy.value) return;
+        if (await askConfirm({ title: 'Discard unfinished entries?', message: 'The unfinished note, discussion message and selected file in this tab are cleared. Saved records are not deleted.', confirmLabel: 'Discard', tone: 'danger' })) { clearEntries(); error.value = ''; }
     }
-    function respond(action: number, status: 'responded' | 'completed') {
+    async function respond(action: number, status: 'responded' | 'completed') {
         if (dirty.value) { void showError('Save or discard unfinished entries before responding to an action.'); return; }
-        if (status === 'completed' && !window.confirm('Complete this action? Under the current workflow this ends your active assignment access. Save your notes and files first.')) return;
+        if (status === 'completed' && !(await askConfirm({ title: 'Complete this action?', message: 'This ends your access to the case for this action. Save your notes and files first.', confirmLabel: 'Complete the action' }))) return;
         return write('patch', route('cases.mdt.actions.respond', [caseId, action]), { status }, () => {}, status === 'completed');
     }
     function saveNote() {
         const target = addendumFor.value;
         return write('post', target ? route('cases.mdt.notes.addendum', [caseId, target.id]) : route('cases.mdt.notes.store', caseId), { ...note, ...(target ? { reason: addendumReason.value } : {}) }, clearNote);
     }
-    function finalize(item: MdtNote) {
+    async function finalize(item: MdtNote) {
         if (dirty.value) { void showError('Save or discard unfinished entries before finalizing a note.'); return; }
-        if (window.confirm('Finalize this note? The saved findings and recommendation will be immutable; corrections require a linked addendum.')) return write('patch', route('cases.mdt.notes.finalize', [caseId, item.id]), {}, () => {});
+        if (await askConfirm({ title: 'Finalize this note?', message: 'The saved findings and recommendation cannot be changed afterwards; corrections need a linked addendum.', confirmLabel: 'Finalize' })) return write('patch', route('cases.mdt.notes.finalize', [caseId, item.id]), {}, () => {});
     }
     function startAddendum(item: MdtNote) {
         if (dirty.value || locked.value) { void showError('Save or discard unfinished entries before starting an addendum.'); return; }
         clearNote(); addendumFor.value = item; void nextTick(() => document.getElementById('mdt-note-category')?.focus());
     }
-    function cancelAddendum() {
-        if (!busy.value && (!dirty.value || window.confirm('Discard this unfinished addendum? The saved final note will remain unchanged.'))) clearNote();
+    async function cancelAddendum() {
+        if (busy.value) return;
+        if (!dirty.value || await askConfirm({ title: 'Discard this unfinished addendum?', message: 'The saved final note stays unchanged.', confirmLabel: 'Discard', tone: 'danger' })) clearNote();
     }
     function upload() {
         if (!file.value) return;

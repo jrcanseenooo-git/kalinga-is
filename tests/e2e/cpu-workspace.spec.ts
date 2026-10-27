@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
-import { login, expectNoHorizontalOverflow } from './helpers';
+import { login, expectNoHorizontalOverflow, acceptConfirm } from './helpers';
 
 async function open(page: Page) {
     await login(page, { email: 'cpu@kalinga.test', password: 'password' });
@@ -43,8 +43,7 @@ test('notes show saved findings, finalize and retain linked addenda in the selec
     await page.getByRole('button', { name: 'Save draft note', exact: true }).click();
     await confirmForm(page);
     await expect(page.getByText('Synthetic completed coordination findings.', { exact: true })).toBeVisible();
-    page.once('dialog', dialog => dialog.accept());
-    await page.getByRole('button', { name: 'Finalize note', exact: true }).last().click();
+    await page.getByRole('button', { name: 'Finalize note', exact: true }).last().click();await acceptConfirm(page);
     await expect(page.getByRole('button', { name: 'Add addendum', exact: true }).last()).toBeVisible();
     await page.getByRole('button', { name: 'Add addendum', exact: true }).last().click();
     await page.getByLabel('Reason for addendum', { exact: true }).fill('Synthetic professional clarification.');
@@ -116,8 +115,7 @@ test('response is pinned to the original assignment and completion returns to th
     await page.getByRole('button', { name: 'Mark responded', exact: true }).click();
     expect((await response).status()).toBe(204);
     await expect(page.getByText('Assignment status: Responded', { exact: true })).toBeVisible();
-    page.once('dialog', dialog => dialog.accept());
-    await page.getByRole('button', { name: 'Mark complete', exact: true }).click();
+    await page.getByRole('button', { name: 'Mark complete', exact: true }).click();await acceptConfirm(page);
     await expect(page).toHaveURL(/\/mdt\/collaboration$/);
     const old = page.locator('article').filter({ hasText: 'SYN-CPU-PRESENTATION' }).filter({ hasText: 'Review the requested health coordination' });
     await expect(old).toHaveCount(0);

@@ -207,6 +207,7 @@ Route::middleware('auth')->group(function () {
     Route::delete('/cases/{case}', [CaseworkController::class, 'destroy'])->middleware('throttle:sensitive-write')->name('cases.destroy');
     Route::put('/cases/{case}/forms/{type}', [CaseFormController::class, 'save'])->middleware('throttle:intake-autosave')->name('cases.forms.save');
     Route::post('/cases/{case}/forms/{type}/finalize', [CaseFormController::class, 'finalize'])->middleware('throttle:sensitive-write')->name('cases.forms.finalize');
+    Route::post('/cases/{case}/kavat-baseline', [CaseFormController::class, 'saveKavatBaseline'])->middleware('throttle:file-upload')->name('cases.kavat.baseline');
     Route::post('/cases/{case}/kavat', [CaseFormController::class, 'startKavat'])->middleware('throttle:sensitive-write')->name('cases.kavat.store');
     Route::put('/cases/{case}/kavat/{kavat}', [CaseFormController::class, 'saveKavat'])->middleware('throttle:intake-autosave')->name('cases.kavat.save');
     Route::post('/cases/{case}/kavat/{kavat}/finalize', [CaseFormController::class, 'finalizeKavat'])->middleware('throttle:sensitive-write')->name('cases.kavat.finalize');

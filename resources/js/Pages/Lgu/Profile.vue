@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { askConfirm } from '@/utils/confirmDialog';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import PageHeader from '@/Components/PageHeader.vue';
 import FormField from '@/Components/UI/FormField.vue';
@@ -61,7 +62,7 @@ function saveMember() {
   if (editing.value) member.put(route('lgu-profile.members.update', [props.selectedLguId, editing.value.id]), options);
   else member.post(route('lgu-profile.members.store', props.selectedLguId), options);
 }
-const removeMember = (item: Member) => props.selectedLguId && window.confirm(`Remove ${item.name} from the CPU list?`) && router.delete(route('lgu-profile.members.destroy', [props.selectedLguId, item.id]), { preserveScroll: true });
+const removeMember = async (item: Member) => props.selectedLguId && await askConfirm({ title: `Remove ${item.name} from the CPU list?`, confirmLabel: 'Remove', tone: 'danger' }) && router.delete(route('lgu-profile.members.destroy', [props.selectedLguId, item.id]), { preserveScroll: true });
 
 const activeMembers = computed(() => props.cpuMembers.filter(item => item.active));
 /** What generated reports need from this page. */

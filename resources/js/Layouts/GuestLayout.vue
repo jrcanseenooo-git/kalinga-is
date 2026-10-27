@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ConfirmDialogHost from '@/Components/UI/ConfirmDialogHost.vue';
 import SubmissionConfirmation from '@/Components/SubmissionConfirmation.vue';
 import { Link } from '@inertiajs/vue3';
 
@@ -29,5 +30,6 @@ withDefaults(defineProps<{ fitViewport?: boolean }>(), { fitViewport: false });
             </aside>
         </div>
         <SubmissionConfirmation />
+        <ConfirmDialogHost />
     </main>
 </template>

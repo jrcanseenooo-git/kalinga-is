@@ -54,6 +54,25 @@ final class ConsentFormImage
         return $id;
     }
 
+    /** Store another kind of form photo (for example the KaVAT baseline sheet) with the same safeguards. */
+    public function storeImage(string $dataUrl, int $caseId, int $userId, string $label, string $sourceModule): int
+    {
+        $jpeg = $this->sanitize($dataUrl);
+        $disk = config('filesystems.default');
+        $path = "cases/{$caseId}/{$sourceModule}/" . Str::uuid() . '.jpg';
+        if (!Storage::disk($disk)->put($path, $jpeg)) {
+            AuditLog::record('document.upload_failed', 'case', $caseId, ['case_id' => $caseId, 'source' => $sourceModule], $userId, 'failure');
+            throw ValidationException::withMessages(['photo' => 'The photo could not be saved. Try again.']);
+        }
+        $id = DB::table('documents')->insertGetId(['case_id' => $caseId, 'lineage_id' => $this->records->newLineage(), 'name' => $label . '.jpg', 'disk' => $disk,
+            'path' => $path, 'mime_type' => 'image/jpeg', 'version' => 1, 'uploaded_by' => $userId, 'source_module' => $sourceModule, 'created_at' => now(), 'updated_at' => now()]);
+        $governance = $this->records->ensureDocument($caseId, $id, false);
+        DB::table('record_governance')->where('id', $governance->id)->update(['scan_state' => 'sanitized', 'updated_at' => now()]);
+        AuditLog::record('document.uploaded', 'document', $id, ['case_id' => $caseId, 'source' => $sourceModule, 'scan_state' => 'sanitized'], $userId, 'success', ['description' => $label . ' photo attached']);
+
+        return $id;
+    }
+
     private function sanitize(string $dataUrl): string
     {
         $fail = fn () => throw ValidationException::withMessages(['consent_photo' => 'Use a clear photo of the signed form (JPEG, PNG or WebP, up to 6 MB).']);

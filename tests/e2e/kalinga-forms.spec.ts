@@ -14,15 +14,16 @@ test('case manager answers the KaVAT with a live score and finalizes it', async 
     await openCase(page);
     await page.getByRole('tab', { name: /^KaVAT/ }).click();
     const panel = page.locator('#case-panel-kavat');
-    const start = panel.getByRole('button', { name: /Start (the|a new) KaVAT/ });
+    const start = panel.getByRole('button', { name: /^Start the .*KaVAT/ });
     if (await start.count()) {
         await start.click();
     }
     await expect(panel.getByRole('heading', { name: /Part 1 - Empowerment/ })).toBeVisible();
     // The worked example in the guidelines: Part 1 = 65, Part 2 = 88, final 26.92.
-    for (let n = 1; n <= 25; n++) await panel.locator(`input[name="kavat-p1-${n}"][value="${[1, 2, 3, 6, 7].includes(n) ? 'no' : 'maybe'}"]`).check();
+    // Answers are large buttons (the radio itself is visually hidden), so tap the button.
+    for (let n = 1; n <= 25; n++) await panel.locator(`label:has(input[name="kavat-p1-${n}"][value="${[1, 2, 3, 6, 7].includes(n) ? 'no' : 'maybe'}"])`).click();
     const part2: Record<string, string> = { living_arrangement: '1', family_support: '1', dependents: '1', education: '1', economic_support: '1', breadwinner: 'yes', income: 'yes', partner_age_gap: '1', age_at_union: 'minor', decision: '1', violence: 'yes', safety: 'no' };
-    for (const [key, value] of Object.entries(part2)) await panel.locator(`input[name="kavat-p2-${key}"][value="${value}"]`).check();
+    for (const [key, value] of Object.entries(part2)) await panel.locator(`label:has(input[name="kavat-p2-${key}"][value="${value}"])`).click();
     const score = panel.getByRole('complementary', { name: 'Live KaVAT score' });
     await expect(score).toContainText('26.92');
     await expect(score).toContainText('High Priority (Eligible)');
@@ -33,6 +34,22 @@ test('case manager answers the KaVAT with a live score and finalizes it', async 
     await score.getByRole('button', { name: 'Finalize' }).click();
     await expect(panel.getByRole('heading', { name: 'KaVAT history' })).toBeVisible();
     await expect(panel.getByRole('table')).toContainText('26.92');
+});
+
+test('baseline KaVAT result from the screening tool is recorded with a live score check', async ({ page }) => {
+    await openCase(page);
+    await page.getByRole('tab', { name: /^KaVAT/ }).click();
+    const panel = page.locator('#case-panel-kavat');
+    const baseline = panel.locator('section[aria-labelledby="kavat-baseline-title"]');
+    if (await baseline.getByRole('button', { name: 'Correct' }).count()) await baseline.getByRole('button', { name: 'Correct' }).click();
+    await baseline.getByLabel('Date administered').fill('2026-09-15');
+    await baseline.getByLabel('Empowerment rate (%)').fill('52');
+    await baseline.getByLabel('Safety rate (%)').fill('10.2');
+    await expect(baseline.getByRole('status')).toContainText('26.92');
+    await expect(baseline.getByRole('status')).toContainText('High Priority (Eligible)');
+    await baseline.getByRole('button', { name: 'Save the baseline result' }).click();
+    await expect(baseline).toContainText('26.92 - High Priority (Eligible)');
+    await expectNoHorizontalOverflow(page);
 });
 
 test('Kalinga forms save as the case manager types and keep their order', async ({ page }) => {

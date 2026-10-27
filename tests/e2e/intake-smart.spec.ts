@@ -19,7 +19,7 @@ test('Take photo opens the device camera in Kalinga and checks the picture', asy
     await shutter.click();
     await expect(camera).toHaveCount(0);
     expect(filePicker).toBe(false);
-    await expect(page.getByRole('img', { name: 'Photo of the signed form' })).toBeVisible();
+    await expect(page.getByRole('img', { name: 'Photo: Signed consent / assent form' })).toBeVisible();
     // The smart check reports on the picture either way.
     await expect(page.getByText(/Clear photo - ready to keep\.|Check this photo/)).toBeVisible();
     await expect(page.getByRole('checkbox', { name: 'Make the text clearer (black and white)' })).toBeVisible();

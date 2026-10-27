@@ -1,3 +1,4 @@
+import { askConfirm } from '@/utils/confirmDialog';
 import axios from 'axios';
 import { useForm, usePage } from '@inertiajs/vue3';
 import { computed, nextTick, onBeforeUnmount, reactive, ref } from 'vue';
@@ -94,11 +95,13 @@ export function useConnectWorkspace(props:CoordinationProps) {
         }finally{sending.value=false;}
     }
     async function resumeSend() {
-        if(busy.value||refreshRequired.value||!uncertainSend.value||!window.confirm('Have you reviewed the refreshed conversation and confirmed this message still needs sending? A prior send may have succeeded.'))return;
+        if(busy.value||refreshRequired.value||!uncertainSend.value)return;
+        if(!(await askConfirm({title:'Send this message again?',message:'Review the refreshed conversation first. A previous send may already have gone through.',confirmLabel:'It still needs sending'})))return;
         uncertainSend.value=false;requestError.value='';
     }
-    function discardMessage() {
-        if(busy.value||!window.confirm('Discard this unfinished message and its reply, case tag and mention selections?'))return;
+    async function discardMessage() {
+        if(busy.value)return;
+        if(!(await askConfirm({title:'Discard this unfinished message?',message:'The reply, case tag and mentions you chose are also cleared.',confirmLabel:'Discard',tone:'danger'})))return;
         composer.reset();delete drafts[draftKey()];uncertainSend.value=false;requestError.value='';
     }
     async function search() {
@@ -119,9 +122,9 @@ export function useConnectWorkspace(props:CoordinationProps) {
     }
     function reply(message:CoordinationMessage) {if(busy.value||refreshRequired.value||uncertainSend.value)return;composer.parent_id=message.id;composer.case_id=message.case_id?String(message.case_id):'';void nextTick(()=>document.getElementById('coordination-body')?.focus());}
     function captureMessage(message:CoordinationMessage) {if(busy.value||uncertainCapture.value)return;selectedMessage.value=message;capture.reset();capture.case_id=message.case_id?String(message.case_id):'';requestError.value='';}
-    function closeCapture() {
+    async function closeCapture() {
         if(capturing.value)return;
-        if(capture.professional_summary.length>0&&!window.confirm(uncertainCapture.value?'The capture may have succeeded. Close this editor and check the formal case record before another capture?':'Discard this unfinished professional summary?'))return;
+        if(capture.professional_summary.length>0&&!(await askConfirm(uncertainCapture.value?{title:'Close this editor?',message:'The capture may have succeeded. Check the formal case record before another capture.',confirmLabel:'Close the editor'}:{title:'Discard this unfinished professional summary?',confirmLabel:'Discard',tone:'danger'})))return;
         selectedMessage.value=null;capture.reset();
     }
     async function saveCapture() {

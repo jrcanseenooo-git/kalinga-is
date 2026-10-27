@@ -1,6 +1,6 @@
 # Data dictionary - Kalinga CEFMU Case Management Information System
 
-Generated from the PostgreSQL schema by scripts/generate_data_dictionary.py. 107 tables. PK = primary key; FK = references another table.
+Generated from the PostgreSQL schema by scripts/generate_data_dictionary.py. 108 tables. PK = primary key; FK = references another table.
 
 ## Clients and identity
 
@@ -611,6 +611,25 @@ Grants log per case: type, amount, date released, fund source and receiver. Wron
 | updated_at | timestamp | Yes |  | When the record was last changed. |
 
 ## Kalinga forms and KaVAT
+
+### kavat_baselines
+
+Result of the baseline KaVAT done before intake in the project's screening tool (one per case): date, empowerment and safety rates, final score, priority, notes and an optional photo of the sheet.
+
+| Column | Type | Null | Key | Description |
+|---|---|---|---|---|
+| id | bigint | No | PK | Unique record number. |
+| case_id | bigint | No | FK cases | Link to the case record (cases). |
+| administered_at | date | No |  | Date and time: administered. |
+| empowerment_rate | numeric | No |  | Empowerment rate. |
+| safety_rate | numeric | No |  | Safety rate. |
+| final_score | numeric | No |  | Final score. |
+| priority | varchar(20) | No |  | Priority (low, normal, high, urgent). |
+| notes | text | Yes |  | Notes. |
+| document_id | bigint | Yes | FK documents | Link to the document record (documents). |
+| recorded_by | bigint | No | FK users | User who recorded the record. |
+| created_at | timestamp | Yes |  | When the record was created. |
+| updated_at | timestamp | Yes |  | When the record was last changed. |
 
 ### kavat_assessments
 

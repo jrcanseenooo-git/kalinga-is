@@ -47,7 +47,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     summary: 'Overview, Client & Intake, KaVAT, Kalinga forms, Progress notes & referrals, Closure & aftercare, Documents.',
     steps: [
       'Overview shows remarks from your supervisor, the client profile, case information, the case conference card, referrals and tasks.',
-      'The Next step box at the top follows the Kalinga forms: baseline KaVAT, Case Summary Report, Intervention Plan, progress notes, then the Social Case Study Report.',
+      'The Next step box at the top follows the Kalinga forms: baseline KaVAT result, Case Summary Report, Intervention Plan, the quarterly KaVAT, progress notes, then the Social Case Study Report.',
       'KaVAT is the Kalinga Vulnerability Assessment Tool. Kalinga forms is where you write the summary, plan and case study.',
       'Progress notes & referrals holds notes, visits, referrals to CPU members and to external agencies, services provided and the grants log.',
       'Case conferences can be held at any time; open them from the case conference card on the Overview.',
@@ -58,13 +58,14 @@ export const HELP_ARTICLES: HelpArticle[] = [
     id: 'kavat', category: 'Case work', title: 'Administer the KaVAT', permission: 'cases.update',
     summary: 'The Kalinga Vulnerability Assessment Tool measures empowerment (Part 1) and objective risk (Part 2).',
     steps: [
-      'Open the case, then KaVAT. Choose the occasion (baseline, review or at closure) and the date, then Start.',
-      'Read each of the 25 statements to the child and record Oo, Hindi Sigurado or Hindi. Then answer the 9 Part 2 sections.',
+      'Baseline: the first KaVAT is done before intake in the project\'s screening tool. On the KaVAT tab, enter its date, empowerment rate and safety rate (Kalinga computes the final score and priority; check it matches the sheet) and, if you like, a photo of the sheet.',
+      'Every quarter, open the KaVAT tab: Kalinga tells you if this quarter\'s KaVAT is due and fills in the quarter. Choose Start.',
+      'Read each of the 25 statements to the child and tap Oo, Hindi Sigurado or Hindi. Then answer the 9 Part 2 sections. "Go to the next unanswered" takes you to anything you skipped.',
       'The score updates as you answer: empowerment rate, safety rate and the final protection score. Below 70 is High Priority (Eligible).',
-      'Answers save as you go. When every item is answered, choose Finalize. A finalized KaVAT cannot be changed; record a new one at review or closure to see the trend.',
+      'Answers save as you go. When every item is answered, choose Finalize. A finalized KaVAT cannot be changed. The history compares each quarter with the baseline.',
     ],
     tips: ['"Refused to Answer" is a red flag. In the sensitive sections (partner age, decision to enter the union, violence, safety) it scores the highest risk.', 'Domains rated low appear as suggested rows in the Intervention Plan.', 'No signal? The KaVAT can be answered in Field mode and is sent when you sync; finalize it online.'],
-    keywords: 'kavat vulnerability assessment tool risk empowerment safety score priority eligible domains red flag refused',
+    keywords: 'kavat vulnerability assessment tool risk empowerment safety score priority eligible domains red flag refused baseline quarterly quarter screening sheet',
   },
   {
     id: 'kalinga-forms', category: 'Case work', title: 'Write the Kalinga forms', permission: 'cases.update',

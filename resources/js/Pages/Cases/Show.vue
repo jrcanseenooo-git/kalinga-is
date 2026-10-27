@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { askConfirm } from '@/utils/confirmDialog';
 import { ageFromBirthdate, calendarDateLabel, formatPh, parseStored, philippineTimestamp } from '@/utils/philippineTime';
 import OptionSelect from '@/Components/UI/OptionSelect.vue';
 import { PARTNER_AGENCIES, PROFESSIONAL_ROLES, SHARING_PURPOSES } from '@/utils/caseOptions';
@@ -27,7 +28,7 @@ import type { CaseTask } from '@/types/casework';
 import type { Remark } from '@/types/remarks';
 import type { GrantItem } from '@/types/reports';
 import type { PageProps } from '@/types';
-import { priorityLabel, type KavatDefinition, type KavatRecord } from '@/Casework/kavat';
+import { priorityLabel, type KavatDefinition, type KavatRecord, type KavatBaseline } from '@/Casework/kavat';
 import { formHasContent, type CaseForm, type FormType, type FormsDefinition, type PlanRow } from '@/Casework/caseForms';
 import { peso } from '@/utils/reportFormat';
 
@@ -49,6 +50,7 @@ const props = defineProps<{
     remarks: Remark[];
     kavatDefinition: KavatDefinition;
     kavat: KavatRecord[];
+    kavatBaseline: KavatBaseline | null;
     formsDefinition: FormsDefinition;
     forms: Record<FormType, CaseForm>;
     formSuggestions: Record<string, string>;
@@ -166,13 +168,21 @@ const unreadRemarks = computed(() => props.remarks.filter(remark => !remark.ackn
 const formState = (type: FormType) => props.forms[type].status === 'final' ? 'final' : formHasContent(type, props.forms[type].content) ? 'draft' : 'not_started';
 const formsDone = computed(() => (['summary', 'plan', 'study'] as FormType[]).filter(type => formState(type) === 'final').length);
 
+const manilaToday = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
+const quarterOf = (date: string) => { const [year, month] = date.slice(0, 10).split('-').map(Number); return `Q${Math.floor((month - 1) / 3) + 1} ${year}`; };
+const quarterStart = (() => { const [year, month] = manilaToday.split('-').map(Number); return `${year}-${String(Math.floor((month - 1) / 3) * 3 + 1).padStart(2, '0')}-01`; })();
+/** The quarterly KaVAT is due when none was finalized this quarter and the case was opened before this quarter. */
+const quarterlyKavatDue = computed(() => !['CLOSED', 'ARCHIVED'].includes(props.caseRecord.status) && !finalKavat.value.some(item => item.administered_at.slice(0, 10) >= quarterStart)
+    && String(props.caseRecord.opened_at ?? props.caseRecord.created_at ?? manilaToday).slice(0, 10) < quarterStart);
 const smartAlerts = computed(() => {
     const alerts: { level: 'critical'|'warning'|'info'; text: string; tab?: TabKey }[] = [];
     const status = props.caseRecord.status;
     if (unreadRemarks.value.length) alerts.push({ level: 'warning', text: `${unreadRemarks.value.length} unread ${unreadRemarks.value.length === 1 ? 'remark' : 'remarks'} from your supervisor or monitors`, tab: 'overview' });
     if (latestKavat.value?.score.priority === 'high') alerts.push({ level: 'critical', text: `KaVAT protection score ${latestKavat.value.score.final_score}: High Priority`, tab: 'kavat' });
     if (latestKavat.value?.score.red_flags.length) alerts.push({ level: 'warning', text: `KaVAT red flag: the child refused to answer ${latestKavat.value.score.red_flags.length} ${latestKavat.value.score.red_flags.length === 1 ? 'question' : 'questions'}`, tab: 'kavat' });
-    if (!finalKavat.value.length && status !== 'CLOSED') alerts.push({ level: kavatDraft.value ? 'info' : 'warning', text: kavatDraft.value ? 'Finish the KaVAT in progress' : 'No baseline KaVAT recorded', tab: 'kavat' });
+    if (!props.kavatBaseline && status !== 'CLOSED') alerts.push({ level: 'warning', text: 'No baseline KaVAT result recorded - enter it from the screening tool', tab: 'kavat' });
+    if (kavatDraft.value) alerts.push({ level: 'info', text: 'Finish the KaVAT in progress', tab: 'kavat' });
+    else if (quarterlyKavatDue.value) alerts.push({ level: 'info', text: `${quarterOf(manilaToday)} quarterly KaVAT is due`, tab: 'kavat' });
     if (!['OPEN', 'CLOSED'].includes(status) && formState('plan') === 'not_started') alerts.push({ level: 'warning', text: 'No intervention plan written yet', tab: 'forms' });
     if (overdueTasks.value.length) alerts.push({ level: 'warning', text: `${overdueTasks.value.length} overdue ${overdueTasks.value.length === 1 ? 'task' : 'tasks'}` });
     const pending = props.referrals.filter((r: any) => r.status === 'PENDING' || r.status === 'SENT');
@@ -197,9 +207,11 @@ const nextStep = computed(() => {
     const status = props.caseRecord.status;
     if (status === 'CLOSED') return { text: 'Case closed. Follow the aftercare plan; reopen through the closure workspace if needed.', tab: 'closure' as TabKey };
     if (unreadRemarks.value.length) return { text: 'Read and answer the remarks from your supervisor or monitors.', tab: 'overview' as TabKey };
-    if (!finalKavat.value.length) return { text: kavatDraft.value ? 'Finish the baseline KaVAT with the child.' : 'Administer the baseline KaVAT with the child.', tab: 'kavat' as TabKey };
+    if (!props.kavatBaseline) return { text: 'Record the baseline KaVAT result from the screening tool.', tab: 'kavat' as TabKey };
+    if (kavatDraft.value) return { text: 'Finish the KaVAT in progress with the child.', tab: 'kavat' as TabKey };
     if (formState('summary') === 'not_started') return { text: 'Write the Case Summary Report.', tab: 'forms' as TabKey };
     if (formState('plan') === 'not_started') return { text: 'Write the Intervention Plan with the child and family.', tab: 'forms' as TabKey };
+    if (quarterlyKavatDue.value) return { text: `Administer the ${quarterOf(manilaToday)} quarterly KaVAT with the child.`, tab: 'kavat' as TabKey };
     if (status === 'FOR_CLOSURE_REVIEW') return { text: 'Complete the closure checklist and closure record.', tab: 'closure' as TabKey };
     if (formState('study') !== 'final' && props.notes.length >= 3) return { text: 'Write the Social Case Study Report (final report with assessment and findings).', tab: 'forms' as TabKey };
     return { text: 'Record progress notes, referrals, services and grants as the plan is carried out.', tab: 'notes' as TabKey };
@@ -243,8 +255,8 @@ const uploadDocument = () => documentUpload.post(route('cases.documents.upload',
 });
 const saveMdtAccess = () => mdtAccess.post(route('cases.mdt.access.store', props.caseRecord.id), { onSuccess: () => mdtAccess.reset() });
 const saveMdtAction = () => mdtAction.post(route('cases.mdt.actions.store', props.caseRecord.id), { onSuccess: () => mdtAction.reset() });
-const revokeMdtAccess = (id:number) => { if (window.confirm('Revoke this MDT access immediately?')) useForm({}).delete(route('cases.mdt.access.revoke',[props.caseRecord.id,id])); };
-const archiveCase = () => { if (window.confirm('Archive this case? The case will be hidden from work lists, while its client record and audit history remain preserved.')) useForm({}).delete(route('cases.destroy', props.caseRecord.id)); };
+const revokeMdtAccess = async (id:number) => { if (await askConfirm({ title: 'Revoke this MDT access now?', message: 'The member loses access to this case immediately.', confirmLabel: 'Revoke access', tone: 'danger' })) useForm({}).delete(route('cases.mdt.access.revoke',[props.caseRecord.id,id])); };
+const archiveCase = async () => { if (await askConfirm({ title: 'Archive this case?', message: 'It is hidden from work lists. The client record and audit history are kept.', confirmLabel: 'Archive', tone: 'danger' })) useForm({}).delete(route('cases.destroy', props.caseRecord.id)); };
 </script>
 
 <template>
@@ -302,7 +314,7 @@ const archiveCase = () => { if (window.confirm('Archive this case? The case will
                     </section>
 
                     <section v-show="activeSection === 'kavat'" id="case-panel-kavat" role="tabpanel" aria-labelledby="case-tab-kavat" class="scroll-mt-24 min-w-0">
-                        <KavatPanel :case-id="Number(caseRecord.id)" :definition="kavatDefinition" :records="kavat" :can-edit="canEditForms" />
+                        <KavatPanel :case-id="Number(caseRecord.id)" :definition="kavatDefinition" :records="kavat" :baseline="kavatBaseline" :can-edit="canEditForms" />
                     </section>
 
                     <section v-show="activeSection === 'forms'" id="case-panel-forms" role="tabpanel" aria-labelledby="case-tab-forms" class="scroll-mt-24 min-w-0">

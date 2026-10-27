@@ -28,6 +28,7 @@ use App\Services\RolePermissions;
 use App\Services\SmartSuggestions;
 use App\Services\WorkerTasks;
 use App\Support\AuditLog;
+use App\Support\PhilippineDate;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -351,7 +352,7 @@ class CaseworkController extends Controller
             // Detailed plans are fetched only by the dedicated scoped workspace.
             'consentForm' => $this->consentForm($case), 'relationships' => DB::table('relationships')->where('client_id', $record->client_id)->latest()->get(),
             'remarks' => app(CaseRemarks::class)->thread($case),
-            'kavatDefinition' => Kavat::definition(), 'kavat' => CaseFormController::kavatHistory($case),
+            'kavatDefinition' => Kavat::definition(), 'kavat' => CaseFormController::kavatHistory($case), 'kavatBaseline' => CaseFormController::kavatBaseline($case),
             'formsDefinition' => CaseForms::definition(), 'forms' => CaseForms::forCase($case), 'formSuggestions' => CaseForms::suggestions($record, $record),
             'grants' => CaseGrants::forCase($case) + ['types' => CaseGrants::types()],
             // Labels of the extra intake fields (answers are in caseRecord.custom_fields).
@@ -371,7 +372,7 @@ class CaseworkController extends Controller
         abort_unless($record, 404);
         $this->authorize('cases.update');
         $this->caseAccess($request, $record);
-        $data = $request->validate(['first_name' => 'required|string|max:80', 'last_name' => 'required|string|max:80', 'alias' => 'nullable|string|max:80', 'birthdate' => 'nullable|date|before_or_equal:today', 'sex' => 'nullable|in:Male,Female', 'phone' => ['nullable', 'regex:/^(?:\\+63|0)9\\d{9}$/'], 'region' => 'nullable|string|max:120', 'province' => 'nullable|string|max:120', 'municipality' => 'nullable|string|max:120', 'barangay' => 'nullable|string|max:120', 'category' => 'nullable|string|max:80', 'priority' => 'required|in:low,normal,high,urgent']);
+        $data = $request->validate(['first_name' => 'required|string|max:80', 'last_name' => 'required|string|max:80', 'alias' => 'nullable|string|max:80', 'birthdate' => 'nullable|date|before_or_equal:' . PhilippineDate::today(), 'sex' => 'nullable|in:Male,Female', 'phone' => ['nullable', 'regex:/^(?:\\+63|0)9\\d{9}$/'], 'region' => 'nullable|string|max:120', 'province' => 'nullable|string|max:120', 'municipality' => 'nullable|string|max:120', 'barangay' => 'nullable|string|max:120', 'category' => 'nullable|string|max:80', 'priority' => 'required|in:low,normal,high,urgent']);
         DB::transaction(function () use ($request, $record, $case, $data) {
             DB::table('clients')->where('id', $record->client_id)->update(collect($data)->only(['first_name', 'last_name', 'alias', 'birthdate', 'sex', 'phone', 'region', 'province', 'municipality', 'barangay'])->merge(['updated_at' => now()])->all());
             DB::table('cases')->where('id', $case)->update(['category' => $data['category'] ?? null, 'priority' => $data['priority'], 'offline_version' => DB::raw('offline_version + 1'), 'updated_at' => now()]);

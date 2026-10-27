@@ -359,6 +359,16 @@ Case folder,case_grants,,,,"Grants log per case: type, amount, date released, fu
 ,case_grants,voided_at,timestamp,,Date and time: voided.
 ,case_grants,voided_by,bigint,,Links to users. User who voided the record.
 ,case_grants,void_reason,varchar(500),,
+Kalinga forms and KaVAT,kavat_baselines,,,,"Result of the baseline KaVAT done before intake in the project's screening tool (one per case): date, empowerment and safety rates, final score, priority, notes and an optional photo of the sheet."
+,kavat_baselines,case_id,bigint,Yes,Links to cases
+,kavat_baselines,administered_at,date,Yes,Date and time: administered.
+,kavat_baselines,empowerment_rate,numeric,Yes,
+,kavat_baselines,safety_rate,numeric,Yes,
+,kavat_baselines,final_score,numeric,Yes,
+,kavat_baselines,priority,varchar(20),Yes,"Priority (low, normal, high, urgent)."
+,kavat_baselines,notes,text,,
+,kavat_baselines,document_id,bigint,,Links to documents
+,kavat_baselines,recorded_by,bigint,Yes,Links to users. User who recorded the record.
 Kalinga forms and KaVAT,kavat_assessments,,,,"Kalinga Vulnerability Assessment Tool administrations: answers (draft or final), scores, priority and red flags."
 ,kavat_assessments,case_id,bigint,Yes,Links to cases
 ,kavat_assessments,instrument_version,varchar(20),Yes,

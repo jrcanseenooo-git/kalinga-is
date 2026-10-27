@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
-import { expectNoHorizontalOverflow, login } from './helpers';
+import { expectNoHorizontalOverflow, login, acceptConfirm, dismissConfirm } from './helpers';
 
 async function open(page:Page,kind:string) {
     await login(page); await page.goto(`/cases?search=SYN-CLOSURE-UI-${kind}`);
@@ -30,12 +30,12 @@ test('real closure interface saves revisions, independently reviews, closes and 
         await login(reviewer,{email:'assessment-reviewer@kalinga.test',password:'password'});await reviewer.goto(url);
         await reviewer.getByRole('tab',{name:/^Closure & aftercare/}).click();
         const reviewPanel=reviewer.getByRole('region',{name:'Closure and aftercare workspace',exact:true});
-        reviewer.once('dialog',dialog=>dialog.accept());await reviewPanel.getByRole('button',{name:'Review saved closure record',exact:true}).click();
+        await reviewPanel.getByRole('button',{name:'Review saved closure record',exact:true}).click();await acceptConfirm(reviewer);
         await expect(reviewPanel.getByRole('status')).toContainText('Independent review recorded.');
-        reviewer.once('dialog',dialog=>dialog.accept());await reviewPanel.getByRole('button',{name:'Close reviewed case',exact:true}).click();
+        await reviewPanel.getByRole('button',{name:'Close reviewed case',exact:true}).click();await acceptConfirm(reviewer);
         await expect(reviewer.getByRole('region',{name:'Case folder summary',exact:true})).toContainText('Closed');
         await page.reload();await page.getByRole('tab',{name:/^Closure & aftercare/}).click();
-        page.once('dialog',dialog=>dialog.accept());await panel.getByRole('button',{name:'Reopen case',exact:true}).click();
+        await panel.getByRole('button',{name:'Reopen case',exact:true}).click();await acceptConfirm(page);
         await expect(page.getByRole('region',{name:'Case folder summary',exact:true})).toContainText('Reopened');
         await expect(panel.getByRole('region',{name:'Current closure record',exact:true})).toContainText('No current closure record.');
         await panel.getByRole('button',{name:/^Version 2 -/}).click();await expect(panel.getByRole('article',{name:'Selected historical closure record',exact:true})).toContainText('Synthetic revised interface closure recommendation.');
@@ -59,7 +59,7 @@ test('concurrent closure revision cannot overwrite a newer summary and requires 
     await expect(panel.getByRole('alert')).toContainText('case changed');await expect(panel.getByRole('textbox',{name:'Closure summary',exact:true})).toHaveValue('Synthetic retained stale draft.');
     await panel.getByRole('button',{name:'Refresh closure records',exact:true}).click();await expect(panel.getByRole('region',{name:'Current closure record',exact:true})).toContainText('Synthetic newer saved revision.');
     await expect(panel.getByRole('button',{name:'Save closure recommendation',exact:true})).toBeDisabled();
-    page.once('dialog',dialog=>dialog.accept());await panel.getByRole('button',{name:'Discard unfinished revision',exact:true}).click();await expect(panel.getByRole('textbox',{name:'Closure summary',exact:true})).toHaveValue('Synthetic newer saved revision.');
+    await panel.getByRole('button',{name:'Discard unfinished revision',exact:true}).click();await acceptConfirm(page);await expect(panel.getByRole('textbox',{name:'Closure summary',exact:true})).toHaveValue('Synthetic newer saved revision.');
     await expect(panel.getByRole('region',{name:'Closure version history',exact:true})).toContainText('1 records');await other.close();
 });
 
@@ -69,7 +69,7 @@ test('lost closure acknowledgement requires refresh and does not repeat a succes
     await submit(page,'Synthetic saved closure with lost acknowledgement.');await expect(panel.getByRole('alert')).toContainText('outcome could not be confirmed');
     await expect(panel.getByRole('button',{name:'Save closure recommendation',exact:true})).toBeDisabled();await page.unroute('**/cases/*/closure');
     await panel.getByRole('button',{name:'Refresh closure records',exact:true}).click();await expect(panel.getByRole('region',{name:'Current closure record',exact:true})).toContainText('Synthetic saved closure with lost acknowledgement.');
-    page.once('dialog',dialog=>dialog.accept());await panel.getByRole('button',{name:'Discard unfinished revision',exact:true}).click();expect(writes).toBe(1);
+    await panel.getByRole('button',{name:'Discard unfinished revision',exact:true}).click();await acceptConfirm(page);expect(writes).toBe(1);
     await expect(panel.getByRole('region',{name:'Closure version history',exact:true})).toContainText('1 records');
 });
 
@@ -86,7 +86,7 @@ test('acknowledged closure with failed readback blocks more writes and recovers 
 test('unfinished closure text survives section switching and cancelled navigation',async({page})=>{
     const panel=await open(page,'DENIAL');await panel.getByRole('textbox',{name:'Closure summary',exact:true}).fill('Synthetic unfinished closure retained in memory.');
     await page.getByRole('tab',{name:'Overview',exact:true}).click();await page.getByRole('tab',{name:/^Closure & aftercare/}).click();await expect(panel.getByRole('textbox',{name:'Closure summary',exact:true})).toHaveValue('Synthetic unfinished closure retained in memory.');
-    let prompted=false;page.once('dialog',async dialog=>{prompted=true;await dialog.dismiss();});await page.getByRole('link',{name:'Back to case registry',exact:true}).click();await expect.poll(()=>prompted).toBe(true);await expect(panel.getByRole('textbox',{name:'Closure summary',exact:true})).toHaveValue('Synthetic unfinished closure retained in memory.');
+    await page.getByRole('link',{name:'Back to case registry',exact:true}).click();await dismissConfirm(page);await expect(panel.getByRole('textbox',{name:'Closure summary',exact:true})).toHaveValue('Synthetic unfinished closure retained in memory.');
 });
 
 test('confirmed closure access denial clears unfinished narratives before reauthorizing the page',async({page})=>{

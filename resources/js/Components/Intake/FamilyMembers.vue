@@ -10,7 +10,7 @@ import OptionSelect from '@/Components/UI/OptionSelect.vue';
 import AddressFields from '@/Components/Intake/AddressFields.vue';
 import { emptyFamilyMember, isEmptyFamilyMember, tidyName, type FamilyMember } from '@/Casework/intake';
 import { CIVIL_STATUSES, EDUCATION_LEVELS, OCCUPATIONS, RELATIONSHIPS } from '@/utils/caseOptions';
-import { ageFromBirthdate } from '@/utils/philippineTime';
+import { ageFromBirthdate, manilaToday } from '@/utils/philippineTime';
 import { ChevronDown, Plus, Sparkles, Trash2, UserRound } from '@lucide/vue';
 import { computed, nextTick, ref, watch } from 'vue';
 
@@ -18,7 +18,7 @@ const members = defineModel<FamilyMember[]>({ required: true });
 const props = defineProps<{ childAddress: string; caregiver?: { name: string; relationship: string }; errors?: Record<string, string>; reveal?: number | null }>();
 const open = ref<number | null>(null);
 const notice = ref('');
-const todayIso = new Date().toISOString().slice(0, 10);
+const todayIso = manilaToday();
 
 async function openCard(index: number) {
     open.value = index;

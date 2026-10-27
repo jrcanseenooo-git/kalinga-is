@@ -10,6 +10,7 @@ use App\Services\LguAssignmentScope;
 use App\Services\OperationalNotification;
 use App\Services\ReferenceNumberService;
 use App\Support\AuditLog;
+use App\Support\PhilippineDate;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -83,7 +84,7 @@ class OfflineSyncController extends Controller
                     'narrative' => 'required|string|max:5000', 'source' => 'required|string|max:100', 'source_other' => 'nullable|string|max:255',
                     'reporter_name' => 'nullable|string|max:255', 'reporter_contact' => 'nullable|string|max:100',
                     'subject_first' => 'nullable|string|max:80', 'subject_last' => 'nullable|string|max:80', 'subject_middle' => 'nullable|string|max:80',
-                    'subject_birthdate' => 'nullable|date|before_or_equal:today', 'subject_age' => 'nullable|integer|min:0|max:25', 'subject_sex' => 'nullable|string|max:24',
+                    'subject_birthdate' => 'nullable|date|before_or_equal:' . PhilippineDate::today(), 'subject_age' => 'nullable|integer|min:0|max:25', 'subject_sex' => 'nullable|string|max:24',
                     'category' => 'nullable|string|max:100', 'region' => 'nullable|string|max:120', 'province' => 'nullable|string|max:120',
                     'municipality' => 'required|string|max:120', 'barangay' => 'nullable|string|max:120',
                     'latitude' => 'nullable|numeric|between:-90,90', 'longitude' => 'nullable|numeric|between:-180,180', 'geo_accuracy_m' => 'nullable|numeric|min:0', 'geo_source' => 'nullable|string|max:40',
@@ -159,7 +160,7 @@ class OfflineSyncController extends Controller
         }
 
         $kavat = validator($payload, ['kavat_id' => 'nullable|integer|min:1', 'revision' => 'required|integer|min:0', 'answers' => 'required|array', 'notes' => 'nullable|string|max:5000',
-            'occasion' => ['required', Rule::in(array_keys(Kavat::OCCASIONS))], 'administered_at' => 'required|date|before_or_equal:today'])->validate();
+            'occasion' => ['required', Rule::in(array_keys(Kavat::OCCASION_LABELS))], 'administered_at' => 'required|date|before_or_equal:' . PhilippineDate::today()])->validate();
         $answers = Kavat::cleanAnswers($kavat['answers']);
         $id = $kavat['kavat_id'] ?? null;
         if (!$id) {

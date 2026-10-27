@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
-import { login, expectNoHorizontalOverflow } from './helpers';
+import { login, expectNoHorizontalOverflow, acceptConfirm } from './helpers';
 
 test('Connect loads older authorized history and searches without query text in URLs', async ({ page }) => {
     await login(page, { email: 'cpu@kalinga.test', password: 'password' });
@@ -56,8 +56,7 @@ test('Connect keeps a failed send in the composer and allows recovery', async ({
     await page.unroute('**/cpu/coordination/*/messages');
     // An unconfirmed send is never retried automatically: refresh, review, then allow the send.
     await page.getByRole('button', { name: 'Refresh conversation', exact: true }).click();
-    page.once('dialog', dialog => dialog.accept());
-    await page.getByRole('button', { name: 'Review complete - allow send', exact: true }).click();
+    await page.getByRole('button', { name: 'Review complete - allow send', exact: true }).click();await acceptConfirm(page);
     await page.getByRole('button', { name: 'Send message', exact: true }).click();
     await page.locator('#generic-submit-confirm').click();
     await expect(page.getByRole('region', { name: 'Coordination messages', exact: true })).toContainText('Synthetic connection recovery');

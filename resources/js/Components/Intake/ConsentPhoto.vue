@@ -17,7 +17,8 @@ import { computed, ref } from 'vue';
 
 const photo = defineModel<string>('photo', { default: '' });
 const type = defineModel<string>('type', { default: '' });
-const props = withDefaults(defineProps<{ error?: string; typeError?: string; optional?: boolean; idPrefix?: string }>(), { optional: true, idPrefix: 'intake' });
+const props = withDefaults(defineProps<{ error?: string; typeError?: string; optional?: boolean; idPrefix?: string; heading?: string; description?: string; withType?: boolean }>(),
+    { optional: true, idPrefix: 'intake', heading: 'Signed consent / assent form', description: 'Take a clear photo of the signed form. It is kept in the case folder and seen only by the case team. Location and camera details are removed.', withType: true });
 
 const MAX_SIDE = 1800;
 const working = ref(false);
@@ -63,7 +64,7 @@ function accept(source: HTMLCanvasElement | ImageBitmap) {
     // Smart default: faint writing is made clearer automatically.
     clearer.value = report.value.issues.includes('low_contrast');
     render();
-    if (!type.value) type.value = 'consent';
+    if (props.withType && !type.value) type.value = 'consent';
 }
 
 function render() {
@@ -118,11 +119,11 @@ const retake = () => { remove(); takePhoto(); };
 
 <template>
     <section class="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5" :aria-labelledby="`${idPrefix}-consent-photo-title`">
-        <h3 :id="`${idPrefix}-consent-photo-title`" class="text-base font-bold text-slate-900">Signed consent / assent form <span v-if="optional" class="font-normal text-slate-600">(optional)</span></h3>
-        <p class="mt-1 text-sm leading-6 text-slate-700">Take a clear photo of the signed form. It is kept in the case folder and seen only by the case team. Location and camera details are removed.</p>
+        <h3 :id="`${idPrefix}-consent-photo-title`" class="text-base font-bold text-slate-900">{{ heading }} <span v-if="optional" class="font-normal text-slate-600">(optional)</span></h3>
+        <p class="mt-1 text-sm leading-6 text-slate-700">{{ description }}</p>
 
         <div v-if="photo" class="mt-4 grid gap-4 sm:grid-cols-[minmax(0,14rem)_minmax(0,1fr)]">
-            <img :src="photo" alt="Photo of the signed form" class="max-h-72 w-full rounded-xl border border-slate-200 bg-slate-50 object-contain">
+            <img :src="photo" :alt="`Photo: ${heading}`" class="max-h-72 w-full rounded-xl border border-slate-200 bg-slate-50 object-contain">
             <div class="min-w-0 space-y-3">
                 <div v-if="report" class="rounded-xl border p-3 text-sm" :class="report.good ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : 'border-amber-300 bg-amber-50 text-amber-950'" role="status">
                     <p class="flex items-center gap-2 font-semibold"><component :is="report.good ? CheckCircle2 : AlertTriangle" class="h-5 w-5 shrink-0" aria-hidden="true" />{{ report.good ? 'Clear photo - ready to keep.' : 'Check this photo' }}</p>
@@ -131,7 +132,7 @@ const retake = () => { remove(); takePhoto(); };
                 <label class="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-slate-200 px-3 text-sm font-medium">
                     <input v-model="clearer" type="checkbox" class="h-5 w-5 rounded border-slate-400 text-brand-700" @change="render">Make the text clearer (black and white)
                 </label>
-                <label class="block text-sm font-semibold text-slate-800" :for="typeId">This photo shows
+                <label v-if="withType" class="block text-sm font-semibold text-slate-800" :for="typeId">This photo shows
                     <select :id="typeId" v-model="type" class="ui-field mt-1" :aria-invalid="Boolean(typeError) || undefined">
                         <option value="consent">Consent form (parent or guardian)</option>
                         <option value="assent">Assent form (child)</option>

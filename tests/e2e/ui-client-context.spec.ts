@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
-import { login, expectNoHorizontalOverflow } from './helpers';
+import { login, expectNoHorizontalOverflow, dismissConfirm } from './helpers';
 
 async function openContext(page: Page) {
     await login(page);
@@ -57,7 +57,7 @@ test('support relationship persists and the signed consent form can be added lat
     await consent.getByRole('button', { name: 'Add the signed form', exact: true }).click();
     const png = await page.evaluate(() => { const canvas = document.createElement('canvas'); canvas.width = 800; canvas.height = 1100; const context = canvas.getContext('2d')!; context.fillStyle = '#fff'; context.fillRect(0, 0, 800, 1100); context.fillStyle = '#111'; for (let y = 80; y < 1000; y += 40) context.fillRect(60, y, 600, 6); return canvas.toDataURL('image/png').split(',')[1]; });
     await consent.locator('input[type=file]:not([capture])').setInputFiles({ name: 'form.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64') });
-    await expect(consent.getByRole('img', { name: 'Photo of the signed form' })).toBeVisible();
+    await expect(consent.getByRole('img', { name: 'Photo: Signed consent / assent form' })).toBeVisible();
     await consent.getByRole('combobox', { name: 'This photo shows', exact: true }).selectOption('assent');
     await submit(page, consent, 'Save the photo');
     await expect(panel.getByRole('status').filter({ hasText: 'Signed form attached to the case.' })).toBeVisible();
@@ -76,9 +76,7 @@ test('client context unfinished work survives activity changes and cancelled lea
     await page.getByRole('tab', { name: 'Client & Intake', exact: true }).click();
     await panel.getByRole('button', { name: 'Household & support', exact: true }).click();
     await expect(panel.getByRole('textbox', { name: "Person's name", exact: true })).toHaveValue('Synthetic unfinished support');
-    let prompted = false; page.once('dialog', async dialog => { prompted = true; await dialog.dismiss(); });
-    await page.getByRole('link', { name: 'Back to case registry', exact: true }).click();
-    await expect.poll(() => prompted).toBe(true); await expect(page).toHaveURL(url);
+    await page.getByRole('link', { name: 'Back to case registry', exact: true }).click();await dismissConfirm(page); await expect(page).toHaveURL(url);
     await expect(panel.getByRole('textbox', { name: "Person's name", exact: true })).toHaveValue('Synthetic unfinished support');
 });
 

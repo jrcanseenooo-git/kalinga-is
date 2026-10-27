@@ -67,13 +67,17 @@ class SmartSuggestions
             }
         }
 
-        // 2. KaVAT: none finalized yet (urgent when the intake rated the risk high or critical).
-        $kavatDone = DB::table('kavat_assessments')->whereIn('case_id', $caseIds)->where('status', 'final')->distinct()->pluck('case_id')->all();
+        // 2. KaVAT. The baseline is done before intake in the project's separate tool:
+        // remind to record its result. The KaVAT in Kalinga is quarterly.
+        $withBaseline = DB::table('kavat_baselines')->whereIn('case_id', $caseIds)->pluck('case_id')->all();
         $kavatDraft = DB::table('kavat_assessments')->whereIn('case_id', $caseIds)->where('status', 'draft')->distinct()->pluck('case_id')->all();
-        foreach (DB::table('cases')->whereIn('id', $caseIds)->whereNotIn('id', $kavatDone)->get(['id', 'initial_risk_level']) as $case) {
-            $high = in_array($case->initial_risk_level, ['high', 'critical'], true);
-            $add('kavat', $high ? 'urgent' : 'action', (int) $case->id, in_array($case->id, $kavatDraft) ? 'Finish the baseline KaVAT' : 'Administer the baseline KaVAT',
-                $high ? 'The intake rated the risk ' . $case->initial_risk_level . '.' : 'Every case starts with a KaVAT.', 'kavat');
+        foreach (DB::table('cases')->whereIn('id', $caseIds)->whereNotIn('id', $withBaseline)->get(['id']) as $case) {
+            $add('kavat', 'action', (int) $case->id, 'Record the baseline KaVAT result', 'Enter the scores from the baseline KaVAT done before intake.', 'kavat');
+        }
+        $quarter = Kavat::quarterLabel(now('Asia/Manila')->toDateString());
+        foreach (Kavat::quarterlyDue(collect($caseIds)->map(fn ($id) => (int) $id)->values()->all()) as $caseId) {
+            $add('kavat', 'action', $caseId, in_array($caseId, $kavatDraft) ? "Finish the {$quarter} KaVAT" : "Quarterly KaVAT due ({$quarter})",
+                'Administer this quarter\'s KaVAT with the child.', 'kavat');
         }
         // 3. Remarks from the supervisor or monitors not yet read.
         foreach (DB::table('case_remarks')->whereIn('case_id', $caseIds)->whereNull('parent_id')->whereNull('acknowledged_at')->select('case_id', DB::raw('COUNT(*) as total'))->groupBy('case_id')->get() as $row) {

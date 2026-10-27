@@ -13,7 +13,7 @@ import TextSizeControl from '@/Components/UI/TextSizeControl.vue';
 import { CEFMU_CLASSIFICATIONS, FORMAL_MARRIAGE_FORMS, INFORMAL_UNION_FORM, MARRIAGE_CLASSIFICATIONS, RESIDENCES, UNION_CLASSIFICATIONS, UNION_STATUSES } from '@/data/cefmu';
 import { CIVIL_STATUSES, DISABILITY_TYPES, EDUCATION_LEVELS, IP_MEMBERSHIP, REFERRAL_SOURCES, RELATIONSHIPS, RELIGIONS } from '@/utils/caseOptions';
 import { intakeGuidance } from '@/utils/intakeGuidance';
-import { ageFromBirthdate } from '@/utils/philippineTime';
+import { ageFromBirthdate, manilaToday } from '@/utils/philippineTime';
 import { maskedName } from '@/utils/clientName';
 import { CircleAlert, Info, TriangleAlert } from '@lucide/vue';
 import { computed, nextTick, ref, watch } from 'vue';
@@ -33,7 +33,7 @@ const stepErrors = ref<Record<string, string>>({});
 const errors = computed(() => ({ ...(props.serverErrors ?? {}), ...stepErrors.value }));
 const root = ref<HTMLElement | null>(null);
 const summary = ref<HTMLElement | null>(null);
-const todayIso = new Date().toISOString().slice(0, 10);
+const todayIso = manilaToday();
 /** The answers; the page may swap in another object (for example a recovered draft). */
 const d = computed(() => props.data);
 
