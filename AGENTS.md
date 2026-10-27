@@ -51,6 +51,8 @@ Keep code production-quality: focused components/services, typed TypeScript, cle
 
 ## Progress reporting
 
+AI agents: read and update `_agent-memory/PROJECT-MEMORY.md` (plan, progress, next steps) after each finished task. <!-- agent-memory: delete this line together with the _agent-memory folder at turnover -->
+
 For substantive work, report: what was reviewed, problem found, changes and rationale, affected files/modules, database impact, UX impact, security/privacy considerations, tests and results, known limitations/assumptions, owner-review flags, and the recommended next work.
 
 Do not push, deploy externally, connect/create a Git remote, or destructively alter a legacy/reference system or original data without explicit owner authorization.
