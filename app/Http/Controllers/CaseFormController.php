@@ -7,6 +7,8 @@ use App\Services\CaseForms;
 use App\Services\CaseGrants;
 use App\Services\ConsentFormImage;
 use App\Services\Kavat;
+use App\Services\OperationalNotification;
+use App\Services\Supervisors;
 use App\Support\AuditLog;
 use App\Support\PhilippineDate;
 use Illuminate\Http\Request;
@@ -50,6 +52,18 @@ class CaseFormController extends Controller
         abort_unless(isset(CaseForms::TYPES[$type]), 404);
         $this->writable($request, $case);
         $version = CaseForms::finalize($case, $type, $request->user()->id);
+        if ($type === 'plan' && $version === 1) {
+            // Submission of the Intervention Plan: the supervisor sees how long it took (target: 7 days from intake).
+            $record = DB::table('cases')->find($case);
+            $deadline = CaseForms::planDeadline($record);
+            $timing = $deadline['days_to_submit'] <= CaseForms::PLAN_DUE_DAYS ? 'on time' : ($deadline['days_to_submit'] - CaseForms::PLAN_DUE_DAYS) . ' day(s) late';
+            foreach (Supervisors::forLgu($record->lgu_id) as $supervisor) {
+                if ($supervisor !== $request->user()->id) {
+                    app(OperationalNotification::class)->send($supervisor, 'plan_submitted', 'Intervention Plan submitted',
+                        "{$record->case_number} - submitted {$deadline['days_to_submit']} day(s) after intake ({$timing})", "/cases/{$case}?section=forms");
+                }
+            }
+        }
 
         return back()->with('success', CaseForms::TYPES[$type] . " finalized as version {$version}. You can keep updating it; the next finalize makes a new version.");
     }

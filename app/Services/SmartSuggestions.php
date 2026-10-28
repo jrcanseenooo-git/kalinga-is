@@ -95,8 +95,16 @@ class SmartSuggestions
         foreach (DB::table('cases')->whereIn('id', $caseIds)->where('opened_at', '<', now()->subDays(7))->whereNotIn('id', $written['summary'] ?? [])->get(['id']) as $case) {
             $add('forms', 'action', (int) $case->id, 'Write the Case Summary Report', 'The case was opened over a week ago.', 'forms');
         }
-        foreach (DB::table('cases')->whereIn('id', $caseIds)->where('opened_at', '<', now()->subDays(14))->whereNotIn('id', $written['plan'] ?? [])->get(['id']) as $case) {
-            $add('forms', 'action', (int) $case->id, 'Write the Intervention Plan', 'The case was opened over two weeks ago and has no plan yet.', 'forms');
+        // Intervention Plan: submitted (finalized) within 7 days of the intake; reminded 2 days before.
+        $submitted = DB::table('case_form_versions')->whereIn('case_id', $caseIds)->where('form_type', 'plan')->distinct()->pluck('case_id')->all();
+        foreach (DB::table('cases')->whereIn('id', $caseIds)->whereNotIn('id', $submitted)->get(['id', 'intake_completed_at', 'opened_at', 'created_at']) as $case) {
+            $deadline = CaseForms::planDeadline($case);
+            if (!$deadline['overdue'] && $deadline['days_left'] > 2) {
+                continue; // The case page shows the due date; the reminder starts 2 days before.
+            }
+            $due = Carbon::parse($deadline['due'])->format('M j');
+            $add('forms', $deadline['overdue'] ? 'urgent' : 'action', (int) $case->id, $deadline['overdue'] ? 'Intervention Plan overdue' : 'Submit the Intervention Plan',
+                $deadline['overdue'] ? "It was due {$due}, 7 days after the intake." : "Finalize it by {$due} (7 days after the intake).", 'forms');
         }
 
         // 4. No progress note in 30 days.

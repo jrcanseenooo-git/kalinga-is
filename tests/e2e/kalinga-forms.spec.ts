@@ -103,13 +103,13 @@ test('Kalinga forms save as the case manager types and keep their order', async 
 
 test('grants log records a grant and totals it', async ({ page }) => {
     await openCase(page);
-    await page.getByRole('tab', { name: /^Progress notes & referrals/ }).click();
+    await page.getByRole('tab', { name: /^Progress notes/ }).click();
     const grants = page.getByRole('region', { name: 'Grants log' });
     await grants.getByRole('button', { name: 'Record a grant' }).click();
     await grants.getByLabel('Type of grant').selectOption({ label: 'Educational assistance' });
     await grants.getByLabel('Amount (PHP)').fill('2500');
     await grants.getByRole('button', { name: 'Save grant' }).click();
     await expect(grants.getByRole('table')).toContainText('Educational assistance');
-    await expect(page.getByRole('heading', { name: 'Referrals to CPU members', exact: false })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Referrals to external agencies', exact: false })).toBeVisible();
+    // Referrals moved to the Intervention Plan and Referrals form.
+    await expect(page.locator('#case-panel-notes').getByRole('heading', { name: /Referrals to CPU members/ })).toHaveCount(0);
 });

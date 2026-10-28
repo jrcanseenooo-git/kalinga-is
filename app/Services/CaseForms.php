@@ -3,9 +3,11 @@
 namespace App\Services;
 
 use App\Support\AuditLog;
+use App\Support\PhilippineDate;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -39,8 +41,19 @@ final class CaseForms
      */
     public const CARRY_FROM_SUMMARY = ['presented_problem' => 'presenting_problem', 'background_client' => 'case_history', 'assessment' => 'assessment', 'recommendations' => 'recommendations'];
 
+    /** Printed columns of the Intervention Plan matrix. */
     public const PLAN_COLUMNS = ['problem' => 'Problem / need', 'objective' => 'Objective', 'activities' => 'Activities', 'responsible' => 'Person/s responsible',
         'timeframe' => 'Time frame', 'expected_output' => 'Expected output'];
+
+    /**
+     * Status of a plan row (not printed). Target start / end dates are also
+     * kept per row, for the calendar and for monitoring only (owner,
+     * 2026-10-28): the printed plan shows the free-text Time frame.
+     */
+    public const PLAN_ROW_STATUSES = ['not_started' => 'Not started', 'in_progress' => 'In progress', 'done' => 'Done'];
+
+    /** The Intervention Plan is submitted (first finalized) within this many days of the intake. */
+    public const PLAN_DUE_DAYS = 7;
 
     /** type => list of [key, title, kind (text|auto), guide] */
     private const SECTIONS = [
@@ -153,6 +166,20 @@ final class CaseForms
                     }
                     $clean[$column] = $value;
                 }
+                $id = (string) ($row['id'] ?? '');
+                $clean['id'] = preg_match('/^[A-Za-z0-9-]{1,40}$/', $id) ? $id : (string) Str::uuid();
+                $status = (string) ($row['status'] ?? 'not_started');
+                $clean['status'] = isset(self::PLAN_ROW_STATUSES[$status]) ? $status : 'not_started';
+                foreach (['target_start', 'target_end'] as $key) {
+                    $date = (string) ($row[$key] ?? '');
+                    if ($date !== '' && (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) || !strtotime($date))) {
+                        $fail('Target dates must be valid dates.');
+                    }
+                    $clean[$key] = $date;
+                }
+                if ($clean['target_start'] !== '' && $clean['target_end'] !== '' && $clean['target_end'] < $clean['target_start']) {
+                    $fail('The target end date cannot be before the start date.');
+                }
 
                 return $clean;
             }, $rows))];
@@ -219,10 +246,33 @@ final class CaseForms
         });
     }
 
+    /**
+     * The 7-day deadline of the Intervention Plan: due date (from the intake),
+     * when the first version was finalized (submitted) and how long it took.
+     *
+     * @return array{due: string, submitted_at: ?string, days_to_submit: ?int, days_left: ?int, overdue: bool}
+     */
+    public static function planDeadline(object $case): array
+    {
+        $intake = Carbon::parse($case->intake_completed_at ?? $case->opened_at ?? $case->created_at ?? now())->timezone('Asia/Manila')->startOfDay();
+        $due = $intake->copy()->addDays(self::PLAN_DUE_DAYS);
+        $submitted = DB::table('case_form_versions')->where('case_id', $case->id)->where('form_type', 'plan')->orderBy('version')->value('created_at');
+        $today = Carbon::parse(PhilippineDate::today(), 'Asia/Manila');
+        $submittedDay = $submitted ? Carbon::parse($submitted)->timezone('Asia/Manila')->startOfDay() : null;
+
+        return [
+            'due' => $due->toDateString(),
+            'submitted_at' => $submitted ? Carbon::parse($submitted)->toIso8601String() : null,
+            'days_to_submit' => $submittedDay ? (int) $intake->diffInDays($submittedDay) : null,
+            'days_left' => $submittedDay ? null : (int) $today->diffInDays($due, false),
+            'overdue' => !$submittedDay && $today->gt($due),
+        ];
+    }
+
     public static function hasContent(string $type, array $content): bool
     {
         if ($type === 'plan') {
-            return collect($content['rows'] ?? [])->contains(fn ($row) => trim(implode('', (array) $row)) !== '');
+            return collect($content['rows'] ?? [])->contains(fn ($row) => trim(implode('', array_intersect_key((array) $row, self::PLAN_COLUMNS))) !== '');
         }
 
         return collect($content['sections'] ?? [])->contains(fn ($text) => trim((string) $text) !== '');

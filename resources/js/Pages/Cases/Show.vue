@@ -12,7 +12,6 @@ import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import CaseClientContextPanel from '@/Components/CaseClientContextPanel.vue';
 import CaseServicesPanel from '@/Components/CaseServicesPanel.vue';
-import ReferralStatusForm from '@/Components/Referrals/ReferralStatusForm.vue';
 import CaseClosurePanel from '@/Components/CaseClosurePanel.vue';
 import CaseProfileOverview from '@/Components/CaseProfileOverview.vue';
 import KavatPanel from '@/Components/Kavat/KavatPanel.vue';
@@ -29,7 +28,7 @@ import type { Remark } from '@/types/remarks';
 import type { GrantItem } from '@/types/reports';
 import type { PageProps } from '@/types';
 import { priorityLabel, type KavatDefinition, type KavatRecord, type KavatBaseline } from '@/Casework/kavat';
-import { formHasContent, type CaseForm, type FormType, type FormsDefinition, type PlanRow } from '@/Casework/caseForms';
+import { formHasContent, type CaseForm, type FormType, type FormsDefinition, type PlanDeadline } from '@/Casework/caseForms';
 import { peso } from '@/utils/reportFormat';
 
 const props = defineProps<{
@@ -43,6 +42,7 @@ const props = defineProps<{
     servicesProvided?: any[];
     cpuMembers?: { id: number; name: string; cpu_role: string; position: string | null; has_account: boolean }[];
     hasSharingConsent?: boolean;
+    planDeadline?: PlanDeadline | null;
     visits: MonitoringVisit[];
     documents: any[];
     consentForm: ConsentForm;
@@ -80,15 +80,16 @@ const mdtAction = useForm({ mdt_access_id: '' as string | number, title: '', ins
 /**
  * Case workspace tabs. The earlier 7-step journey, the Safety & risk,
  * Assessment, Case plan and Services tabs were replaced: safety is the KaVAT,
- * assessment and planning are written in the Kalinga forms, and services and
- * referrals are recorded with the progress notes.
+ * assessment and planning are written in the Kalinga forms, referrals are
+ * conducted from the Intervention Plan (Kalinga forms) and services and grants
+ * are recorded with the progress notes, which also log every referral.
  */
 const workspaceTabs = [
     { key: 'overview', label: 'Overview' },
     { key: 'people', label: 'Client & Intake' },
     { key: 'kavat', label: 'KaVAT' },
     { key: 'forms', label: 'Kalinga forms' },
-    { key: 'notes', label: 'Progress notes & referrals' },
+    { key: 'notes', label: 'Progress notes' },
     { key: 'closure', label: 'Closure & aftercare' },
     { key: 'records', label: 'Documents' },
 ] as const;
@@ -123,9 +124,12 @@ onMounted(() => {
     const wanted = resolveTab(new URLSearchParams(window.location.search).get('section') ?? '');
     if (wanted) activeSection.value = wanted;
 });
-const monitoringPanel = ref<{ compose: (kind: 'referral_cpu' | 'referral_external' | 'service_delivery') => void } | null>(null);
+const monitoringPanel = ref<{ compose: (kind: 'service_delivery') => void } | null>(null);
 /** Referrals and services are written as progress notes. */
-async function composeNote(kind: 'referral_cpu' | 'referral_external' | 'service_delivery') { activeSection.value = 'notes'; await nextTick(); monitoringPanel.value?.compose(kind); }
+async function composeNote(kind: 'service_delivery') { activeSection.value = 'notes'; await nextTick(); monitoringPanel.value?.compose(kind); }
+const formsPanel = ref<{ openForm: (type: FormType) => Promise<void> } | null>(null);
+/** Referrals live with the Intervention Plan. */
+async function openPlanReferrals() { await openSection('forms'); await formsPanel.value?.openForm('plan'); }
 
 const orderedCaseTasks = computed(() => [...props.tasks].sort((left, right) => {
     const stateOrder = Number(right.status === 'open') - Number(left.status === 'open');
@@ -181,10 +185,13 @@ const smartAlerts = computed(() => {
     if (!props.kavatBaseline && status !== 'CLOSED') alerts.push({ level: 'warning', text: 'No baseline KaVAT result recorded - enter it from the screening tool', tab: 'kavat' });
     if (kavatDraft.value) alerts.push({ level: 'info', text: 'Finish the KaVAT in progress', tab: 'kavat' });
     else if (endlineDue.value) alerts.push({ level: 'warning', text: 'Administer the Endline KaVAT before closing the case', tab: 'kavat' });
-    if (!['OPEN', 'CLOSED'].includes(status) && formState('plan') === 'not_started') alerts.push({ level: 'warning', text: 'No intervention plan written yet', tab: 'forms' });
+    if (status !== 'CLOSED' && props.planDeadline && !props.planDeadline.submitted_at) {
+        if (props.planDeadline.overdue) alerts.push({ level: 'critical', text: `Intervention Plan overdue - it was due ${calendarDateLabel(props.planDeadline.due)} (7 days after intake)`, tab: 'forms' });
+        else if ((props.planDeadline.days_left ?? 99) <= 2) alerts.push({ level: 'warning', text: `Submit the Intervention Plan by ${calendarDateLabel(props.planDeadline.due)}`, tab: 'forms' });
+    }
     if (overdueTasks.value.length) alerts.push({ level: 'warning', text: `${overdueTasks.value.length} overdue ${overdueTasks.value.length === 1 ? 'task' : 'tasks'}` });
     const pending = props.referrals.filter((r: any) => r.status === 'PENDING' || r.status === 'SENT');
-    if (pending.length) alerts.push({ level: 'info', text: `${pending.length} ${pending.length === 1 ? 'referral' : 'referrals'} awaiting response`, tab: 'notes' });
+    if (pending.length) alerts.push({ level: 'info', text: `${pending.length} ${pending.length === 1 ? 'referral' : 'referrals'} awaiting response`, tab: 'forms' });
     if (!props.consentForm.document_id) alerts.push({ level: 'info', text: 'No photo of the signed consent / assent form - add it in Client & Intake', tab: 'people' });
     if (status === 'FOR_CLOSURE_REVIEW') alerts.push({ level: 'warning', text: 'Case is for closure review - check the closure checklist', tab: 'closure' });
     return alerts;
@@ -208,19 +215,11 @@ const nextStep = computed(() => {
     if (!props.kavatBaseline) return { text: 'Record the baseline KaVAT result from the screening tool.', tab: 'kavat' as TabKey };
     if (kavatDraft.value) return { text: 'Finish the KaVAT in progress with the child.', tab: 'kavat' as TabKey };
     if (formState('summary') === 'not_started') return { text: 'Write the Case Summary Report.', tab: 'forms' as TabKey };
-    if (formState('plan') === 'not_started') return { text: 'Write the Intervention Plan with the child and family.', tab: 'forms' as TabKey };
+    if (!props.planDeadline?.submitted_at) return { text: `Write and finalize the Intervention Plan with the child and family${props.planDeadline ? ` by ${calendarDateLabel(props.planDeadline.due)}` : ''}.`, tab: 'forms' as TabKey };
     if (endlineDue.value) return { text: 'Administer the Endline KaVAT with the child.', tab: 'kavat' as TabKey };
     if (status === 'FOR_CLOSURE_REVIEW') return { text: 'Complete the closure checklist and closure record.', tab: 'closure' as TabKey };
     if (formState('study') !== 'final' && props.notes.length >= 3) return { text: 'Write the Social Case Study Report (final report with assessment and findings).', tab: 'forms' as TabKey };
-    return { text: 'Record progress notes, referrals, services and grants as the plan is carried out.', tab: 'notes' as TabKey };
-});
-
-/** Rows the Intervention Plan can start from: KaVAT domains rated low and refused questions. */
-const planSuggestions = computed<PlanRow[]>(() => {
-    if (!latestKavat.value) return [];
-    const rows: PlanRow[] = latestKavat.value.score.domains.filter(domain => domain.level === 0).map(domain => ({ problem: `${domain.title} (KaVAT: low)`, objective: '', activities: '', responsible: '', timeframe: '', expected_output: '' }));
-    for (const flag of latestKavat.value.score.red_flags.filter(item => item.sensitive)) rows.push({ problem: `Follow up: ${flag.title} (refused in KaVAT)`, objective: '', activities: '', responsible: '', timeframe: '', expected_output: '' });
-    return rows;
+    return { text: 'Carry out the plan: conduct referrals from the plan, record progress notes, services and grants.', tab: 'notes' as TabKey };
 });
 
 /** Closure checklist: guidance from the record, not a gate. */
@@ -228,7 +227,7 @@ const closureChecklist = computed(() => [
     { done: finalKavat.value.some(item => item.occasion === 'closure'), text: 'KaVAT administered at closure', detail: latestKavat.value ? `Latest: ${latestKavat.value.score.final_score} (${priorityLabel(latestKavat.value.score.priority)})` : 'No KaVAT yet', tab: 'kavat' as TabKey },
     { done: formState('plan') === 'final', text: 'Intervention Plan finalized', detail: formState('plan') === 'draft' ? 'Draft' : formState('plan') === 'final' ? 'Finalized' : 'Not started', tab: 'forms' as TabKey },
     { done: formState('study') === 'final', text: 'Social Case Study Report finalized', detail: formState('study') === 'draft' ? 'Draft' : formState('study') === 'final' ? 'Finalized' : 'Not started', tab: 'forms' as TabKey },
-    { done: openReferrals.value.length === 0, text: 'No unfinished referrals', detail: openReferrals.value.length ? `${openReferrals.value.length} still open` : 'All referrals completed or closed', tab: 'notes' as TabKey },
+    { done: openReferrals.value.length === 0, text: 'No unfinished referrals', detail: openReferrals.value.length ? `${openReferrals.value.length} still open` : 'All referrals completed or closed', tab: 'forms' as TabKey },
     { done: openTasks.value.length === 0, text: 'No open tasks', detail: openTasks.value.length ? `${openTasks.value.length} open` : 'All tasks done', tab: 'overview' as TabKey },
     { done: unreadRemarks.value.length === 0, text: 'All remarks read', detail: unreadRemarks.value.length ? `${unreadRemarks.value.length} unread` : 'None waiting', tab: 'overview' as TabKey },
 ]);
@@ -328,15 +327,15 @@ const archiveCase = async () => { if (await askConfirm({ title: 'Archive this ca
                     </section>
 
                     <section v-show="activeSection === 'forms'" id="case-panel-forms" role="tabpanel" aria-labelledby="case-tab-forms" class="scroll-mt-24 min-w-0">
-                        <CaseFormsPanel :case-id="Number(caseRecord.id)" :definition="formsDefinition" :forms="forms" :suggestions="formSuggestions" :can-edit="canEditForms"
+                        <CaseFormsPanel ref="formsPanel" :case-id="Number(caseRecord.id)" :definition="formsDefinition" :forms="forms" :suggestions="formSuggestions" :can-edit="canEditForms"
                             :intake-at="caseRecord.intake_completed_at ?? caseRecord.opened_at ?? null" :note-count="notes.filter(note => note.record_type !== 'addendum').length"
-                            :last-note-at="notes[0]?.occurred_at ?? notes[0]?.created_at ?? null" :plan-suggestions="planSuggestions" @open-notes="openSection('notes')" />
+                            :last-note-at="notes[0]?.occurred_at ?? notes[0]?.created_at ?? null" :plan-deadline="planDeadline ?? null" :referrals="referrals" :referral-targets="referralTargets"
+                            :referral-transitions="referralTransitions ?? {}" :cpu-members="cpuMembers ?? []" :has-sharing-consent="Boolean(hasSharingConsent)" @open-notes="openSection('notes')" />
                     </section>
 
                     <section v-show="activeSection === 'notes'" id="case-panel-notes" role="tabpanel" aria-labelledby="case-tab-notes" class="scroll-mt-24 min-w-0 space-y-5">
-                        <div class="ui-panel p-4 sm:p-5"><CaseMonitoringPanel ref="monitoringPanel" :case-id="caseRecord.id" :active="activeSection === 'notes'" :visits="visits" :notes="notes" :tasks="tasks" :referrals="referrals" :services="servicesProvided ?? []" :cpu-members="cpuMembers ?? []" :referral-targets="referralTargets" :referral-transitions="referralTransitions ?? {}" :has-sharing-consent="Boolean(hasSharingConsent)" :client-names="[caseRecord.first_name, caseRecord.last_name].filter(Boolean)" /></div>
-                        <CaseServicesPanel :case-id="Number(caseRecord.id)" :referrals="referrals" :services="servicesProvided ?? []" :referral-targets="referralTargets" @compose="composeNote">
-                            <template #status-form="{ referral }"><ReferralStatusForm :referral-id="referral.id" :status="referral.status" :allowed-statuses="referralTransitions?.[referral.status] ?? []" /></template>
+                        <div class="ui-panel p-4 sm:p-5"><CaseMonitoringPanel ref="monitoringPanel" :case-id="caseRecord.id" :active="activeSection === 'notes'" :visits="visits" :notes="notes" :tasks="tasks" :referrals="referrals" :services="servicesProvided ?? []" :referral-targets="referralTargets" :referral-transitions="referralTransitions ?? {}" :client-names="[caseRecord.first_name, caseRecord.last_name].filter(Boolean)" @refer="openPlanReferrals" /></div>
+                        <CaseServicesPanel :case-id="Number(caseRecord.id)" :services="servicesProvided ?? []" @compose="composeNote">
                             <GrantsPanel :case-id="Number(caseRecord.id)" :grants="grants" :can-edit="canEditForms" />
                             <section class="ui-panel overflow-hidden p-0" aria-labelledby="case-mdt-title">
                           <header class="flex flex-wrap items-start justify-between gap-3 border-b border-[var(--color-line)] px-5 py-4">
@@ -402,7 +401,7 @@ const archiveCase = async () => { if (await askConfirm({ title: 'Archive this ca
                         <Link :href="route('cases.conferences.index', caseRecord.id)" class="ui-button mt-3 min-h-10 text-sm">Open case conferences</Link>
                     </section>
                     <section v-show="activeSection === 'overview'" class="ui-panel p-5">
-                        <div class="flex flex-wrap items-center justify-between gap-2"><h2 class="ui-section-title">Referrals</h2><button type="button" class="ui-link min-h-9 text-xs" @click="openSection('notes')">Open</button></div>
+                        <div class="flex flex-wrap items-center justify-between gap-2"><h2 class="ui-section-title">Referrals</h2><button type="button" class="ui-link min-h-9 text-xs" @click="openPlanReferrals">Open</button></div>
                         <div v-if="referrals.length" class="mt-3 space-y-2">
                             <div v-for="item in referrals.slice(0, 5)" :key="item.id" class="rounded-md p-3 text-sm" :class="item.status === 'COMPLETED' ? 'bg-emerald-50 border border-emerald-200' : item.status === 'PENDING' ? 'bg-amber-50 border border-amber-200' : 'bg-slate-50 border border-slate-200'">
                                 <p class="font-semibold">{{ item.referred_to || item.service_category }}</p>

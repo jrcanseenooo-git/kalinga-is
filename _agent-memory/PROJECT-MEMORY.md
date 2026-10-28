@@ -83,7 +83,7 @@ reminder); Endline when the case is in closure review. Owner to confirm timing.
 | B | Sidebar unread badges: Kalinga Connect, Project team chat | Done (36d8fa2) |
 | C | Automatic case status | Done (9eff657) |
 | D | KaVAT Baseline/Midline/Endline, editable for corrections, no "reversed" label, no option points, 3-result history | Done (33d1023) |
-| E | Forms order Intake > CSR > SCSR > Intervention Plan and Referrals > Progress Notes (also Reports menu); Intake print fixes; CSR template; SCSR carries CSR | Pending |
+| E | Forms order Intake > CSR > SCSR > Intervention Plan and Referrals > Progress Notes (also Reports menu); Intake print fixes; CSR template; SCSR carries CSR | Done (be28bbc) |
 | F | Intervention Plan and Referrals (no KaVAT suggestions, target dates, Conduct referral per row, 7-day deadline + supervisor status) | Pending |
 | G | Monitoring tab (plan monitoring) | Pending |
 | H | Calendar: invite anyone by name; supervisor sees CM activities; reschedule = attention item for CM and supervisor; plan dates on calendar | Pending |

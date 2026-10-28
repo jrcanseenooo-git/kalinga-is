@@ -37,6 +37,8 @@ class NoteReferrals
             'referral.purpose' => 'required|string|max:160',
             'referral.target_date' => 'nullable|date|after_or_equal:' . PhilippineDate::today(),
             'referral.lawful_basis' => 'required|in:consent,legal_obligation,vital_interests,public_task',
+            // Conducted from a row of the Intervention Plan (the row's key).
+            'referral.plan_row' => ['nullable', 'string', 'max:40', 'regex:/^[A-Za-z0-9-]+$/'],
         ];
     }
 
@@ -71,8 +73,9 @@ class NoteReferrals
             'purpose' => $data['purpose'], 'reason' => null, 'case_note_id' => $noteId, 'lgu_cpu_member_id' => $member?->id, 'recipient_user_id' => $member?->user_id,
             'target_date' => $data['target_date'] ?? null, 'lawful_basis' => $data['lawful_basis'], 'sharing_authorized_by' => $actor->id, 'sharing_authorized_at' => now(),
             'status' => 'SENT', 'referred_at' => $occurredAt, 'created_by' => $actor->id, 'created_at' => now(), 'updated_at' => now(),
+            'plan_row_key' => $data['plan_row'] ?? null,
         ]);
-        DB::table('referral_events')->insert(['referral_id' => $id, 'from_status' => null, 'to_status' => 'SENT', 'remarks' => 'Recorded from a progress note.', 'actor_id' => $actor->id, 'created_at' => now()]);
+        DB::table('referral_events')->insert(['referral_id' => $id, 'from_status' => null, 'to_status' => 'SENT', 'remarks' => empty($data['plan_row']) ? 'Recorded from a progress note.' : 'Conducted from the Intervention Plan.', 'actor_id' => $actor->id, 'created_at' => now()]);
 
         if ($member?->user_id) {
             $account = DB::table('users')->where('id', $member->user_id)->where('role', 'cpu_member')->where('active', true)->first();

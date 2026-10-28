@@ -3,23 +3,32 @@ import { askConfirm } from '@/utils/confirmDialog';
 /**
  * One Kalinga form as a working document. Narrative forms (Case Summary,
  * Social Case Study Report) are written in paragraphs per section; the
- * Intervention Plan is a matrix. Saves as the case manager types, keeps
+ * Intervention Plan is a matrix. Each plan row also has, not printed, a
+ * status, target start / end dates (calendar and monitoring) and an Actions
+ * column to conduct a referral from the row. Saves as the case manager types, keeps
  * retrying while the connection is down, and never overwrites a newer copy
  * saved from another device without asking.
  */
 import axios from 'axios';
 import { Link, router } from '@inertiajs/vue3';
-import { ArrowDown, ArrowUp, CheckCircle2, FileText, Lightbulb, Plus, Trash2 } from '@lucide/vue';
+import { ArrowDown, ArrowUp, CalendarRange, CheckCircle2, FileText, Lightbulb, Plus, Send, Trash2 } from '@lucide/vue';
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
-import { emptyPlanRow, formHasContent, sectionProgress, wordCount, type CaseForm, type FormContent, type FormsDefinition, type PlanRow } from '@/Casework/caseForms';
+import { PLAN_ROW_STATUSES, emptyPlanRow, formHasContent, normalizePlanRow, planRowHasText, sectionProgress, wordCount, type CaseForm, type FormContent, type FormsDefinition, type PlanRow } from '@/Casework/caseForms';
+import StatusBadge from '@/Components/UI/StatusBadge.vue';
+import { referralTone, titleCase } from '@/utils/caseDisplay';
 import { formatPh } from '@/utils/philippineTime';
 
 const props = defineProps<{
-  caseId: number; form: CaseForm; definition: FormsDefinition; suggestions: Record<string, string>; canEdit: boolean; planSuggestions?: PlanRow[];
+  caseId: number; form: CaseForm; definition: FormsDefinition; suggestions: Record<string, string>; canEdit: boolean;
+  /** Referrals of the case; those conducted from a plan row show next to it. */
+  referrals?: { id: number; status: string; referred_to?: string | null; plan_row_key?: string | null }[];
+  /** Conducting a referral needs the connection and the referral permission. */
+  canRefer?: boolean;
   /** Field mode: save into the encrypted device copy instead of the server; finalizing waits until online. */
   saver?: (content: FormContent) => Promise<boolean>;
 }>();
 const offline = computed(() => Boolean(props.saver));
+const emit = defineEmits<{ conduct: [row: PlanRow, number: number] }>();
 
 const isPlan = computed(() => props.form.type === 'plan');
 const sections = computed(() => (isPlan.value ? [] : props.definition.sections[props.form.type as 'summary' | 'study']));
@@ -39,7 +48,7 @@ const isCarried = (key: string) => key in carriedText.value && (content.sections
 function load(form: CaseForm) {
   loading = true;
   content.sections = { ...(form.content.sections ?? {}) };
-  content.rows = (form.content.rows ?? []).map((row) => ({ ...emptyPlanRow(columns.value), ...row }));
+  content.rows = (form.content.rows ?? []).map((row) => normalizePlanRow(columns.value, row));
   if (isPlan.value && !content.rows.length) content.rows.push(emptyPlanRow(columns.value));
   revision.value = form.revision;
   lastSaved.value = form.updated_at;
@@ -85,7 +94,7 @@ const beforeLeave = (event: BeforeUnloadEvent) => { if (['idle', 'saving', 'offl
 onMounted(() => { window.addEventListener('online', retry); window.addEventListener('beforeunload', beforeLeave); });
 onBeforeUnmount(() => { window.removeEventListener('online', retry); window.removeEventListener('beforeunload', beforeLeave); if (timer) { clearTimeout(timer); if (state.value === 'idle') void save(); } });
 
-function useSaved() { if (!conflict.value) return; loading = true; content.sections = { ...(conflict.value.sections ?? {}) }; content.rows = (conflict.value.rows ?? []).map((row) => ({ ...emptyPlanRow(columns.value), ...row })); conflict.value = null; state.value = 'saved'; queueMicrotask(() => { loading = false; }); }
+function useSaved() { if (!conflict.value) return; loading = true; content.sections = { ...(conflict.value.sections ?? {}) }; content.rows = (conflict.value.rows ?? []).map((row) => normalizePlanRow(columns.value, row)); conflict.value = null; state.value = 'saved'; queueMicrotask(() => { loading = false; }); }
 async function keepMine() { conflict.value = null; state.value = 'idle'; await save(); }
 
 const finalizing = ref(false);
@@ -97,10 +106,13 @@ async function finalize() {
 }
 
 const insertSuggestion = (key: string) => { content.sections![key] = props.suggestions[key]; };
-const addRow = (row?: PlanRow) => content.rows!.push({ ...emptyPlanRow(columns.value), ...(row ?? {}) });
+const addRow = () => content.rows!.push(emptyPlanRow(columns.value));
 const removeRow = async (index: number) => { if (await askConfirm({ title: 'Remove this row?', confirmLabel: 'Remove', tone: 'danger' })) content.rows!.splice(index, 1); };
 const moveRow = (index: number, by: number) => { const rows = content.rows!; const [row] = rows.splice(index, 1); rows.splice(index + by, 0, row); };
-const unusedSuggestions = computed(() => (props.planSuggestions ?? []).filter((suggestion) => !content.rows!.some((row) => row.problem.trim() === suggestion.problem)));
+const rowReferrals = (row: PlanRow) => (props.referrals ?? []).filter((item) => item.plan_row_key && item.plan_row_key === row.id);
+const statusTone = (status: string) => (status === 'done' ? 'success' as const : status === 'in_progress' ? 'info' as const : 'neutral' as const);
+const datesError = (row: PlanRow) => (row.target_start && row.target_end && row.target_end < row.target_start ? 'The end date is before the start date.' : '');
+const canConduct = computed(() => Boolean(props.canRefer) && props.canEdit && !offline.value);
 
 const progress = computed(() => sectionProgress(sections.value, content));
 const hasContent = computed(() => formHasContent(props.form.type, content));
@@ -158,26 +170,53 @@ const autoNote: Record<string, string> = {
     </div>
 
     <div v-else class="space-y-3 p-4">
-      <div v-if="canEdit && unusedSuggestions.length" class="rounded-xl border border-sky-200 bg-sky-50 p-3 text-sm text-sky-950">
-        <p class="flex items-center gap-1.5 font-semibold"><Lightbulb class="h-4 w-4" aria-hidden="true" />Needs from the latest KaVAT</p>
-        <ul class="mt-2 flex flex-wrap gap-2"><li v-for="item in unusedSuggestions" :key="item.problem"><button type="button" class="rounded-lg border border-sky-300 bg-white px-3 py-1.5 text-xs" @click="addRow(item)"><Plus class="mr-1 inline h-3.5 w-3.5" aria-hidden="true" />{{ item.problem }}</button></li></ul>
-      </div>
+      <p class="text-xs text-slate-600">The printed plan shows the six columns and the free-text time frame. Status, target dates and actions are for the calendar and monitoring only.</p>
       <div class="hidden overflow-x-auto lg:block">
         <table class="w-full table-fixed border-collapse text-sm">
-          <thead><tr class="bg-slate-50 text-left text-xs text-slate-700"><th class="w-8 p-2">#</th><th v-for="(label, key) in columns" :key="key" class="p-2">{{ label }}</th><th class="w-24 p-2"><span class="sr-only">Row actions</span></th></tr></thead>
+          <thead><tr class="bg-slate-50 text-left text-xs text-slate-700"><th class="w-8 p-2">#</th><th v-for="(label, key) in columns" :key="key" class="p-2">{{ label }}</th><th class="w-44 p-2">Actions</th></tr></thead>
           <tbody>
-            <tr v-for="(row, index) in content.rows" :key="index" class="border-t border-slate-200 align-top">
-              <td class="p-2 text-xs text-slate-600">{{ index + 1 }}</td>
-              <td v-for="(label, key) in columns" :key="key" class="p-1"><label :for="`plan-${index}-${key}`" class="sr-only">{{ label }}, row {{ index + 1 }}</label><textarea :id="`plan-${index}-${key}`" v-model="row[key]" :readonly="!canEdit" rows="3" maxlength="3000" class="ui-field min-h-20 text-sm" @input="grow" @focus="grow"></textarea></td>
-              <td class="p-1"><div v-if="canEdit" class="flex gap-1"><button type="button" class="rounded p-1.5 hover:bg-slate-100" :disabled="index === 0" :aria-label="`Move row ${index + 1} up`" @click="moveRow(index, -1)"><ArrowUp class="h-4 w-4" /></button><button type="button" class="rounded p-1.5 hover:bg-slate-100" :disabled="index === content.rows!.length - 1" :aria-label="`Move row ${index + 1} down`" @click="moveRow(index, 1)"><ArrowDown class="h-4 w-4" /></button><button type="button" class="rounded p-1.5 text-rose-700 hover:bg-rose-50" :aria-label="`Remove row ${index + 1}`" @click="removeRow(index)"><Trash2 class="h-4 w-4" /></button></div></td>
-            </tr>
+            <template v-for="(row, index) in content.rows" :key="row.id || index">
+              <tr class="border-t border-slate-200 align-top" :data-plan-row="index + 1">
+                <td class="p-2 text-xs text-slate-600">{{ index + 1 }}</td>
+                <td v-for="(label, key) in columns" :key="key" class="p-1"><label :for="`plan-${index}-${key}`" class="sr-only">{{ label }}, row {{ index + 1 }}</label><textarea :id="`plan-${index}-${key}`" v-model="row[key]" :readonly="!canEdit" rows="3" maxlength="3000" class="ui-field min-h-20 text-sm" @input="grow" @focus="grow"></textarea></td>
+                <td class="space-y-2 p-1">
+                  <label :for="`plan-${index}-status`" class="sr-only">Status, row {{ index + 1 }}</label>
+                  <select :id="`plan-${index}-status`" v-model="row.status" :disabled="!canEdit" class="ui-field min-h-10 text-sm"><option v-for="(label, value) in PLAN_ROW_STATUSES" :key="value" :value="value">{{ label }}</option></select>
+                  <button v-if="canConduct" type="button" class="ui-button min-h-10 w-full justify-center px-2 text-sm" :disabled="!planRowHasText(row)" :aria-label="`Conduct a referral for plan item ${index + 1}`" @click="emit('conduct', row, index + 1)"><Send class="h-4 w-4" aria-hidden="true" />Conduct</button>
+                  <ul v-if="rowReferrals(row).length" class="space-y-1"><li v-for="item in rowReferrals(row)" :key="item.id" class="text-xs"><StatusBadge :label="titleCase(item.status)" :tone="referralTone(item.status)" dot /><span class="block truncate text-slate-600" :title="item.referred_to ?? ''">{{ item.referred_to }}</span></li></ul>
+                  <div v-if="canEdit" class="flex gap-1"><button type="button" class="rounded p-1.5 hover:bg-slate-100" :disabled="index === 0" :aria-label="`Move row ${index + 1} up`" @click="moveRow(index, -1)"><ArrowUp class="h-4 w-4" /></button><button type="button" class="rounded p-1.5 hover:bg-slate-100" :disabled="index === content.rows!.length - 1" :aria-label="`Move row ${index + 1} down`" @click="moveRow(index, 1)"><ArrowDown class="h-4 w-4" /></button><button type="button" class="rounded p-1.5 text-rose-700 hover:bg-rose-50" :aria-label="`Remove row ${index + 1}`" @click="removeRow(index)"><Trash2 class="h-4 w-4" /></button></div>
+                </td>
+              </tr>
+              <tr class="bg-slate-50/70">
+                <td></td>
+                <td :colspan="Object.keys(columns).length + 1" class="px-1 pb-2 pt-1">
+                  <div class="flex flex-wrap items-center gap-2 text-xs text-slate-700">
+                    <CalendarRange class="h-4 w-4 text-slate-500" aria-hidden="true" /><span class="font-semibold">Target dates</span>
+                    <label :for="`plan-${index}-target_start`" class="sr-only">Target start, row {{ index + 1 }}</label><input :id="`plan-${index}-target_start`" v-model="row.target_start" type="date" :readonly="!canEdit" class="ui-field min-h-9 w-auto py-1 text-sm">
+                    <span aria-hidden="true">to</span>
+                    <label :for="`plan-${index}-target_end`" class="sr-only">Target end, row {{ index + 1 }}</label><input :id="`plan-${index}-target_end`" v-model="row.target_end" type="date" :min="row.target_start || undefined" :readonly="!canEdit" class="ui-field min-h-9 w-auto py-1 text-sm">
+                    <span class="text-slate-500">Shown on the calendar; not printed.</span>
+                    <span v-if="datesError(row)" class="font-semibold text-rose-700" role="alert">{{ datesError(row) }}</span>
+                  </div>
+                </td>
+              </tr>
+            </template>
           </tbody>
         </table>
       </div>
       <ol class="space-y-3 lg:hidden">
-        <li v-for="(row, index) in content.rows" :key="index" class="rounded-xl border border-slate-200 p-3">
-          <div class="flex items-center justify-between"><p class="text-xs font-semibold text-slate-600">Row {{ index + 1 }}</p><button v-if="canEdit" type="button" class="rounded p-1.5 text-rose-700" :aria-label="`Remove row ${index + 1}`" @click="removeRow(index)"><Trash2 class="h-4 w-4" /></button></div>
+        <li v-for="(row, index) in content.rows" :key="row.id || index" class="rounded-xl border border-slate-200 p-3">
+          <div class="flex items-center justify-between gap-2"><p class="text-xs font-semibold text-slate-600">Row {{ index + 1 }}</p><StatusBadge :label="PLAN_ROW_STATUSES[row.status as keyof typeof PLAN_ROW_STATUSES] ?? 'Not started'" :tone="statusTone(row.status)" /><button v-if="canEdit" type="button" class="rounded p-1.5 text-rose-700" :aria-label="`Remove row ${index + 1}`" @click="removeRow(index)"><Trash2 class="h-4 w-4" /></button></div>
           <div v-for="(label, key) in columns" :key="key" class="mt-2"><label :for="`plan-m-${index}-${key}`" class="text-xs font-medium text-slate-700">{{ label }}</label><textarea :id="`plan-m-${index}-${key}`" v-model="row[key]" :readonly="!canEdit" rows="2" maxlength="3000" class="ui-field mt-1 text-sm" @input="grow"></textarea></div>
+          <div class="mt-3 grid grid-cols-2 gap-2 rounded-lg bg-slate-50 p-2">
+            <label :for="`plan-m-${index}-target_start`" class="text-xs font-medium text-slate-700">Target start<input :id="`plan-m-${index}-target_start`" v-model="row.target_start" type="date" :readonly="!canEdit" class="ui-field mt-1 text-sm"></label>
+            <label :for="`plan-m-${index}-target_end`" class="text-xs font-medium text-slate-700">Target end<input :id="`plan-m-${index}-target_end`" v-model="row.target_end" type="date" :min="row.target_start || undefined" :readonly="!canEdit" class="ui-field mt-1 text-sm"></label>
+            <p class="col-span-2 text-[11px] text-slate-600">Shown on the calendar; not printed.</p>
+            <p v-if="datesError(row)" class="col-span-2 text-xs font-semibold text-rose-700" role="alert">{{ datesError(row) }}</p>
+            <label :for="`plan-m-${index}-status`" class="col-span-2 text-xs font-medium text-slate-700">Status<select :id="`plan-m-${index}-status`" v-model="row.status" :disabled="!canEdit" class="ui-field mt-1 text-sm"><option v-for="(label, value) in PLAN_ROW_STATUSES" :key="value" :value="value">{{ label }}</option></select></label>
+          </div>
+          <ul v-if="rowReferrals(row).length" class="mt-2 space-y-1"><li v-for="item in rowReferrals(row)" :key="item.id" class="flex flex-wrap items-center gap-2 text-xs"><StatusBadge :label="titleCase(item.status)" :tone="referralTone(item.status)" dot /><span class="text-slate-600">{{ item.referred_to }}</span></li></ul>
+          <button v-if="canConduct" type="button" class="ui-button mt-2 min-h-11 w-full justify-center" :disabled="!planRowHasText(row)" :aria-label="`Conduct a referral for plan item ${index + 1}`" @click="emit('conduct', row, index + 1)"><Send class="h-4 w-4" aria-hidden="true" />Conduct a referral</button>
         </li>
       </ol>
       <button v-if="canEdit && content.rows!.length < 60" type="button" class="ui-button" @click="addRow()"><Plus class="h-4 w-4" aria-hidden="true" />Add a row</button>
