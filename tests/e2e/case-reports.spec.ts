@@ -4,10 +4,10 @@ import { expectNoHorizontalOverflow, login } from './helpers';
 
 const REPORTS = [
     ['Kalinga Intake Sheet', 'KALINGA INTAKE SHEET'],
-    ['Progress Notes', 'PROGRESS NOTES'],
-    ['Intervention Plan', 'INTERVENTION PLAN'],
-    ['Social Case Study Report', 'SOCIAL CASE STUDY REPORT'],
     ['Case Summary Report', 'CASE SUMMARY REPORT'],
+    ['Social Case Study Report', 'SOCIAL CASE STUDY REPORT'],
+    ['Intervention Plan', 'INTERVENTION PLAN'],
+    ['Progress Notes', 'PROGRESS NOTES'],
 ] as const;
 
 for (const width of [360, 1280]) {
@@ -25,6 +25,7 @@ for (const width of [360, 1280]) {
             const menu = page.getByRole('button', { name: 'Reports' });
             await menu.click();
             await expect(menu).toHaveAttribute('aria-expanded', 'true');
+            await expect(page.getByRole('list', { name: 'Print a case report' }).getByRole('link')).toHaveText(REPORTS.map(([name]) => name));
             await page.getByRole('list', { name: 'Print a case report' }).getByRole('link', { name: label, exact: true }).click();
             await expect(page.getByRole('heading', { level: 1, name: heading })).toBeVisible();
             await expect(page.getByText('CONFIDENTIAL.', { exact: true })).toBeVisible();

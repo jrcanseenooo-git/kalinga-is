@@ -32,6 +32,9 @@ const lastSaved = ref<string | null>(null);
 const conflict = ref<FormContent | null>(null);
 let timer: ReturnType<typeof setTimeout> | null = null;
 let loading = false;
+/** Case study sections that started from the Case Summary Report (section => carried text). */
+const carriedText = ref<Record<string, string>>({});
+const isCarried = (key: string) => key in carriedText.value && (content.sections?.[key] ?? '') === carriedText.value[key];
 
 function load(form: CaseForm) {
   loading = true;
@@ -42,7 +45,12 @@ function load(form: CaseForm) {
   lastSaved.value = form.updated_at;
   state.value = 'saved';
   conflict.value = null;
-  queueMicrotask(() => { loading = false; });
+  carriedText.value = Object.fromEntries((form.carried ?? []).map((key) => [key, form.content.sections?.[key] ?? '']));
+  queueMicrotask(() => {
+    loading = false;
+    // Text carried from the Case Summary Report is saved into the case study straight away.
+    if (form.carried?.length && props.canEdit) schedule();
+  });
 }
 watch(() => [props.form.type, props.form.revision] as const, ([, rev], old) => { if (!old || old[0] !== props.form.type || (rev > revision.value && state.value === 'saved')) load(props.form); }, { immediate: true });
 
@@ -104,7 +112,6 @@ const grow = (event: Event) => { const el = event.target as HTMLTextAreaElement;
 const autoNote: Record<string, string> = {
   identifying: 'Filled in from the intake when printed: case number, name (as chosen when printing), age, sex, address, education and guardian.',
   incidence: 'Filled in from the CEFMU incidence recorded at intake.',
-  interventions: 'Filled in from progress notes, referrals, services provided and grants, oldest first.',
   status: 'Filled in when printed: case status, pending referrals and the latest KaVAT score.',
   family: 'Filled in from the family members recorded for the child.',
   plan: 'Taken from the Intervention Plan matrix.',
@@ -141,6 +148,7 @@ const autoNote: Record<string, string> = {
         <p v-if="section.kind === 'auto'" class="mt-1 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">{{ autoNote[section.key] }}</p>
         <template v-else>
           <p v-if="section.guide" :id="`fs-guide-${form.type}-${section.key}`" class="mt-1 text-xs leading-5 text-slate-600">{{ section.guide }}</p>
+          <p v-if="isCarried(section.key)" class="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-medium text-violet-950"><FileText class="h-3.5 w-3.5" aria-hidden="true" />From the Case Summary Report - add to it or update it for the case study.</p>
           <button v-if="canEdit && suggestions[section.key] && !(content.sections![section.key] ?? '').trim()" type="button" class="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-medium text-sky-900" @click="insertSuggestion(section.key)"><Lightbulb class="h-3.5 w-3.5" aria-hidden="true" />Start from the intake: "{{ suggestions[section.key].slice(0, 70) }}{{ suggestions[section.key].length > 70 ? '...' : '' }}"</button>
           <label :for="`fs-input-${form.type}-${section.key}`" class="sr-only">{{ section.title }}</label>
           <textarea :id="`fs-input-${form.type}-${section.key}`" v-model="content.sections![section.key]" :readonly="!canEdit" rows="5" maxlength="30000" spellcheck="true" :aria-describedby="section.guide ? `fs-guide-${form.type}-${section.key}` : undefined" class="ui-field mt-2 font-serif text-[15px] leading-7" @input="grow" @focus="grow"></textarea>

@@ -23,6 +23,8 @@ import { calendarDateLabel } from '@/utils/philippineTime';
 
 const props = defineProps<{
   caseId: number; definition: KavatDefinition; records: KavatRecord[]; canEdit: boolean; baseline?: KavatBaseline | null;
+  /** Field mode: occasions already recorded on the server (the device copy carries only the draft). */
+  recordedOccasions?: string[];
   /** Field mode: answers save into the encrypted device copy; finalizing waits until online. */
   saver?: (answers: KavatAnswers, notes: string | null) => Promise<boolean>;
 }>();
@@ -36,7 +38,7 @@ const viewed = computed(() => finals.value.find((item) => item.id === viewing.va
 
 const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
 const startOccasions = computed(() => (props.definition.startOccasions ?? ['midline', 'endline']).map((code) => [code, props.definition.occasions[code] ?? code] as const));
-const recordedOccasions = computed(() => new Set(props.records.map((item) => item.occasion)));
+const recordedOccasions = computed(() => new Set([...props.records.map((item) => item.occasion), ...(props.recordedOccasions ?? [])]));
 /** Smart default: the next KaVAT not yet recorded (Midline, then Endline). */
 const openOccasions = computed(() => startOccasions.value.filter(([code]) => !recordedOccasions.value.has(code)));
 const start = useForm({ occasion: openOccasions.value[0]?.[0] ?? 'midline', administered_at: today });

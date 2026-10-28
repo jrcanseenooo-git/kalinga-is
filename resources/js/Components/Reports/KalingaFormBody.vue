@@ -5,14 +5,15 @@ import ReportSection from '@/Components/Reports/ReportSection.vue';
 import ReportSignatures from '@/Components/Reports/ReportSignatures.vue';
 import type { ReportProps } from '@/types/reports';
 import { incidenceRows } from '@/data/cefmu';
-import { reportActions, reportStatusText } from '@/utils/reportActions';
-import { ageOn, classificationText, human, initialsOf, longDate, peso, shortDate } from '@/utils/reportFormat';
+import { reportStatusText } from '@/utils/reportActions';
+import { ageOn, classificationText, human, initialsOf, longDate } from '@/utils/reportFormat';
 
 /**
  * Case Summary Report and Social Case Study Report as written by the case
  * manager (Kalinga forms): the narrative sections in paragraphs, with
- * identifying information, family composition, interventions and the plan
- * matrix taken from the record.
+ * identifying information, family composition and the plan matrix taken
+ * from the record. The Case Summary Report follows the owner's sequence:
+ * presenting problem, brief case history, assessment, recommendations.
  */
 const props = defineProps<{ report: ReportProps; reveal: boolean; clientName: string }>();
 const r = computed(() => props.report);
@@ -21,11 +22,9 @@ const age = computed(() => ageOn(client.value.birthdate));
 const sections = computed(() => r.value.form?.sections ?? []);
 const text = (key: string) => r.value.form?.content.sections?.[key] ?? '';
 const paragraphs = (key: string) => text(key).split(/\n\s*\n/).map((item) => item.trim()).filter(Boolean);
-const actions = computed(() => reportActions(r.value));
 const status = computed(() => reportStatusText(r.value));
 const columns = computed(() => Object.entries(r.value.form?.planColumns ?? {}));
 const matrix = computed(() => (r.value.planMatrix ?? []).filter((row) => Object.values(row).some((value) => String(value).trim())));
-const total = computed(() => (r.value.services ?? []).reduce((sum, item) => sum + Number(item.amount || 0), 0) + (r.value.grants?.total ?? 0));
 </script>
 
 <template>
@@ -41,7 +40,7 @@ const total = computed(() => (r.value.services ?? []).reduce((sum, item) => sum 
         <tr><th>Address</th><td>{{ client.address || 'Not recorded' }}</td></tr>
         <tr><th>Religion / indigenous group</th><td>{{ client.religion || 'Not recorded' }} / {{ client.ip_category || 'Not applicable' }}</td></tr>
         <tr><th>Education</th><td>{{ client.education || human(r.caseInfo.education_status) }}</td></tr>
-        <tr><th>Parent / guardian</th><td>{{ client.caregiver ? `${reveal ? client.caregiver : initialsOf(client.caregiver)}${client.caregiver_relationship ? ` (${client.caregiver_relationship})` : ''}` : 'Not recorded' }}</td></tr>
+        <tr><th>Primary caregiver / custody</th><td>{{ client.caregiver ? `${reveal ? client.caregiver : initialsOf(client.caregiver)}${client.caregiver_relationship ? ` (${client.caregiver_relationship})` : ''}` : 'Not recorded' }}</td></tr>
         <tr><th>Date of intake</th><td>{{ longDate(r.caseInfo.intake_at) }}</td></tr>
         <tr><th>Source of referral</th><td>{{ r.caseInfo.referred_by || human(r.caseInfo.mode_of_admission) }}</td></tr>
       </tbody></table>
@@ -50,11 +49,6 @@ const total = computed(() => (r.value.services ?? []).reduce((sum, item) => sum 
         <tr v-for="[label, value] in incidenceRows(r.caseInfo)" :key="label"><th>{{ label }}</th><td>{{ value }}</td></tr>
       </tbody></table>
       <FamilyTable v-else-if="section.key === 'family'" :family="r.family" :reveal="reveal" />
-      <template v-else-if="section.key === 'interventions'">
-        <table class="rpt-table"><thead><tr><th class="rpt-w-date">Date</th><th>Intervention / service</th><th>Persons / agencies involved</th></tr></thead>
-          <tbody><tr v-for="(row, i) in actions" :key="i"><td>{{ shortDate(row.at) }}</td><td>{{ row.action }}</td><td>{{ row.who || '-' }}</td></tr><tr v-if="!actions.length"><td colspan="3" class="rpt-empty">No interventions recorded as of this report.</td></tr></tbody></table>
-        <p v-if="total" class="rpt-total">Total assistance and grants: <strong>{{ peso(total) }}</strong></p>
-      </template>
       <div v-else-if="section.key === 'plan'" class="rpt-wrap" tabindex="0" role="region" aria-label="Intervention plan">
         <table class="rpt-table"><thead><tr><th v-for="[key, label] in columns" :key="key">{{ label }}</th></tr></thead>
           <tbody><tr v-for="(row, i) in matrix" :key="i"><td v-for="[key] in columns" :key="key" class="whitespace-pre-wrap">{{ row[key] }}</td></tr><tr v-if="!matrix.length"><td :colspan="columns.length" class="rpt-empty">No intervention plan has been written yet.</td></tr></tbody></table>

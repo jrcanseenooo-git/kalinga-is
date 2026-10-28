@@ -74,13 +74,15 @@ steps stay). Plan rows keep the free-text Time frame (printed) and gain
 target start/end dates (calendar and monitoring only, not printed). KaVAT is
 Baseline (external score), Midline and Endline only; in-system test KaVATs
 are deleted (owner approved). Aftercare = plan at closure + follow-up visits.
+Assumption to flag: Midline is suggested 3 months after the case opened (info
+reminder); Endline when the case is in closure review. Owner to confirm timing.
 
 | # | Item | Status |
 |---|---|---|
-| A | Intake: saved-intake Continue hangs on loading; step shows negative after Back; better smart start page; "Child Contact Details" (child mobile 11 digits, plus Messenger etc.); text size for the form only | Pending |
-| B | Sidebar unread badges: Kalinga Connect, Project team chat | Pending |
-| C | Automatic case status | Pending |
-| D | KaVAT Baseline/Midline/Endline, editable for corrections, no "reversed" label, no option points, 3-result history | Pending |
+| A | Intake: saved-intake Continue hangs on loading; step shows negative after Back; better smart start page; "Child Contact Details" (child mobile 11 digits, plus Messenger etc.); text size for the form only | Done (a371bbb) |
+| B | Sidebar unread badges: Kalinga Connect, Project team chat | Done (36d8fa2) |
+| C | Automatic case status | Done (9eff657) |
+| D | KaVAT Baseline/Midline/Endline, editable for corrections, no "reversed" label, no option points, 3-result history | Done (33d1023) |
 | E | Forms order Intake > CSR > SCSR > Intervention Plan and Referrals > Progress Notes (also Reports menu); Intake print fixes; CSR template; SCSR carries CSR | Pending |
 | F | Intervention Plan and Referrals (no KaVAT suggestions, target dates, Conduct referral per row, 7-day deadline + supervisor status) | Pending |
 | G | Monitoring tab (plan monitoring) | Pending |

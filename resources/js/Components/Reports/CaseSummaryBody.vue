@@ -89,30 +89,31 @@ const assessmentBlocks = computed(() => (r.value.assessment?.sections ?? []).fil
 
   <ReportSection v-if="study" :num="3" title="Family composition"><FamilyTable :family="r.family" :reveal="reveal" /></ReportSection>
 
-  <ReportSection :num="n(3, 4)" :title="study ? 'Background of the case' : 'Case background'">
-    <div class="rpt-text" contenteditable="true" spellcheck="true">{{ background }}</div>
+  <!-- Case Summary Report order (owner, 2026-10-28): presenting problem, brief case history, assessment, recommendations. -->
+  <ReportSection :num="n(3, 4)" :title="study ? 'Problem presented' : 'Presenting problem'">
+    <ul class="rpt-list" contenteditable="true"><li v-for="(line, index) in (presenting.length ? presenting : ['No problem was recorded at intake.'])" :key="index">{{ line }}</li></ul>
   </ReportSection>
 
-  <ReportSection :num="n(4, 5)" :title="study ? 'Problem presented' : 'Presenting issue / concern'">
-    <ul class="rpt-list" contenteditable="true"><li v-for="(line, index) in (presenting.length ? presenting : ['No problem was recorded at intake.'])" :key="index">{{ line }}</li></ul>
+  <ReportSection :num="n(4, 5)" :title="study ? 'Background of the case' : 'Brief case history'">
+    <div class="rpt-text" contenteditable="true" spellcheck="true">{{ background }}</div>
   </ReportSection>
 
   <ReportSection v-if="study && assessmentBlocks.length" :num="6" title="Assessment">
     <div v-for="block in assessmentBlocks" :key="block.key" class="rpt-sub"><h3>{{ block.label }}</h3><p class="rpt-text" contenteditable="true">{{ block.text }}</p></div>
   </ReportSection>
 
-  <ReportSection :num="n(5, 7)" :title="study ? 'Interventions and services provided' : 'Actions taken'">
+  <ReportSection v-if="study" :num="7" title="Interventions and services provided">
     <table class="rpt-table"><thead><tr><th class="rpt-w-date">Date</th><th>Action taken</th><th>Persons / agencies involved</th></tr></thead>
       <tbody><tr v-for="(row, index) in actions" :key="index"><td>{{ shortDate(row.at) }}</td><td>{{ row.action }}</td><td>{{ row.who || '-' }}</td></tr><tr v-if="!actions.length"><td colspan="3" class="rpt-empty">No actions recorded as of this report.</td></tr></tbody></table>
     <p v-if="r.services?.length" class="rpt-total">Services provided: {{ r.services.length }} | Total assistance: <strong>{{ peso(assistanceTotal) }}</strong></p>
   </ReportSection>
 
   <div class="rpt-grid3">
-    <ReportSection v-if="!study" :num="6" title="Assessment / findings"><ul class="rpt-list" contenteditable="true"><li v-for="(line, index) in findings" :key="index">{{ line }}</li></ul></ReportSection>
-    <ReportSection :num="n(7, 8)" :title="study ? 'Recommendations' : 'Intervention plan / recommendations'" :span="study"><ul class="rpt-list" contenteditable="true"><li v-for="(line, index) in recommendations" :key="index">{{ line }}</li></ul></ReportSection>
+    <ReportSection v-if="!study" :num="5" title="Assessment"><ul class="rpt-list" contenteditable="true"><li v-for="(line, index) in findings" :key="index">{{ line }}</li></ul></ReportSection>
+    <ReportSection :num="n(6, 8)" title="Recommendations" :span="study"><ul class="rpt-list" contenteditable="true"><li v-for="(line, index) in recommendations" :key="index">{{ line }}</li></ul></ReportSection>
     <div class="rpt-stack">
-      <ReportSection :num="n(8, 9)" title="Current status"><p class="rpt-text rpt-small" contenteditable="true">{{ statusText }}</p></ReportSection>
-      <ReportSection :num="n(9, 10)" :title="r.notedBy ? 'Prepared / noted by' : 'Prepared by'">
+      <ReportSection :num="n(7, 9)" title="Current status"><p class="rpt-text rpt-small" contenteditable="true">{{ statusText }}</p></ReportSection>
+      <ReportSection :num="n(8, 10)" :title="r.notedBy ? 'Prepared / noted by' : 'Prepared by'">
         <ReportSignatures :prepared-by="r.preparedBy" :noted-by="r.notedBy" :office-short="r.office.short" />
       </ReportSection>
     </div>

@@ -9,8 +9,10 @@ import { incidenceRows } from '@/data/cefmu';
 
 /**
  * Kalinga Intake Sheet (General Intake Sheet): identifying information,
- * family composition, CEFMU situation, initial safety and risk, the social
- * worker's assessment and the privacy notice and consent record.
+ * contact details, primary caregiver, family composition, CEFMU situation,
+ * initial safety and risk, and the privacy notice and consent / assent record.
+ * The narrative (problem, actions, assessment, recommendations) is written in
+ * the Case Summary Report, so it is not repeated here (owner, 2026-10-28).
  */
 const props = defineProps<{ report: ReportProps; reveal: boolean; clientName: string }>();
 const r = computed(() => props.report);
@@ -19,6 +21,9 @@ const intake = computed(() => r.value.intake!);
 const age = computed(() => ageOn(c.value.birthdate, r.value.caseInfo.intake_at || r.value.generatedAt));
 const name = computed(() => props.clientName);
 const text = (value?: string | null, empty = 'Not recorded') => value && String(value).trim() ? value : empty;
+const channels = computed(() => (c.value.contact_channels ?? []) as { channel: string; handle: string }[]);
+const FORM_TYPES: Record<string, string> = { consent: 'Consent form (parent or guardian)', assent: 'Assent form (child)', consent_and_assent: 'Consent and assent forms' };
+const consentForm = computed(() => intake.value.consent_form_type ? `${FORM_TYPES[intake.value.consent_form_type] ?? human(intake.value.consent_form_type)}${intake.value.consent_photo ? ' - signed copy on file' : ''}` : (intake.value.consent_photo ? 'Signed copy on file' : 'Not recorded'));
 </script>
 
 <template>
@@ -48,15 +53,16 @@ const text = (value?: string | null, empty = 'Not recorded') => value && String(
   </div>
 
   <div class="rpt-grid2">
-    <ReportSection :num="3" title="Address and safe contact">
+    <ReportSection :num="3" title="Address and child contact details">
       <table class="rpt-kv"><tbody>
         <tr><th>Present address</th><td>{{ text(c.address) }}</td></tr>
-        <tr><th>Permanent address</th><td>{{ text(c.permanent_address, 'Same as present address') }}</td></tr>
-        <tr><th>Contact number</th><td>{{ maskContact(c.contact, reveal) }}</td></tr>
+        <tr><th>Permanent address</th><td>{{ text(c.permanent_address || c.address) }}</td></tr>
+        <tr><th>Mobile number</th><td>{{ maskContact(c.contact, reveal) }}</td></tr>
+        <tr v-for="(item, index) in channels" :key="index"><th>{{ item.channel || 'Other' }}</th><td>{{ reveal ? item.handle : 'Shown on the full-name copy' }}</td></tr>
         <tr><th>Safe way to contact</th><td>{{ human(c.safe_contact_method) }}</td></tr>
       </tbody></table>
     </ReportSection>
-    <ReportSection :num="4" title="Parent / guardian">
+    <ReportSection :num="4" title="Primary caregiver / custody">
       <table class="rpt-kv"><tbody>
         <tr><th>Name</th><td>{{ c.caregiver ? (reveal ? c.caregiver : initialsOf(c.caregiver)) : 'Not recorded' }}</td></tr>
         <tr><th>Relationship to child</th><td>{{ text(c.caregiver_relationship) }}</td></tr>
@@ -87,27 +93,15 @@ const text = (value?: string | null, empty = 'Not recorded') => value && String(
     </ReportSection>
   </div>
 
-  <ReportSection :num="8" title="Problem presented">
-    <p class="rpt-text" contenteditable="true">{{ text(r.caseInfo.problem_presented, 'No problem was recorded at intake.') }}</p>
-    <div v-if="r.caseInfo.cefmu_context" class="rpt-sub mt-2"><h3>Circumstances of the union</h3><p class="rpt-text" contenteditable="true">{{ r.caseInfo.cefmu_context }}</p></div>
-  </ReportSection>
-
-  <ReportSection :num="9" title="Immediate actions taken"><p class="rpt-text" contenteditable="true">{{ text(r.caseInfo.immediate_actions, 'No immediate action was recorded at intake.') }}</p></ReportSection>
-
   <div class="rpt-grid2">
-    <ReportSection :num="10" title="Social worker's assessment"><p class="rpt-text" contenteditable="true">{{ text(r.caseInfo.initial_assessment, 'No initial assessment was recorded.') }}</p></ReportSection>
-    <ReportSection :num="11" title="Recommendations"><p class="rpt-text" contenteditable="true">{{ text(r.caseInfo.plan_recommendations, 'No recommendation was recorded.') }}</p><p v-if="intake.remarks" class="rpt-text rpt-small mt-2"><strong>Remarks:</strong> {{ intake.remarks }}</p></ReportSection>
-  </div>
-
-  <div class="rpt-grid2">
-    <ReportSection :num="12" title="Privacy notice and consent">
+    <ReportSection :num="8" title="Privacy notice and consent / assent">
       <table class="rpt-kv"><tbody>
         <tr><th>Privacy notice given</th><td>{{ human(intake.privacy_notice_method) }}<template v-if="intake.privacy_notice_at"> on {{ longDate(intake.privacy_notice_at) }}</template></td></tr>
         <tr><th>Consent status</th><td>{{ human(intake.consent_status) }}</td></tr>
-        <tr><th>Basis for data sharing</th><td>{{ human(intake.data_sharing_basis) }}</td></tr>
+        <tr><th>Consent / assent form</th><td>{{ consentForm }}</td></tr>
       </tbody></table>
     </ReportSection>
-    <ReportSection :num="13" :title="r.notedBy ? 'Prepared / noted by' : 'Prepared by'">
+    <ReportSection :num="9" :title="r.notedBy ? 'Prepared / noted by' : 'Prepared by'">
       <ReportSignatures :prepared-by="r.preparedBy" :noted-by="r.notedBy" :office-short="r.office.short" />
     </ReportSection>
   </div>

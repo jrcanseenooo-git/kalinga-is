@@ -72,7 +72,8 @@ export const HELP_ARTICLES: HelpArticle[] = [
     id: 'kalinga-forms', category: 'Case work', title: 'Write the Kalinga forms', permission: 'cases.update',
     summary: 'Case Summary Report and Social Case Study Report in paragraphs; the Intervention Plan as a table.',
     steps: [
-      'Open the case, then Kalinga forms. The forms are listed in order: Intake Sheet, Case Summary Report, Progress Notes, Intervention Plan, Social Case Study Report.',
+      'Open the case, then Kalinga forms. The forms are listed in order: Intake Sheet, Case Summary Report, Social Case Study Report, Intervention Plan and Referrals, Progress Notes.',
+      'The Social Case Study Report starts from what you wrote in the Case Summary Report (presented problem, background, assessment, recommendations). Add to it or update it; it saves as you type.',
       'Choose Write (or Continue) on a form. Each section has a short guide. Leave a blank line between paragraphs.',
       'Identifying information, family composition, interventions and status are filled in from the record when printed.',
       'Your writing saves as you type. Choose Finalize to keep a numbered copy (version 1, 2, ...); you can keep improving the form after.',

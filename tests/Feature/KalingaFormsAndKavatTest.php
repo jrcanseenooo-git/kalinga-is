@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Services\CaseForms;
 use App\Services\Kavat;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -102,7 +103,7 @@ class KalingaFormsAndKavatTest extends TestCase
         $this->assertSame(2, DB::table('case_form_versions')->where('form_type', 'plan')->max('version'));
         $this->get(route('cases.reports.show', [$this->case, 'summary']))->assertOk()
             ->assertInertia(fn ($page) => $page->component('Reports/CaseReport')->where('form.hasContent', true)->where('form.content.sections.presenting_problem', 'First draft.'));
-        $this->get(route('cases.reports.show', [$this->case, 'study']))->assertInertia(fn ($page) => $page->where('form.hasContent', false)->where('planMatrix.0.problem', 'Stopped schooling'));
+        $this->get(route('cases.reports.show', [$this->case, 'study']))->assertInertia(fn ($page) => $page->where('form.hasContent', true)->where('form.content.sections.presented_problem', 'First draft.')->where('planMatrix.0.problem', 'Stopped schooling'));
         $this->putJson(route('cases.forms.save', [$this->case, 'bogus']), ['revision' => 0, 'content' => []])->assertNotFound();
 
         $stranger = User::factory()->create(['role' => 'social_worker', 'active' => true]);
@@ -112,6 +113,21 @@ class KalingaFormsAndKavatTest extends TestCase
 
         DB::table('cases')->where('id', $this->case)->update(['status' => 'CLOSED']);
         $this->actingAs($this->worker)->putJson(route('cases.forms.save', [$this->case, 'summary']), ['revision' => 1, 'content' => ['sections' => []]])->assertStatus(422);
+    }
+
+    public function test_reports_and_forms_follow_the_owner_sequence_and_the_case_study_starts_from_the_summary(): void
+    {
+        $this->assertSame(['intake', 'summary', 'study', 'plan', 'notes'], array_keys(CaseForms::SEQUENCE));
+        $this->assertSame(['presenting_problem', 'case_history', 'assessment', 'recommendations'],
+            collect(CaseForms::definition()['sections']['summary'])->where('kind', 'text')->pluck('key')->values()->all());
+        $this->actingAs($this->worker)->putJson(route('cases.forms.save', [$this->case, 'summary']), ['revision' => 0, 'content' => ['sections' => ['presenting_problem' => 'Problem from the CSR.', 'assessment' => 'CSR assessment.']]])->assertOk();
+        $this->putJson(route('cases.forms.save', [$this->case, 'study']), ['revision' => 0, 'content' => ['sections' => ['assessment' => 'Own case study text.']]])->assertOk();
+        $this->get(route('cases.show', $this->case))->assertInertia(fn ($page) => $page
+            ->where('forms.study.content.sections.presented_problem', 'Problem from the CSR.')
+            ->where('forms.study.content.sections.assessment', 'Own case study text.')
+            ->where('forms.study.carried', ['presented_problem']));
+        $this->get(route('cases.reports.show', [$this->case, 'study']))->assertInertia(fn ($page) => $page->where('form.content.sections.presented_problem', 'Problem from the CSR.'));
+        $this->get(route('cases.reports.show', [$this->case, 'plan']))->assertInertia(fn ($page) => $page->where('title', 'Intervention Plan'));
     }
 
     public function test_grants_log_records_and_voids_without_deleting(): void

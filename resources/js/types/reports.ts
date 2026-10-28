@@ -25,7 +25,7 @@ export interface ReportProps extends ReportBase {
     // summary / study use a light plan; the intervention plan report uses the full one
     plan?: any;
     // intake
-    intake?: { privacy_notice_method: string | null; privacy_notice_at: string | null; consent_status: string | null; data_sharing_basis: string | null; immediate_safety_concern: boolean; risk_indicators: string[]; next_review_at: string | null; remarks: string | null; health_recorded: boolean };
+    intake?: { privacy_notice_method: string | null; privacy_notice_at: string | null; consent_status: string | null; consent_form_type: string | null; consent_photo: boolean; immediate_safety_concern: boolean; risk_indicators: string[]; next_review_at: string | null; remarks: string | null; health_recorded: boolean };
     // Kalinga forms written by the case manager (summary / plan / study)
     form?: { status: string; version: number | null; content: { sections?: Record<string, string>; rows?: Record<string, string>[] }; hasContent: boolean;
         sections: { key: string; title: string; kind: 'text' | 'auto'; guide: string | null }[]; planColumns: Record<string, string> };

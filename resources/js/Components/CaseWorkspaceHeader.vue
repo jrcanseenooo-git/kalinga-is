@@ -19,9 +19,9 @@ const initials = computed(() => [props.caseRecord.first_name, props.caseRecord.l
 const REPORTS = [
     { type: 'intake', label: 'Kalinga Intake Sheet' },
     { type: 'summary', label: 'Case Summary Report' },
-    { type: 'notes', label: 'Progress Notes' },
-    { type: 'plan', label: 'Intervention Plan' },
     { type: 'study', label: 'Social Case Study Report' },
+    { type: 'plan', label: 'Intervention Plan' },
+    { type: 'notes', label: 'Progress Notes' },
 ];
 const menuOpen = ref(false);
 const menu = ref<HTMLElement | null>(null);

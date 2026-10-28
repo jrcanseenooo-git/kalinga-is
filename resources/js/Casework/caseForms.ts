@@ -4,7 +4,9 @@ export type FormSection = { key: string; title: string; kind: 'text' | 'auto'; g
 export type PlanRow = Record<string, string>;
 export type FormContent = { sections?: Record<string, string>; rows?: PlanRow[] };
 export type FormVersion = { form_type: string; version: number; created_at: string; finalized_by: string | null };
-export type CaseForm = { type: FormType; title: string; content: FormContent; status: 'not_started' | 'draft' | 'final'; revision: number; updated_at: string | null; versions: FormVersion[] };
+export type CaseForm = { type: FormType; title: string; content: FormContent; status: 'not_started' | 'draft' | 'final'; revision: number; updated_at: string | null; versions: FormVersion[];
+  /** Social Case Study Report sections currently showing Case Summary Report text (saved with the next change). */
+  carried?: string[] };
 export type FormsDefinition = { types: Record<FormType, string>; sequence: Record<string, string>; sections: Record<'summary' | 'study', FormSection[]>; planColumns: Record<string, string> };
 
 export const emptyPlanRow = (columns: Record<string, string>): PlanRow => Object.fromEntries(Object.keys(columns).map((key) => [key, '']));

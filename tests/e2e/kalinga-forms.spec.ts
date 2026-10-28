@@ -75,15 +75,22 @@ test('Kalinga forms save as the case manager types and keep their order', async 
     const steps = panel.getByRole('list', { name: 'Order of the Kalinga forms' }).getByRole('listitem');
     await expect(steps).toHaveCount(5);
     await expect(steps.nth(0)).toContainText('Intake Sheet');
-    await expect(steps.nth(4)).toContainText('Social Case Study Report');
+    await expect(steps.nth(2)).toContainText('Social Case Study Report');
+    await expect(steps.nth(3)).toContainText('Intervention Plan and Referrals');
+    await expect(steps.nth(3).getByRole('link', { name: 'Print Kalinga Intervention Plan' })).toHaveText('Print Intervention Plan');
+    await expect(steps.nth(4)).toContainText('Progress Notes');
     await steps.nth(1).getByRole('button', { name: /Write|Continue/ }).click();
     const text = 'Synthetic presenting problem written in the Case Summary Report.';
-    await panel.getByRole('textbox', { name: 'Presenting problem / reason for referral' }).fill(text);
+    await panel.getByRole('textbox', { name: 'Presenting problem', exact: true }).fill(text);
     await expect(panel.getByRole('status').filter({ hasText: /^Saved/ })).toBeVisible({ timeout: 10_000 });
     await page.reload();
     await page.getByRole('tab', { name: /^Kalinga forms/ }).click();
     await steps.nth(1).getByRole('button', { name: /Continue/ }).click();
-    await expect(panel.getByRole('textbox', { name: 'Presenting problem / reason for referral' })).toHaveValue(text);
+    await expect(panel.getByRole('textbox', { name: 'Presenting problem', exact: true })).toHaveValue(text);
+    // The Social Case Study Report starts from the Case Summary Report.
+    await steps.nth(2).getByRole('button', { name: /Write|Continue/ }).click();
+    await expect(panel.getByRole('textbox', { name: 'III. Presented problem' })).toHaveValue(text);
+    await expect(panel.getByText('From the Case Summary Report - add to it or update it for the case study.')).toBeVisible();
 
     await steps.nth(3).getByRole('button', { name: /Write|Continue/ }).click();
     const plan = panel.getByRole('article');

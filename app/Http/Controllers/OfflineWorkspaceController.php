@@ -48,6 +48,8 @@ class OfflineWorkspaceController extends Controller
             $case->kavat_draft = $draft ? ['id' => $draft->id, 'revision' => (int) $draft->revision, 'answers' => json_decode($draft->answers, true), 'notes' => $draft->notes,
                 'occasion' => $draft->occasion, 'administered_at' => substr((string) $draft->administered_at, 0, 10)] : null;
             $case->kavat_count = $own ? DB::table('kavat_assessments')->where('case_id', $case->id)->where('status', 'final')->count() : 0;
+            // Midline / Endline already recorded, so field mode offers only the next one.
+            $case->kavat_recorded = $own ? DB::table('kavat_assessments')->where('case_id', $case->id)->distinct()->pluck('occasion')->values()->all() : [];
             unset($case->assigned_to);
         });
 
