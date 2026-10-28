@@ -85,6 +85,7 @@ final class AuditCatalogue
         'case.created' => ['data_creation', 'CREATE', 'Case folder created'],
         'case.updated' => ['data_modification', 'UPDATE', 'Case information edited'],
         'case.transitioned' => ['workflow_status', 'UPDATE', 'Case status changed'],
+        'case.status_automatic' => ['workflow_status', 'UPDATE', 'Case status updated automatically'],
         'case.reassigned' => ['workflow_status', 'ASSIGN', 'Case reassigned to another case manager'],
         'case.archived' => ['data_deletion', 'ARCHIVE', 'Case archived'],
         'case.closure_recorded' => ['workflow_status', 'CLOSE', 'Case closure recorded'],

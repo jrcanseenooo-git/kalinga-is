@@ -22,7 +22,7 @@ import RemarksThread from '@/Components/RemarksThread.vue';
 import StatusBadge from '@/Components/UI/StatusBadge.vue';
 import { progressTone, shortDate, titleCase } from '@/utils/caseDisplay';
 import { followUp, type TrackedReferral } from '@/utils/referralTracking';
-import { CheckCircle2, Circle, FileText, Plus, ShieldCheck, Upload, UserPlus, Users, X } from '@lucide/vue';
+import { CheckCircle2, Circle, FileText, Plus, ShieldCheck, Sparkles, Upload, UserPlus, Users, X } from '@lucide/vue';
 import type { ConsentForm, SupportRelationship } from '@/types/clientContext';
 import type { CaseTask } from '@/types/casework';
 import type { Remark } from '@/types/remarks';
@@ -60,6 +60,7 @@ const props = defineProps<{
     timeline: any[];
     tasks: CaseTask[];
     transitions: string[];
+    statusInfo?: { automatic: boolean; reason: string } | null;
     canArchive: boolean;
     canReviewClosure: boolean;
     canGovernRecords: boolean;
@@ -248,7 +249,16 @@ const customAnswers = computed(() => {
 const clientAge = computed(() => ageFromBirthdate(props.caseRecord.birthdate));
 const priorityTone = (priority: string | null | undefined) => priority === 'high' ? 'overview-card-alert' : priority === 'standard' ? 'overview-card-done' : 'overview-card-pending';
 
-const move = () => transition.patch(route('cases.transition', props.caseRecord.id));
+const move = () => transition.patch(route('cases.transition', props.caseRecord.id), { preserveScroll: true });
+const statusLabel = (status: string) => status.toLowerCase().replaceAll('_', ' ').replace(/^./, letter => letter.toUpperCase());
+async function startClosure() {
+    if (!(await askConfirm({ title: 'Start the closure review?', message: 'The case moves to "For closure review". Complete the closure record in Closure & aftercare; the supervisor reviews it before the case closes.', confirmLabel: 'Start closure review' }))) return;
+    transition.status = 'FOR_CLOSURE_REVIEW'; move();
+}
+async function cancelClosure() {
+    if (!(await askConfirm({ title: 'Stop the closure review?', message: 'The case goes back to its working status.', confirmLabel: 'Stop the review' }))) return;
+    transition.status = 'IN_PROGRESS'; move();
+}
 const uploadDocument = () => documentUpload.post(route('cases.documents.upload', props.caseRecord.id), {
     forceFormData: true,
     onSuccess: () => { documentUpload.reset(); showUpload.value = false; },
@@ -264,10 +274,13 @@ const archiveCase = async () => { if (await askConfirm({ title: 'Archive this ca
     <AuthenticatedLayout>
         <section class="case-workspace mx-auto min-w-0 max-w-[1440px]">
             <CaseWorkspaceHeader :case-record="caseRecord" :age="clientAge" :activity-days="daysSinceActivity" :can-generate-report="canGenerateReport" />
-            <details v-if="transitions.length" class="ui-panel mt-3 px-4 py-2">
-                <summary class="min-h-11 cursor-pointer py-3 text-sm font-semibold text-brand-800">Case status actions</summary>
-                <div class="flex flex-wrap gap-2 pb-2"><button v-for="status in transitions" :key="status" type="button" @click="transition.status = status; move()" class="ui-button text-xs">Move to {{ status.toLowerCase().replaceAll('_', ' ') }}</button></div>
-            </details>
+            <!-- Status follows the recorded work; only the closure steps are started by hand. -->
+            <div class="ui-panel mt-3 flex flex-wrap items-center gap-3 px-4 py-3">
+                <Sparkles class="h-5 w-5 shrink-0 text-violet-700" aria-hidden="true" />
+                <p class="min-w-0 flex-1 text-sm text-slate-700"><b class="text-slate-900">Status: {{ statusLabel(caseRecord.status) }}.</b> {{ statusInfo?.automatic ? `Updated automatically - ${statusInfo.reason}` : statusInfo?.reason }}</p>
+                <button v-if="transitions.includes('FOR_CLOSURE_REVIEW')" type="button" class="ui-button min-h-11" :disabled="transition.processing" @click="startClosure">Start closure review</button>
+                <button v-if="caseRecord.status === 'FOR_CLOSURE_REVIEW' && transitions.includes('IN_PROGRESS')" type="button" class="ui-button min-h-11" :disabled="transition.processing" @click="cancelClosure">Stop the closure review</button>
+            </div>
 
             <section id="case-workspace-tabs" class="case-workspace-nav scroll-mt-24" aria-label="Case workspace sections">
                 <div class="grid w-full gap-3 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">

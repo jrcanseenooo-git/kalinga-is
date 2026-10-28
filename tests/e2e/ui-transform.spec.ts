@@ -158,7 +158,10 @@ for(const width of [360,390,768,1024,1440,1920]) test(`case workspace overview a
   await target.getByRole('button',{name:'Show fewer case tasks',exact:true}).click();
   await expect(target.locator('#case-task-records > div')).toHaveCount(5);
  }
- if(payload.transitions.length){await page.getByText('Case status actions',{exact:true}).click();await expect(page.getByRole('button',{name:/^Move to /})).toHaveCount(payload.transitions.length);}
+ // The status is automatic: a status line, and only the closure review can be started by hand.
+ await expect(page.getByText(/^Status: /).first()).toBeVisible();
+ await expect(page.getByRole('button',{name:/^Move to /})).toHaveCount(0);
+ if(payload.transitions.includes('FOR_CLOSURE_REVIEW'))await expect(page.getByRole('button',{name:'Start closure review',exact:true})).toBeVisible();
  await tabs.getByRole('tab',{name:'Overview',exact:true}).click(); await page.keyboard.press('ArrowRight');
  await expect(tabs.getByRole('tab',{name:'Client & Intake',exact:true})).toBeFocused();
  await page.keyboard.press('End');await expect(tabs.getByRole('tab',{name:'Documents',exact:true})).toHaveAttribute('aria-selected','true');
