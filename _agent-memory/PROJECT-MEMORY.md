@@ -80,6 +80,8 @@ Plan deadline: due = intake date + 7 days; submission = first finalized plan ver
 (case_form_versions v1). Supervisor = LGU Head of the case LGU (App\Services\Supervisors).
 Referrals now conducted from plan rows (referrals.plan_row_key); the note form no
 longer creates referrals.
+FLAG for owner: hiding Plan & continuity also hides the formal handover button (the
+only way to change a case manager); page /cases/{id}/plan-workspace still works.
 
 | # | Item | Status |
 |---|---|---|
@@ -91,7 +93,7 @@ longer creates referrals.
 | F | Intervention Plan and Referrals (no KaVAT suggestions, target dates, Conduct referral per row, 7-day deadline + supervisor status) | Done (4c48ec6) |
 | G | Monitoring tab (plan monitoring) | Done (60c1480) |
 | H | Calendar: invite anyone by name; supervisor sees CM activities; reschedule = attention item for CM and supervisor; plan dates on calendar | Done (c573dd4) |
-| I | Hide Case Plan and Plan & continuity; service Other specify; grants = Transportation Support Allowance only, no fund source | Pending |
+| I | Hide Case Plan and Plan & continuity; service Other specify; grants = Transportation Support Allowance only, no fund source | Done (b7c7271) |
 | J | Dashboard -> Workboard; analytics (Reporting Pipeline, age-sex by exact age, priority charts on top, services chart, average plan submission time) | Pending |
 | K | Aftercare module | Pending |
 | L | Offline field mode upgrade | Pending |

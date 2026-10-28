@@ -23,10 +23,10 @@ const open = ref(false); const collapsed = ref(false); const confirmLogout = ref
 const permissions = computed(() => new Set<string>(page.props.auth.permissions ?? []));
 const can = (permission: string) => permissions.value.has(permission);
 const isActive = (link: NavigationLink) => link.match.some((name) => route().current(name));
-// The dashboard is everyone's to-do list; CPU members start from their referred cases.
+// The Workboard (dashboard) is everyone's to-do list; CPU members start from their referred cases.
 const homeLink = computed(() => page.props.auth.user.role === 'cpu_member'
   ? { label:'My referred cases', icon:'home', route:'mdt.collaboration.index', match:['mdt.collaboration.index','mdt.workspace'] }
-  : { label:'Dashboard', icon:'home', route:'dashboard', match:['dashboard'] });
+  : { label:'Workboard', icon:'home', route:'dashboard', match:['dashboard'] });
 const navCounts = computed(() => (page.props as unknown as { navCounts?: { activeCases: number | null; calendarDue: number | null; connectUnread?: number | null; teamUnread?: number | null } | null }).navCounts ?? null);
 const groups = computed<{ title: string; links: NavigationLink[] }[]>(() => [
   { title:'', links:[homeLink.value] },
@@ -64,7 +64,7 @@ function submitSearch(){ const term=searchTerm.value.trim(); router.get(route(ca
 function onDocumentClick(event: MouseEvent){ if(userMenuOpen.value && userMenu.value && !userMenu.value.contains(event.target as Node)) userMenuOpen.value=false; }
 const today = computed(() => formatPh(new Date(), 'weekdayDate'));
 const pageTitle = computed(() => {
-  if (route().current('dashboard')) return 'Dashboard';
+  if (route().current('dashboard')) return 'Workboard';
   if (route().current('reports.index')) return 'Cases · Intake screening';
   if (route().current('cases.create')) return 'Cases · New case';
   if (route().current('cases.index')) return 'Cases';

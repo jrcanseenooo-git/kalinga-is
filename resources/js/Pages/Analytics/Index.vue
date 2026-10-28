@@ -13,7 +13,8 @@ import DonutChart from '@/Components/Charts/DonutChart.vue';
 import FunnelChart from '@/Components/Charts/FunnelChart.vue';
 import TrendAreaChart from '@/Components/Charts/TrendAreaChart.vue';
 import LollipopChart from '@/Components/Charts/LollipopChart.vue';
-import WaffleChart from '@/Components/Charts/WaffleChart.vue';
+import AgeSexChart, { type AgeSexRow } from '@/Components/Charts/AgeSexChart.vue';
+import ServicesBars, { type ServiceRow } from '@/Components/Charts/ServicesBars.vue';
 import ColumnChart from '@/Components/Charts/ColumnChart.vue';
 import ChartTable from '@/Components/Charts/DataTable.vue';
 
@@ -31,7 +32,9 @@ const props = defineProps<{
   sex: Row[];
   classification: Row[];
   age: Row[];
-  services: Row[];
+  ageSex: AgeSexRow[];
+  services: ServiceRow[];
+  planSubmission: { averageDays: number | null; submitted: Count; onTime: Count; late: Count; overdue: Count; targetDays: number };
   totals: Record<string, Count>;
   canExport: boolean;
   canQuarterly: boolean;
@@ -88,6 +91,7 @@ async function exportPdf() {
   finally { printing.value = false; }
 }
 
+const shown = (value: Count) => (value === 'Suppressed' ? 'Withheld' : value);
 const chartTotal = (rows: any[]) => rows.reduce((sum: number, r: any) => sum + Number(r.total), 0);
 const displayStatus = (s: string) => s.toLowerCase().replaceAll('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
 
@@ -192,6 +196,24 @@ const trendTotal = computed(() => numericTrend.value.length === props.trend.leng
 
       <article class="total-card total-violet"><div class="total-icon" aria-hidden="true">P</div><div class="min-w-0"><p class="text-sm font-semibold text-slate-600">Total grants disbursed</p><p class="mt-1 break-words text-2xl font-extrabold sm:text-3xl">{{ peso(grantsTotal) }}</p><p class="text-xs text-slate-600">{{ typeof totals.grantsCount === 'number' ? `${totals.grantsCount} grants` : 'Number of grants withheld' }}, from the grants log of each case (voided entries excluded).</p></div></article>
 
+      <!-- Who the children are (owner, 2026-10-28: on top) -->
+      <div class="grid gap-5 lg:grid-cols-2 min-[1600px]:grid-cols-[1fr_1fr_1.3fr]">
+        <article class="chart-card"><h2>CEFMU classification</h2><div class="mt-4"><DonutChart title="CEFMU classification" :rows="props.classification" center-label="cases" /></div><ChartTable title="CEFMU classification" :rows="props.classification" label-header="Classification" /></article>
+        <article class="chart-card"><h2>Cases by age</h2><p class="mt-1 text-xs text-slate-500">Exact current age in years.</p><div class="mt-4"><ColumnChart title="Cases by age" :rows="props.age" /></div><ChartTable title="Cases by age" :rows="props.age" label-header="Age" /></article>
+        <article class="chart-card lg:col-span-2 min-[1600px]:col-span-1"><h2>Age and sex</h2><p class="mt-1 text-xs text-slate-500">Exact current age; girls on the left, boys on the right.</p><div class="mt-4"><AgeSexChart title="Age and sex" :rows="props.ageSex" /></div></article>
+      </div>
+
+      <article class="chart-card" aria-labelledby="plan-time-title">
+        <h2 id="plan-time-title">Intervention Plan submission time</h2>
+        <p class="mt-1 text-xs text-slate-500">Days from the intake to the first finalized Intervention Plan. Target: within {{ planSubmission.targetDays }} days.</p>
+        <dl class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div class="rounded-xl bg-brand-50 p-3"><dt class="text-xs font-semibold text-brand-800">Average</dt><dd class="text-2xl font-extrabold text-slate-900">{{ planSubmission.averageDays === null ? 'Withheld' : `${planSubmission.averageDays} days` }}</dd></div>
+          <div class="rounded-xl bg-emerald-50 p-3"><dt class="text-xs font-semibold text-emerald-900">On time</dt><dd class="text-2xl font-extrabold text-slate-900">{{ shown(planSubmission.onTime) }}</dd></div>
+          <div class="rounded-xl bg-amber-50 p-3"><dt class="text-xs font-semibold text-amber-900">Submitted late</dt><dd class="text-2xl font-extrabold text-slate-900">{{ shown(planSubmission.late) }}</dd></div>
+          <div class="rounded-xl bg-rose-50 p-3"><dt class="text-xs font-semibold text-rose-900">Not yet submitted, past due</dt><dd class="text-2xl font-extrabold text-slate-900">{{ shown(planSubmission.overdue) }}</dd></div>
+        </dl>
+      </article>
+
       <div class="grid gap-5 xl:grid-cols-[1.4fr_1fr]">
         <article class="chart-card"><h2>New and closed cases</h2><p class="mt-0.5 text-xs text-slate-500">Last 12 months in the selected area (period filter not applied).</p><div class="mt-3"><TrendLinesChart title="New and closed cases per month" :rows="monthly" :series="[{ key: 'opened', label: 'New cases', color: '#7c5cd6' }, { key: 'closed', label: 'Closed cases', color: '#2f9e6b' }]" /></div><ChartTable title="New and closed cases" :rows="monthly.map(row => ({ label: row.label, total: row.opened as number }))" label-header="Month" value-header="New cases" /></article>
         <article class="chart-card"><h2>New cases by quarter</h2><p class="mt-0.5 text-xs text-slate-500">Last 8 quarters in the selected area.</p><div class="mt-3"><TrendAreaChart title="New cases by quarter" :rows="quarters" /></div></article>
@@ -206,7 +228,7 @@ const trendTotal = computed(() => numericTrend.value.length === props.trend.leng
 
       <div class="grid gap-5 lg:grid-cols-2">
         <article class="chart-card"><h2>Case status distribution</h2><p class="mt-1 text-xs text-slate-500">Groups below minimum cell size are suppressed.</p><div class="mt-4"><DonutChart title="Case status distribution" :rows="statusRows" center-label="cases" /></div><ChartTable title="Case status distribution" :rows="statusRows" /></article>
-        <article class="chart-card"><h2>Referral pipeline</h2><p class="mt-1 text-xs text-slate-500">How many referrals moved to each step, and the share of those sent.</p><div class="mt-4"><FunnelChart title="Referral pipeline" :steps="referralFunnel" /></div><p v-if="notProceeded" class="mt-3 text-xs text-slate-600">{{ notProceeded }} referral(s) did not proceed (declined, returned, unavailable or withdrawn).</p><ChartTable title="Referral status" :rows="referralRows" label-header="Status" value-header="Referrals" /></article>
+        <article class="chart-card"><h2>Reporting Pipeline</h2><p class="mt-1 text-xs text-slate-500">How many referrals moved to each step, and the share of those sent.</p><div class="mt-4"><FunnelChart title="Reporting Pipeline" :steps="referralFunnel" /></div><p v-if="notProceeded" class="mt-3 text-xs text-slate-600">{{ notProceeded }} referral(s) did not proceed (declined, returned, unavailable or withdrawn).</p><ChartTable title="Referral status" :rows="referralRows" label-header="Status" value-header="Referrals" /></article>
       </div>
 
       <div class="grid gap-5 xl:grid-cols-[1.4fr_1fr]">
@@ -214,11 +236,9 @@ const trendTotal = computed(() => numericTrend.value.length === props.trend.leng
         <article class="chart-card"><h2>Cases by area</h2><p class="mt-1 text-xs text-slate-500">Ranked; PSGC-ready geographic workload.</p><div class="mt-4"><LollipopChart v-if="geoRows.length" title="Cases by area" :rows="geoRows" /><p v-else class="text-sm text-slate-600">No publishable area data.</p></div></article>
       </div>
 
-      <div class="grid gap-5 md:grid-cols-2 min-[1600px]:grid-cols-4">
-        <article class="chart-card"><h2>CEFMU classification</h2><div class="mt-4"><DonutChart title="CEFMU classification" :rows="props.classification" center-label="cases" /></div></article>
+      <div class="grid gap-5 lg:grid-cols-2">
+        <article class="chart-card"><h2>Services provided</h2><p class="mt-1 text-xs text-slate-500">By type: services given, cases served and amount.</p><div class="mt-4"><ServicesBars title="Services provided" :rows="props.services" /></div><ChartTable title="Services provided" :rows="props.services.map(row => ({ label: row.label, total: row.total }))" label-header="Service" value-header="Services" /></article>
         <article class="chart-card"><h2>Cases by sex</h2><div class="mt-4"><DonutChart title="Cases by sex" :rows="props.sex" center-label="cases" :colors="['#e0607e', '#3b82d6', '#64748b']" /></div></article>
-        <article class="chart-card"><h2>Cases by age group</h2><div class="mt-4"><ColumnChart title="Cases by age group" :rows="props.age" /></div><ChartTable title="Cases by age group" :rows="props.age" label-header="Age group" /></article>
-        <article class="chart-card"><h2>Services provided</h2><p class="mt-1 text-xs text-slate-500">Services given, by type.</p><div class="mt-4"><WaffleChart title="Services provided" :rows="props.services" /></div></article>
       </div>
       <article class="chart-card"><h2>KaVAT priority (latest per case)</h2><p class="mt-1 text-xs text-slate-500">From finalized KaVAT results only.</p><div class="mt-4"><DonutChart v-if="kavatPriority.length" title="KaVAT priority" :rows="kavatPriority" center-label="cases" :colors="['#e0607e', '#2f9e6b']" /><p v-else class="text-sm text-slate-600">No finalized KaVAT to show here.</p></div></article>
       <div class="print-watermark" aria-hidden="true"><span v-for="n in 12" :key="n">{{ watermark }}</span></div>

@@ -43,12 +43,12 @@ const isExternal = (href: string) => /^https?:/.test(href) && !href.startsWith(w
 </script>
 
 <template>
-  <Head title="Dashboard" />
+  <Head title="Workboard" />
   <AuthenticatedLayout>
     <div id="worker-dashboard" class="mx-auto max-w-[1280px] space-y-5">
       <header class="flex flex-col gap-4 min-[1024px]:flex-row min-[1024px]:items-center min-[1024px]:justify-between">
         <div class="min-w-0">
-          <h1 class="text-xs font-semibold uppercase tracking-wider text-brand-700">Dashboard - your to-do list</h1>
+          <h1 class="text-xs font-semibold uppercase tracking-wider text-brand-700">Workboard - your to-do list</h1>
           <p class="mt-1 text-2xl font-bold tracking-tight text-[var(--color-ink)] sm:text-[30px]">{{ greeting }}, {{ page.props.auth.user.name.split(' ')[0] }}!</p>
           <p class="mt-1 text-sm text-slate-600">{{ todoCount ? `${todoCount} ${todoCount === 1 ? 'thing needs' : 'things need'} your attention.` : 'Nothing needs your attention right now.' }}</p>
         </div>
