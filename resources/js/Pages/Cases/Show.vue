@@ -12,6 +12,7 @@ import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import CaseClientContextPanel from '@/Components/CaseClientContextPanel.vue';
 import CaseServicesPanel from '@/Components/CaseServicesPanel.vue';
+import PlanMonitoringPanel from '@/Components/Forms/PlanMonitoringPanel.vue';
 import CaseClosurePanel from '@/Components/CaseClosurePanel.vue';
 import CaseProfileOverview from '@/Components/CaseProfileOverview.vue';
 import KavatPanel from '@/Components/Kavat/KavatPanel.vue';
@@ -90,12 +91,13 @@ const workspaceTabs = [
     { key: 'kavat', label: 'KaVAT' },
     { key: 'forms', label: 'Kalinga forms' },
     { key: 'notes', label: 'Progress notes' },
+    { key: 'monitoring', label: 'Monitoring' },
     { key: 'closure', label: 'Closure & aftercare' },
     { key: 'records', label: 'Documents' },
 ] as const;
 type TabKey = typeof workspaceTabs[number]['key'];
 /** Old section names still used in links and notifications. */
-const LEGACY_TABS: Record<string, TabKey> = { safety: 'kavat', assessment: 'forms', participation: 'forms', care: 'forms', collaboration: 'notes', monitoring: 'notes', conference: 'overview' };
+const LEGACY_TABS: Record<string, TabKey> = { safety: 'kavat', assessment: 'forms', participation: 'forms', care: 'forms', collaboration: 'notes', conference: 'overview' };
 const activeSection = ref<TabKey>('overview');
 const showAllAlerts = ref(false);
 const showMdtAccessForm = ref(false);
@@ -204,6 +206,10 @@ const tabBadges = computed(() => {
     else if (kavatDraft.value) badges.kavat = { urgent: false };
     if (overdueTasks.value.length) badges.notes = { count: overdueTasks.value.length, urgent: true };
     if (props.caseRecord.status === 'FOR_CLOSURE_REVIEW') badges.closure = { urgent: true };
+    // Plan items past their target end date and not done.
+    const today = manilaToday;
+    const late = (props.forms.plan.content.rows ?? []).filter(row => row.status !== 'done' && row.target_end && row.target_end < today).length;
+    if (late) badges.monitoring = { count: late, urgent: true };
     return badges;
 });
 
@@ -331,6 +337,10 @@ const archiveCase = async () => { if (await askConfirm({ title: 'Archive this ca
                             :intake-at="caseRecord.intake_completed_at ?? caseRecord.opened_at ?? null" :note-count="notes.filter(note => note.record_type !== 'addendum').length"
                             :last-note-at="notes[0]?.occurred_at ?? notes[0]?.created_at ?? null" :plan-deadline="planDeadline ?? null" :referrals="referrals" :referral-targets="referralTargets"
                             :referral-transitions="referralTransitions ?? {}" :cpu-members="cpuMembers ?? []" :has-sharing-consent="Boolean(hasSharingConsent)" @open-notes="openSection('notes')" />
+                    </section>
+
+                    <section v-show="activeSection === 'monitoring'" id="case-panel-monitoring" role="tabpanel" aria-labelledby="case-tab-monitoring" class="scroll-mt-24 min-w-0">
+                        <PlanMonitoringPanel :plan="forms.plan" :referrals="referrals" :deadline="planDeadline ?? null" :notes="notes" @open-plan="openPlanReferrals" @open-notes="openSection('notes')" />
                     </section>
 
                     <section v-show="activeSection === 'notes'" id="case-panel-notes" role="tabpanel" aria-labelledby="case-tab-notes" class="scroll-mt-24 min-w-0 space-y-5">

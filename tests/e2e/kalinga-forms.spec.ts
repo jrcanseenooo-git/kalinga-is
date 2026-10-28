@@ -99,6 +99,12 @@ test('Kalinga forms save as the case manager types and keep their order', async 
     await plan.getByRole('button', { name: /Finalize version/ }).click();
     await expect(steps.nth(3)).toContainText('Finalized version 1');
     await expectNoHorizontalOverflow(page);
+    // Monitoring shows the plan items with their status (read only).
+    await page.getByRole('tab', { name: /^Monitoring/ }).click();
+    const monitoring = page.locator('#case-panel-monitoring');
+    await expect(monitoring.locator('[data-monitor-row="1"]')).toContainText('Stopped schooling after the union');
+    await expect(monitoring.locator('[data-monitor-row="1"]')).toContainText('Not started');
+    await expectNoHorizontalOverflow(page);
 });
 
 test('grants log records a grant and totals it', async ({ page }) => {

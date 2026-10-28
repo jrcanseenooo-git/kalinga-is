@@ -44,12 +44,13 @@ export const HELP_ARTICLES: HelpArticle[] = [
   },
   {
     id: 'case-page', category: 'Case work', title: 'Find your way around a case', permission: 'cases.view',
-    summary: 'Overview, Client & Intake, KaVAT, Kalinga forms, Progress notes, Closure & aftercare, Documents.',
+    summary: 'Overview, Client & Intake, KaVAT, Kalinga forms, Progress notes, Monitoring, Closure & aftercare, Documents.',
     steps: [
       'Overview shows remarks from your supervisor, the client profile, case information, the case conference card, referrals and tasks.',
       'The Next step box at the top follows the Kalinga forms: baseline KaVAT result, Case Summary Report, Intervention Plan, progress notes, the Endline KaVAT at closure review, then the Social Case Study Report.',
       'KaVAT is the Kalinga Vulnerability Assessment Tool. Kalinga forms is where you write the summary, case study and the Intervention Plan and Referrals.',
       'Referrals are conducted from the Intervention Plan. Progress notes holds notes, visits, services provided, the grants log and the history of every referral.',
+      'Monitoring shows each Intervention Plan item with its status, target dates, referrals and whether it is on track or past its target end, plus the latest progress notes. It is for monitoring only; change the plan in Kalinga forms.',
       'Case conferences can be held at any time; open them from the case conference card on the Overview.',
     ],
     keywords: 'case details workspace tabs overview next step kavat forms referrals grants closure conference',

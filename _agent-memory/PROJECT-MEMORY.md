@@ -76,6 +76,10 @@ Baseline (external score), Midline and Endline only; in-system test KaVATs
 are deleted (owner approved). Aftercare = plan at closure + follow-up visits.
 Assumption to flag: Midline is suggested 3 months after the case opened (info
 reminder); Endline when the case is in closure review. Owner to confirm timing.
+Plan deadline: due = intake date + 7 days; submission = first finalized plan version
+(case_form_versions v1). Supervisor = LGU Head of the case LGU (App\Services\Supervisors).
+Referrals now conducted from plan rows (referrals.plan_row_key); the note form no
+longer creates referrals.
 
 | # | Item | Status |
 |---|---|---|
@@ -84,7 +88,7 @@ reminder); Endline when the case is in closure review. Owner to confirm timing.
 | C | Automatic case status | Done (9eff657) |
 | D | KaVAT Baseline/Midline/Endline, editable for corrections, no "reversed" label, no option points, 3-result history | Done (33d1023) |
 | E | Forms order Intake > CSR > SCSR > Intervention Plan and Referrals > Progress Notes (also Reports menu); Intake print fixes; CSR template; SCSR carries CSR | Done (be28bbc) |
-| F | Intervention Plan and Referrals (no KaVAT suggestions, target dates, Conduct referral per row, 7-day deadline + supervisor status) | Pending |
+| F | Intervention Plan and Referrals (no KaVAT suggestions, target dates, Conduct referral per row, 7-day deadline + supervisor status) | Done (4c48ec6) |
 | G | Monitoring tab (plan monitoring) | Pending |
 | H | Calendar: invite anyone by name; supervisor sees CM activities; reschedule = attention item for CM and supervisor; plan dates on calendar | Pending |
 | I | Hide Case Plan and Plan & continuity; service Other specify; grants = Transportation Support Allowance only, no fund source | Pending |
