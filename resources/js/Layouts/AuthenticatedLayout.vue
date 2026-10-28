@@ -27,7 +27,7 @@ const isActive = (link: NavigationLink) => link.match.some((name) => route().cur
 const homeLink = computed(() => page.props.auth.user.role === 'cpu_member'
   ? { label:'My referred cases', icon:'home', route:'mdt.collaboration.index', match:['mdt.collaboration.index','mdt.workspace'] }
   : { label:'Dashboard', icon:'home', route:'dashboard', match:['dashboard'] });
-const navCounts = computed(() => (page.props as unknown as { navCounts?: { activeCases: number | null; calendarDue: number | null } | null }).navCounts ?? null);
+const navCounts = computed(() => (page.props as unknown as { navCounts?: { activeCases: number | null; calendarDue: number | null; connectUnread?: number | null; teamUnread?: number | null } | null }).navCounts ?? null);
 const groups = computed<{ title: string; links: NavigationLink[] }[]>(() => [
   { title:'', links:[homeLink.value] },
   { title:'Case work', links:[
@@ -37,8 +37,8 @@ const groups = computed<{ title: string; links: NavigationLink[] }[]>(() => [
     ...(can('activities.manage') ? [{ label:'Calendar', icon:'calendar', route:'calendar.index', match:['calendar.index','tasks.index'], badge: navCounts.value?.calendarDue, badgeTone: 'alert' as const }] : []),
   ]},
   { title:'Coordination', links:[
-    ...(can('cpu.chat.view') ? [{ label:'Kalinga Connect', icon:'connect', route:'cpu.coordination.index', match:['cpu.coordination.index'] }] : []),
-    ...(can('connect.network') || can('cases.monitor') || can('cases.update') ? [{ label:'Project team chat', icon:'connect', route:'connect.network', match:['connect.network'] }] : []),
+    ...(can('cpu.chat.view') ? [{ label:'Kalinga Connect', icon:'connect', route:'cpu.coordination.index', match:['cpu.coordination.index'], badge: navCounts.value?.connectUnread, badgeTone: 'alert' as const }] : []),
+    ...(can('connect.network') || can('cases.monitor') || can('cases.update') ? [{ label:'Project team chat', icon:'connect', route:'connect.network', match:['connect.network'], badge: navCounts.value?.teamUnread, badgeTone: 'alert' as const }] : []),
   ]},
   ...(can('analytics.view') || can('analytics.quarterly') ? [{ title:'Insights', links:[
     { label:'Analytics', icon:'bars', route:'analytics.index', match:['analytics.index','analytics.quarterly'] },

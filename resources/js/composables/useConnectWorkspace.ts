@@ -1,3 +1,4 @@
+import { refreshNavBadges } from '@/utils/navBadges';
 import { askConfirm } from '@/utils/confirmDialog';
 import axios from 'axios';
 import { useForm, usePage } from '@inertiajs/vue3';
@@ -53,7 +54,7 @@ export function useConnectWorkspace(props:CoordinationProps) {
         const id=activeCircle.value;if(!id)return;
         const {data}=await axios.get<CoordinationPage>(endpoint('index'));
         if(!Array.isArray(data.messages)||!Array.isArray(data.members)||!data.pagination)throw Error('Conversation unavailable');
-        items.value=data.messages;circleMembers.value=data.members;pagination.value=data.pagination;appliedSearch.value='';unread.value=0;lastReadAt.value=new Date().toISOString();
+        items.value=data.messages;circleMembers.value=data.members;pagination.value=data.pagination;appliedSearch.value='';unread.value=0;lastReadAt.value=new Date().toISOString();refreshNavBadges();
     }
     async function loadCircle() {
         if(busy.value||!activeCircle.value)return;
