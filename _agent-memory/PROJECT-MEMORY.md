@@ -65,6 +65,32 @@ Owner answers that still apply:
 | 7 | Smart (rule-based, no external AI) assistance across the whole system; rename the cut-off "Office profile & signatories" nav label | Done (8637205) |
 | 8 | Bug sweep, tests, docs, push | Done (02edb5e) |
 
+### Batch of 2026-10-28 evening (owner request, in progress)
+
+Owner decisions: case status fully automatic (Open -> In progress when work
+is recorded; Awaiting referral while a referral is unanswered; For follow-up
+when referrals answered but plan items open; manual buttons removed, closure
+steps stay). Plan rows keep the free-text Time frame (printed) and gain
+target start/end dates (calendar and monitoring only, not printed). KaVAT is
+Baseline (external score), Midline and Endline only; in-system test KaVATs
+are deleted (owner approved). Aftercare = plan at closure + follow-up visits.
+
+| # | Item | Status |
+|---|---|---|
+| A | Intake: saved-intake Continue hangs on loading; step shows negative after Back; better smart start page; "Child Contact Details" (child mobile 11 digits, plus Messenger etc.); text size for the form only | Pending |
+| B | Sidebar unread badges: Kalinga Connect, Project team chat | Pending |
+| C | Automatic case status | Pending |
+| D | KaVAT Baseline/Midline/Endline, editable for corrections, no "reversed" label, no option points, 3-result history | Pending |
+| E | Forms order Intake > CSR > SCSR > Intervention Plan and Referrals > Progress Notes (also Reports menu); Intake print fixes; CSR template; SCSR carries CSR | Pending |
+| F | Intervention Plan and Referrals (no KaVAT suggestions, target dates, Conduct referral per row, 7-day deadline + supervisor status) | Pending |
+| G | Monitoring tab (plan monitoring) | Pending |
+| H | Calendar: invite anyone by name; supervisor sees CM activities; reschedule = attention item for CM and supervisor; plan dates on calendar | Pending |
+| I | Hide Case Plan and Plan & continuity; service Other specify; grants = Transportation Support Allowance only, no fund source | Pending |
+| J | Dashboard -> Workboard; analytics (Reporting Pipeline, age-sex by exact age, priority charts on top, services chart, average plan submission time) | Pending |
+| K | Aftercare module | Pending |
+| L | Offline field mode upgrade | Pending |
+| M | Tests, docs, push | Pending |
+
 ## 3. Current progress
 
 - All 8 phases built, tested and merged to `main` (PR #3, merged

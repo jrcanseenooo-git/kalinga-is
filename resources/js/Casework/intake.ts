@@ -19,6 +19,10 @@ export type FamilyMember = {
     same_address: boolean; house_no_street: string; region: string; province: string; municipality: string; barangay: string;
 };
 
+/** Other ways to reach the child; same list as App\\Services\\CaseIntake::CONTACT_CHANNELS. */
+export const CONTACT_CHANNELS = ['Facebook Messenger', 'Viber', 'WhatsApp', 'Telegram', 'Instagram', 'TikTok', 'Email', 'Landline', 'Other'] as const;
+export type ContactChannel = { channel: string; handle: string };
+
 export type AssignedLocation = { municipality: string; province: string; region: string } | null | undefined;
 export const RISK_LEVELS: Array<{ value: RiskLevel; label: string; hint: string }> = [
     { value: 'low', label: 'Low', hint: 'No immediate safety concern; regular follow-up.' },
@@ -46,7 +50,7 @@ export const DEFAULT_INTAKE_OPTIONS: IntakeOptions = {
 export function emptyIntake(location?: AssignedLocation) {
     return {
         privacy_notice_acknowledged: false, privacy_notice_method: '', consent_form_type: '', consent_photo: '',
-        first_name: '', middle_name: '', last_name: '', suffix: '', alias: '', birthdate: '', sex: '', phone: '',
+        first_name: '', middle_name: '', last_name: '', suffix: '', alias: '', birthdate: '', sex: '', phone: '', contact_channels: [] as ContactChannel[],
         disability_evidence: '', civil_status: '', religion: '', ip_category: '', education_attainment: '',
         safe_contact_method: 'Not recorded', safe_contact_notes: '',
         house_no_street: '', region: location?.region ?? '', province: location?.province ?? '', municipality: location?.municipality ?? '', barangay: '',
@@ -64,10 +68,38 @@ export function emptyIntake(location?: AssignedLocation) {
 }
 export type IntakeData = ReturnType<typeof emptyIntake>;
 
+/** Keep a step number inside 1..4, whatever was stored or clicked. */
+export const clampStep = (value: unknown) => Math.min(INTAKE_STEPS.length, Math.max(1, Math.round(Number(value) || 1)));
+
+/**
+ * A saved intake as the form expects it. The server turns empty text into
+ * null when it stores a draft, and older drafts may lack newer fields; both
+ * would break the form (it called .trim() on null and never finished
+ * loading). Missing or null values fall back to the blank intake.
+ */
+export function restoreIntake(payload: Partial<IntakeData> | null | undefined, location?: AssignedLocation): IntakeData {
+    const blank = emptyIntake(location);
+    const saved = (payload ?? {}) as Record<string, unknown>;
+    const restored = { ...blank } as Record<string, unknown>;
+    for (const [key, fallback] of Object.entries(blank)) {
+        const value = saved[key];
+        if (value === null || value === undefined) continue;
+        if (Array.isArray(fallback)) restored[key] = Array.isArray(value) ? value : fallback;
+        else if (typeof fallback === 'object' && fallback !== null) restored[key] = typeof value === 'object' ? { ...(fallback as object), ...(value as object) } : fallback;
+        else restored[key] = value;
+    }
+    restored.family_members = ((Array.isArray(saved.family_members) ? saved.family_members : []) as Array<Record<string, unknown>>).map(member => {
+        const base = emptyFamilyMember() as Record<string, unknown>;
+        for (const [key, value] of Object.entries(member ?? {})) if (value !== null && value !== undefined && key in base) base[key] = value;
+        return base as FamilyMember;
+    });
+    return restored as IntakeData;
+}
+
 export const emptyFamilyMember = (): FamilyMember => ({ name: '', relationship_type: '', sex: '', birthdate: '', civil_status: '', education: '', occupation: '',
     same_address: false, house_no_street: '', region: '', province: '', municipality: '', barangay: '' });
 
-const phoneOk = (value: string) => !value || /^(?:\+63|0)9\d{9}$/.test(value);
+const phoneOk = (value: string) => !value || /^09\d{9}$/.test(value);
 const todayIso = () => manilaToday();
 
 /** Problems on one step, keyed by field name. */
@@ -84,7 +116,10 @@ export function validateIntakeStep(step: number, data: IntakeData, options: Inta
         if (!data.birthdate) errors.birthdate = 'Date of birth is required.';
         else if (data.birthdate > todayIso()) errors.birthdate = 'Date of birth cannot be in the future.';
         if (!data.sex) errors.sex = "Select the child's sex.";
-        if (!phoneOk(data.phone)) errors.phone = 'Use 09XXXXXXXXX or +639XXXXXXXXX.';
+        if (!phoneOk(data.phone)) errors.phone = "The child's mobile number has 11 digits and starts with 09, for example 09171234567.";
+        data.contact_channels.forEach((item, index) => {
+            if (item.channel && !item.handle.trim()) errors[`contact_channels.${index}.handle`] = `Add the ${item.channel} name or number, or remove it.`;
+        });
         data.family_members.forEach((member, index) => {
             if (isEmptyFamilyMember(member)) return;
             if (!member.name.trim()) errors[`family_members.${index}.name`] = `Family member ${index + 1}: add the name, or remove this person.`;
@@ -127,5 +162,6 @@ export function intakePayload(data: IntakeData): Record<string, unknown> {
         partner_current_age: data.union_status === 'no' || data.partner_current_age === '' ? null : Number(data.partner_current_age),
         union_duration_months: data.union_status === 'no' ? null : durationMonths(data),
         family_members: data.family_members.filter(member => !isEmptyFamilyMember(member)),
+        contact_channels: data.contact_channels.filter(item => item.channel && item.handle.trim()).map(item => ({ channel: item.channel, handle: item.handle.trim() })),
     };
 }

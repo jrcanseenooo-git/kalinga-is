@@ -328,10 +328,10 @@ export const HELP_ARTICLES: HelpArticle[] = [
   },
   {
     id: 'text-size', category: 'Settings', title: 'Make the text bigger',
-    summary: 'Three sizes for all text, fields and buttons on this device.',
+    summary: 'Three sizes for the forms (Kalinga Intake, KaVAT and the Kalinga forms) on this device.',
     steps: [
-      'Open your name at the top right. Under Text size, choose the bigger A.',
-      'The Kalinga Intake also has the A buttons at the top of the form.',
+      'Use the A buttons at the top of the Kalinga Intake or the KaVAT. The bigger A makes the form text, fields and buttons bigger.',
+      'Only the forms change; the menu and the other pages keep their size.',
       'The size is kept on this device until you change it.',
     ],
     keywords: 'text size bigger font large small eyes read zoom older',

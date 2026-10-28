@@ -8,14 +8,14 @@ import OptionSelect from '@/Components/UI/OptionSelect.vue';
 import ConsentPhoto from '@/Components/Intake/ConsentPhoto.vue';
 import AddressFields from '@/Components/Intake/AddressFields.vue';
 import FamilyMembers from '@/Components/Intake/FamilyMembers.vue';
-import { INTAKE_STEPS, RISK_LEVELS, intakeFieldId, intakeStepForField, isLowerThan, normalizePhone, suggestRisk, tidyName, validateIntakeStep, type AssignedLocation, type IntakeData, type IntakeOptions } from '@/Casework/intake';
+import { CONTACT_CHANNELS, INTAKE_STEPS, RISK_LEVELS, clampStep, intakeFieldId, intakeStepForField, isLowerThan, normalizePhone, suggestRisk, tidyName, validateIntakeStep, type AssignedLocation, type IntakeData, type IntakeOptions } from '@/Casework/intake';
 import TextSizeControl from '@/Components/UI/TextSizeControl.vue';
 import { CEFMU_CLASSIFICATIONS, FORMAL_MARRIAGE_FORMS, INFORMAL_UNION_FORM, MARRIAGE_CLASSIFICATIONS, RESIDENCES, UNION_CLASSIFICATIONS, UNION_STATUSES } from '@/data/cefmu';
 import { CIVIL_STATUSES, DISABILITY_TYPES, EDUCATION_LEVELS, IP_MEMBERSHIP, REFERRAL_SOURCES, RELATIONSHIPS, RELIGIONS } from '@/utils/caseOptions';
 import { intakeGuidance } from '@/utils/intakeGuidance';
 import { ageFromBirthdate, manilaToday } from '@/utils/philippineTime';
 import { maskedName } from '@/utils/clientName';
-import { CircleAlert, Info, TriangleAlert } from '@lucide/vue';
+import { CircleAlert, Info, Plus, Trash2, TriangleAlert } from '@lucide/vue';
 import { computed, nextTick, ref, watch } from 'vue';
 
 const props = defineProps<{
@@ -44,6 +44,23 @@ const age = computed(() => {
 const adult = computed(() => age.value !== null && age.value >= 18);
 const familyReveal = ref<number | null>(null);
 const tidy = (field: 'first_name' | 'middle_name' | 'last_name') => { d.value[field] = tidyName(d.value[field]); };
+/* Child's mobile number: digits only, 11 at most; "+63 917..." is turned into "0917...". */
+const setPhone = (value: string) => { d.value.phone = normalizePhone(value).replace(/\D/g, '').slice(0, 11); };
+function pastePhone(event: ClipboardEvent) {
+    const text = event.clipboardData?.getData('text') ?? '';
+    if (!text) return;
+    event.preventDefault();
+    setPhone(text);
+}
+const phoneHint = computed(() => {
+    const digits = d.value.phone.length;
+    if (!digits) return { ok: false, text: '11 digits starting with 09, no spaces. Optional.' };
+    if (/^09\d{9}$/.test(d.value.phone)) return { ok: true, text: 'Looks right: 11 digits.' };
+    if (!d.value.phone.startsWith('09')) return { ok: false, text: 'Start with 09.' };
+    return { ok: false, text: `${digits} of 11 digits.` };
+});
+const addChannel = () => { if (!d.value.contact_channels) d.value.contact_channels = []; d.value.contact_channels.push({ channel: 'Facebook Messenger', handle: '' }); };
+const channelPlaceholder = (channel: string) => ({ Email: 'name@example.com', Landline: 'Landline number', Viber: 'Viber number', WhatsApp: 'WhatsApp number', Telegram: 'Telegram username or number' } as Record<string, string>)[channel] ?? 'Name or link of the account';
 const presentAddress = computed(() => [d.value.house_no_street, d.value.barangay, d.value.municipality, d.value.province].filter(Boolean).join(', '));
 const marriageChosen = computed(() => d.value.cefmu_classifications.some(code => MARRIAGE_CLASSIFICATIONS.includes(code)));
 const unionChosen = computed(() => d.value.cefmu_classifications.some(code => UNION_CLASSIFICATIONS.includes(code)));
@@ -83,32 +100,44 @@ async function visitError(field: string) {
     const control = document.getElementById(intakeFieldId(field));
     if (control) control.focus(); else summary.value?.focus();
 }
+let moving = false;
 async function goTo(target: number) {
-    step.value = target;
+    const next = clampStep(target);
+    if (next === step.value) return;
+    step.value = next;
     emit('stepChanged', target);
     await nextTick();
     root.value?.querySelector<HTMLElement>('fieldset > legend')?.focus();
 }
 async function next() {
+    if (moving) return;
     emit('continue');
     stepErrors.value = validateIntakeStep(step.value, d.value, props.options);
     if (Object.keys(stepErrors.value).length) { await focusSummary(); return; }
-    if (step.value < INTAKE_STEPS.length) await goTo(step.value + 1);
+    if (step.value < INTAKE_STEPS.length) {
+        moving = true;
+        try { await goTo(step.value + 1); } finally { moving = false; }
+    }
     else emit('submit');
 }
-async function back() { stepErrors.value = {}; await goTo(step.value - 1); }
+async function back() {
+    if (moving || step.value <= 1) return;
+    moving = true;
+    stepErrors.value = {};
+    try { await goTo(step.value - 1); } finally { moving = false; }
+}
 watch(() => props.serverErrors, value => { if (value && Object.keys(value).length) { stepErrors.value = {}; void focusSummary(); } });
 defineExpose({ goTo, focusSummary });
 </script>
 
 <template>
-    <form ref="root" class="intake-form" novalidate data-skip-generic-confirm="true" @submit.prevent="next">
+    <form ref="root" class="intake-form kalinga-form" novalidate data-skip-generic-confirm="true" @submit.prevent="next">
         <section v-if="Object.keys(errors).length" ref="summary" role="alert" aria-label="Review intake errors" tabindex="-1" class="mb-4 rounded-xl border border-rose-300 bg-rose-50 p-4 text-sm text-rose-900 focus:outline focus:outline-2 focus:outline-rose-700">
             <h3 class="font-bold">Check these before continuing</h3>
             <ul class="mt-2 list-disc space-y-1 pl-5"><li v-for="(message, field) in errors" :key="field"><button type="button" class="min-h-11 text-left underline" @click="visitError(String(field))">{{ message }}</button></li></ul>
         </section>
         <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
-            <p class="text-base font-semibold text-slate-700">Step {{ step }} of {{ INTAKE_STEPS.length }}</p>
+            <p class="text-base font-semibold text-slate-700">Step {{ clampStep(step) }} of {{ INTAKE_STEPS.length }}</p>
             <TextSizeControl compact />
         </div>
         <Stepper :steps="[...INTAKE_STEPS]" :current="step" :busy="busy" @select="goTo" />
@@ -179,15 +208,38 @@ defineExpose({ goTo, focusSummary });
                 </div>
             </section>
 
-            <section class="f-card grid gap-4 md:grid-cols-3" aria-labelledby="contact-title">
-                <h3 id="contact-title" class="text-sm font-bold text-slate-900 md:col-span-3">Safe contact</h3>
-                <label class="text-sm font-medium" for="intake-phone">Mobile Number (<i>Parent or Child</i>)<input id="intake-phone" v-model="d.phone" type="tel" inputmode="tel" maxlength="16" placeholder="09XXXXXXXXX" autocomplete="off" class="mt-1 block min-h-11 w-full rounded-xl border-slate-300" :aria-invalid="Boolean(errors.phone)" aria-describedby="intake-phone-hint" @blur="d.phone = normalizePhone(d.phone)"><span id="intake-phone-hint" class="mt-1 block text-xs font-normal text-slate-600">11 digits starting with 09. Spaces and +63 are tidied for you.</span></label>
-                <label class="text-sm font-medium" for="intake-safe_contact_method">Safe way to contact
-                    <select id="intake-safe_contact_method" v-model="d.safe_contact_method" class="mt-1 block min-h-11 w-full rounded-xl border-slate-300">
-                        <option>Not recorded</option><option>Direct call</option><option>SMS</option><option>Trusted adult / caregiver</option><option>In-person through authorized worker</option><option>Do not contact without safety check</option>
-                    </select>
-                </label>
-                <label class="text-sm font-medium" for="intake-safe_contact_notes">Notes<input id="intake-safe_contact_notes" v-model="d.safe_contact_notes" maxlength="1000" class="mt-1 block min-h-11 w-full rounded-xl border-slate-300" placeholder="Safe time, cautions"></label>
+            <section class="f-card space-y-4" aria-labelledby="contact-title">
+                <div>
+                    <h3 id="contact-title" class="text-sm font-bold text-slate-900">Child Contact Details</h3>
+                    <p class="f-hint">The child's own contact details only. The caregiver's number goes under Primary caregiver below.</p>
+                </div>
+                <div class="grid gap-4 md:grid-cols-3">
+                    <label class="text-sm font-medium" for="intake-phone">Child's mobile number
+                        <input id="intake-phone" :value="d.phone" type="tel" inputmode="numeric" maxlength="16" placeholder="09XXXXXXXXX" autocomplete="off" class="mt-1 block min-h-11 w-full rounded-xl border-slate-300 tracking-wider"
+                            :aria-invalid="Boolean(errors.phone)" aria-describedby="intake-phone-hint" @input="setPhone(($event.target as HTMLInputElement).value)" @paste="pastePhone">
+                        <span id="intake-phone-hint" class="mt-1 block text-xs font-normal" :class="phoneHint.ok ? 'text-emerald-700' : 'text-slate-600'">{{ phoneHint.text }}</span>
+                    </label>
+                    <label class="text-sm font-medium" for="intake-safe_contact_method">Safe way to contact
+                        <select id="intake-safe_contact_method" v-model="d.safe_contact_method" class="mt-1 block min-h-11 w-full rounded-xl border-slate-300">
+                            <option>Not recorded</option><option>Direct call</option><option>SMS</option><option>Messaging app</option><option>Trusted adult / caregiver</option><option>In-person through authorized worker</option><option>Do not contact without safety check</option>
+                        </select>
+                    </label>
+                    <label class="text-sm font-medium" for="intake-safe_contact_notes">Notes<input id="intake-safe_contact_notes" v-model="d.safe_contact_notes" maxlength="1000" class="mt-1 block min-h-11 w-full rounded-xl border-slate-300" placeholder="Safe time, cautions"></label>
+                </div>
+                <div>
+                    <p class="text-sm font-semibold text-slate-800">Other ways to reach the child</p>
+                    <ul v-if="d.contact_channels.length" class="mt-2 space-y-2">
+                        <li v-for="(item, index) in d.contact_channels" :key="index" class="grid gap-2 sm:grid-cols-[14rem_minmax(0,1fr)_auto] sm:items-start">
+                            <label class="sr-only" :for="`intake-channel-${index}-channel`">Way to reach {{ index + 1 }}</label>
+                            <select :id="`intake-channel-${index}-channel`" v-model="item.channel" class="block min-h-11 w-full rounded-xl border-slate-300"><option v-for="channel in CONTACT_CHANNELS" :key="channel" :value="channel">{{ channel }}</option></select>
+                            <label class="sr-only" :for="`intake-channel-${index}-handle`">{{ item.channel }} name, link or number</label>
+                            <input :id="`intake-channel-${index}-handle`" v-model="item.handle" maxlength="120" class="block min-h-11 w-full rounded-xl border-slate-300" :placeholder="channelPlaceholder(item.channel)" :aria-invalid="Boolean(errors[`contact_channels.${index}.handle`]) || undefined">
+                            <button type="button" class="ui-button min-h-11 text-rose-700" :aria-label="`Remove ${item.channel}`" @click="d.contact_channels.splice(index, 1)"><Trash2 class="h-4 w-4" aria-hidden="true" /><span class="sm:sr-only">Remove</span></button>
+                            <p v-if="errors[`contact_channels.${index}.handle`]" class="text-sm text-rose-700 sm:col-span-3">{{ errors[`contact_channels.${index}.handle`] }}</p>
+                        </li>
+                    </ul>
+                    <button type="button" class="ui-button mt-2 min-h-11" :disabled="d.contact_channels.length >= 6" @click="addChannel"><Plus class="h-4 w-4" aria-hidden="true" />Add a way to reach the child</button>
+                </div>
             </section>
 
             <section class="f-card space-y-3" aria-labelledby="caregiver-title">

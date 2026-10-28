@@ -21,7 +21,10 @@ final class CaseIntake
 {
     public const PRIVACY_METHODS = ['explained_verbally', 'written_or_digital_notice', 'trusted_adult_or_guardian', 'deferred_emergency_next_practicable'];
 
-    private const CLIENT_FIELDS = ['first_name', 'middle_name', 'last_name', 'suffix', 'alias', 'birthdate', 'sex', 'civil_status', 'religion', 'ip_category', 'education_attainment', 'phone',
+    /** Other ways to reach the child (Child Contact Details). */
+    public const CONTACT_CHANNELS = ['Facebook Messenger', 'Viber', 'WhatsApp', 'Telegram', 'Instagram', 'TikTok', 'Email', 'Landline', 'Other'];
+
+    private const CLIENT_FIELDS = ['first_name', 'middle_name', 'last_name', 'suffix', 'alias', 'birthdate', 'sex', 'civil_status', 'religion', 'ip_category', 'education_attainment', 'phone', 'contact_channels',
         'safe_contact_method', 'safe_contact_notes', 'primary_caregiver_name', 'primary_caregiver_relationship', 'primary_caregiver_contact',
         'house_no_street', 'region', 'province', 'municipality', 'barangay',
         'permanent_same_as_present', 'permanent_house_no_street', 'permanent_region', 'permanent_province', 'permanent_municipality', 'permanent_barangay',
@@ -49,7 +52,10 @@ final class CaseIntake
             'alias' => 'nullable|string|max:80',
             'birthdate' => 'required|date|before_or_equal:' . PhilippineDate::today(), 'sex' => 'required|in:Male,Female', 'civil_status' => 'nullable|string|max:80',
             'religion' => 'nullable|string|max:120', 'ip_category' => 'nullable|string|max:120', 'education_attainment' => 'nullable|string|max:120',
-            'phone' => ['nullable', 'regex:/^(?:\\+63|0)9\\d{9}$/'], 'disability_evidence' => 'nullable|string|max:100',
+            // The child's own mobile number: 11 digits, 09XXXXXXXXX, no spaces.
+            'phone' => ['nullable', 'regex:/^09\\d{9}$/'],
+            'contact_channels' => 'nullable|array|max:6', 'contact_channels.*.channel' => ['required', Rule::in(self::CONTACT_CHANNELS)],
+            'contact_channels.*.handle' => 'required|string|max:120', 'disability_evidence' => 'nullable|string|max:100',
             'safe_contact_method' => 'nullable|string|max:100', 'safe_contact_notes' => 'nullable|string|max:1000',
             ...$address(''),
             'permanent_same_as_present' => 'nullable|boolean', ...$address('permanent_'),
@@ -202,6 +208,8 @@ final class CaseIntake
             $data['region'] = $location->region;
         }
         $present = collect(self::ADDRESS)->mapWithKeys(fn ($max, $field) => [$field => $data[$field] ?? null])->all();
+        $channels = collect($data['contact_channels'] ?? [])->map(fn ($item) => ['channel' => $item['channel'], 'handle' => trim((string) $item['handle'])])->filter(fn ($item) => $item['handle'] !== '')->values()->all();
+        $data['contact_channels'] = $channels ? json_encode($channels) : null;
         $data['permanent_same_as_present'] = (bool) ($data['permanent_same_as_present'] ?? false);
         $data['caregiver_same_address'] = array_key_exists('caregiver_same_address', $data) ? (bool) $data['caregiver_same_address'] : null;
         foreach (['permanent_' => $data['permanent_same_as_present'], 'caregiver_' => (bool) $data['caregiver_same_address']] as $prefix => $same) {

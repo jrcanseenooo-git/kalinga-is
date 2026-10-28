@@ -3,7 +3,7 @@ import { askConfirm } from '@/utils/confirmDialog';
 import OptionSelect from '@/Components/UI/OptionSelect.vue';
 import { VISIT_LOCATIONS } from '@/utils/caseOptions';
 import IntakeForm from '@/Components/Intake/IntakeForm.vue';
-import { DEFAULT_INTAKE_OPTIONS, INTAKE_STEPS, emptyIntake as newIntake, intakePayload, validateIntakeStep, type IntakeData, type IntakeOptions } from '@/Casework/intake';
+import { DEFAULT_INTAKE_OPTIONS, INTAKE_STEPS, emptyIntake as newIntake, restoreIntake, intakePayload, validateIntakeStep, type IntakeData, type IntakeOptions } from '@/Casework/intake';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import Modal from '@/Components/Modal.vue';
 import { Head, usePage } from '@inertiajs/vue3';
@@ -82,7 +82,7 @@ let draftEdit = 0;
 function replaceIntake(payload: Record<string, unknown>) {
   suppressDraftWatch = true;
   const { __step: savedStep, ...answers } = payload;
-  intake.value = { ...emptyIntake(), ...answers } as IntakeData;
+  intake.value = restoreIntake(answers as Partial<IntakeData>);
   // A recovered draft opens on the step where the worker stopped.
   intakeStep.value = Math.min(INTAKE_STEPS.length, Math.max(1, Number(savedStep) || 1));
   draftStep = intakeStep.value;

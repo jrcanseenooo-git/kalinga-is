@@ -112,7 +112,7 @@ const autoNote: Record<string, string> = {
 </script>
 
 <template>
-  <article class="ui-panel overflow-hidden p-0" :aria-labelledby="`form-${form.type}-title`">
+  <article class="kalinga-form ui-panel overflow-hidden p-0" :aria-labelledby="`form-${form.type}-title`">
     <header class="flex flex-wrap items-start justify-between gap-3 border-b border-[var(--color-line)] bg-brand-50 px-4 py-3">
       <div class="min-w-0">
         <h3 :id="`form-${form.type}-title`" class="ui-section-title">{{ form.title }}</h3>

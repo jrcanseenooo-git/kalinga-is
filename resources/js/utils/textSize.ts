@@ -1,15 +1,15 @@
 /**
- * Text size for the whole app (a per-device reading preference, not personal
- * data, so it is kept in this browser's localStorage). Every size in Kalinga
- * is relative to the page font size, so changing it enlarges text, fields and
- * buttons together; the layout switches to the phone layout earlier when the
- * text is bigger.
+ * Text size for the forms (Kalinga Intake, KaVAT, Kalinga forms) only; the
+ * sidebar, header and other pages keep their size (owner instruction
+ * 2026-10-28). A per-device reading preference, not personal data, so it is
+ * kept in this browser's localStorage. Forms marked .kalinga-form are scaled
+ * with the --form-zoom value set here.
  */
 export type TextSize = 'normal' | 'large' | 'larger';
 export const TEXT_SIZES: Array<{ value: TextSize; label: string; scale: string }> = [
-    { value: 'normal', label: 'Normal text', scale: '100%' },
-    { value: 'large', label: 'Large text', scale: '112.5%' },
-    { value: 'larger', label: 'Larger text', scale: '125%' },
+    { value: 'normal', label: 'Normal text', scale: '1' },
+    { value: 'large', label: 'Large text', scale: '1.12' },
+    { value: 'larger', label: 'Larger text', scale: '1.25' },
 ];
 const KEY = 'kalinga.textSize';
 
@@ -24,7 +24,8 @@ export function savedTextSize(): TextSize {
 
 export function applyTextSize(size: TextSize): void {
     const entry = TEXT_SIZES.find(item => item.value === size) ?? TEXT_SIZES[0];
-    document.documentElement.style.fontSize = entry.value === 'normal' ? '' : entry.scale;
+    document.documentElement.style.fontSize = '';
+    document.documentElement.style.setProperty('--form-zoom', entry.scale);
     document.documentElement.dataset.textSize = entry.value;
 }
 
