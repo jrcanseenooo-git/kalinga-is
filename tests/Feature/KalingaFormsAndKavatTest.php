@@ -273,6 +273,8 @@ class KalingaFormsAndKavatTest extends TestCase
     public function test_today_in_the_philippines_is_accepted_before_8_am(): void
     {
         // 01:30 on 28 October in Manila is still 27 October on the UTC server clock.
+        // The LGU assignment must already be in effect at the travelled-to time.
+        DB::table('user_lgu_assignments')->where('user_id', $this->worker->id)->update(['effective_from' => '2026-10-01 00:00:00']);
         $this->travelTo(Carbon::parse('2026-10-27 17:30:00', 'UTC'));
         $this->actingAs($this->worker)->post(route('cases.kavat.store', $this->case), ['occasion' => 'midline', 'administered_at' => '2026-10-28'])->assertSessionHasNoErrors();
         $this->assertDatabaseHas('kavat_assessments', ['case_id' => $this->case, 'administered_at' => '2026-10-28']);

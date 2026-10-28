@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\Aftercare;
 use App\Services\CaseForms;
 use App\Services\CaseIntake;
 use App\Services\IdentityIntegrity;
@@ -9,9 +10,11 @@ use App\Services\Kavat;
 use App\Services\LguAssignmentScope;
 use App\Services\OperationalNotification;
 use App\Services\ReferenceNumberService;
+use App\Services\Supervisors;
 use App\Support\AuditLog;
 use App\Support\PhilippineDate;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
@@ -28,7 +31,7 @@ class OfflineSyncController extends Controller
     {
         $user = $request->user();
         abort_unless($user->hasPermission('offline.use'), 403);
-        $data = $request->validate(['offline_id' => 'required|uuid', 'resource' => 'required|in:case_note,monitoring_visit,report_intake,case_intake,case_form,kavat', 'operation' => 'required|in:create,update', 'payload' => 'required|array', 'base_version' => 'nullable|integer|min:1']);
+        $data = $request->validate(['offline_id' => 'required|uuid', 'resource' => 'required|in:case_note,monitoring_visit,aftercare_visit,report_intake,case_intake,case_form,kavat', 'operation' => 'required|in:create,update', 'payload' => 'required|array', 'base_version' => 'nullable|integer|min:1']);
 
         return DB::transaction(function () use ($data, $request) {
             // Serialize retries from the same account before checking the UUID.
@@ -43,7 +46,7 @@ class OfflineSyncController extends Controller
                 $same = $document ? (json_decode($existing->payload, true)['sha256'] ?? null) === $this->digest($data['payload']) : $this->samePayload(json_decode($existing->payload, true), $data['payload']);
                 abort_unless($existing->resource === $data['resource'] && $same, 422, 'This offline identifier belongs to a different operation.');
             }
-            if (in_array($data['resource'], ['case_note', 'monitoring_visit', 'case_form', 'kavat'], true)) {
+            if (in_array($data['resource'], ['case_note', 'monitoring_visit', 'aftercare_visit', 'case_form', 'kavat'], true)) {
                 // A case id must be a positive whole number; anything else (arrays, text) is refused before querying.
                 $caseId = filter_var($data['payload']['case_id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
                 abort_if($caseId === false, 422, 'The case identifier is not valid.');
@@ -60,6 +63,9 @@ class OfflineSyncController extends Controller
             }
             if ($document) {
                 return $this->syncDocument($data, $case, $request);
+            }
+            if ($data['resource'] === 'aftercare_visit') {
+                return $this->syncAftercareVisit($data, $case, $request);
             }
             if ($data['resource'] === 'case_intake') {
                 abort_unless($data['operation'] === 'create', 422, 'Offline case intakes can only be created.');
@@ -113,11 +119,21 @@ class OfflineSyncController extends Controller
             }
             DB::table('offline_sync_items')->updateOrInsert(['offline_id' => $data['offline_id']], ['user_id' => $request->user()->id, 'resource' => $data['resource'], 'payload' => json_encode($data['payload']), 'status' => 'syncing', 'updated_at' => now(), 'created_at' => now()]);
             if ($data['resource'] === 'case_note') {
-                validator($data['payload'], ['case_id' => 'required|integer', 'body' => 'required|string|max:5000'])->validate();
-                DB::table('case_notes')->insert(['case_id' => $case->id, 'body' => $data['payload']['body'], 'visibility' => 'CASE_NOTES', 'record_type' => 'progress_note', 'note_type' => 'other', 'occurred_at' => now(), 'finalized_at' => now(), 'finalized_by' => $request->user()->id, 'is_current' => true, 'created_by' => $request->user()->id, 'created_at' => now(), 'updated_at' => now()]);
+                // Field mode records a full progress note: type, when it happened, action and next steps.
+                // Items queued by older versions carry only the text; they keep working.
+                $note = validator($data['payload'], ['case_id' => 'required|integer', 'body' => 'required|string|max:5000',
+                    'note_type' => 'nullable|in:contact,monitoring,coordination,case_review,other', 'note_type_other' => 'required_if:note_type,other|nullable|string|max:120',
+                    'occurred_at' => 'nullable|date|before_or_equal:' . now()->addMinutes(5)->toIso8601String(), 'action_taken' => 'nullable|string|max:5000', 'next_steps' => 'nullable|string|max:5000'])->validate();
+                $type = $note['note_type'] ?? 'other';
+                DB::table('case_notes')->insert(['case_id' => $case->id, 'body' => $note['body'], 'action_taken' => $note['action_taken'] ?? null, 'next_steps' => $note['next_steps'] ?? null,
+                    'visibility' => 'CASE_NOTES', 'record_type' => 'progress_note', 'note_type' => $type,
+                    'note_type_other' => $type === 'other' ? (trim((string) ($note['note_type_other'] ?? '')) ?: 'Field mode note') : null,
+                    'occurred_at' => isset($note['occurred_at']) ? Carbon::parse($note['occurred_at'])->utc() : now(), 'finalized_at' => now(), 'finalized_by' => $request->user()->id, 'is_current' => true, 'created_by' => $request->user()->id, 'created_at' => now(), 'updated_at' => now()]);
             } else {
-                validator($data['payload'], ['case_id' => 'required|integer', 'visited_at' => 'required|date', 'observations' => 'required|string|max:5000'])->validate();
-                DB::table('monitoring_visits')->insert(['case_id' => $case->id, 'visited_at' => $data['payload']['visited_at'], 'location' => $data['payload']['location'] ?? null, 'observations' => $data['payload']['observations'], 'created_by' => $request->user()->id, 'created_at' => now(), 'updated_at' => now()]);
+                $visit = validator($data['payload'], ['case_id' => 'required|integer', 'visited_at' => 'required|date|before_or_equal:' . PhilippineDate::today(), 'observations' => 'required|string|max:5000',
+                    'location' => 'nullable|string|max:255', 'risks' => 'nullable|string|max:5000', 'next_steps' => 'nullable|string|max:5000'])->validate();
+                DB::table('monitoring_visits')->insert(['case_id' => $case->id, 'visited_at' => $visit['visited_at'], 'location' => $visit['location'] ?? null, 'observations' => $visit['observations'],
+                    'risks' => $visit['risks'] ?? null, 'next_steps' => $visit['next_steps'] ?? null, 'created_by' => $request->user()->id, 'created_at' => now(), 'updated_at' => now()]);
             }
             DB::table('cases')->where('id', $case->id)->update(['last_activity_at' => now(), 'offline_version' => DB::raw('offline_version + 1'), 'updated_at' => now()]);
             DB::table('offline_sync_items')->where('offline_id', $data['offline_id'])->update(['status' => 'synced', 'updated_at' => now()]);
@@ -125,6 +141,34 @@ class OfflineSyncController extends Controller
 
             return response()->json(['status' => 'synced', 'offline_id' => $data['offline_id'], 'case_id' => $case->id]);
         });
+    }
+
+    /**
+     * An aftercare follow-up visit recorded in field mode for a closed case
+     * (the case stays closed). Same rules as online; "at risk" tells the
+     * supervisor and suggests reopening.
+     */
+    private function syncAftercareVisit(array $data, object $case, Request $request)
+    {
+        abort_unless($request->user()->hasPermission('cases.update'), 403);
+        abort_unless($case->status === 'CLOSED', 422, 'Follow-up visits are recorded after the case is closed.');
+        $plan = Aftercare::plan((int) $case->id);
+        abort_unless($plan, 422, 'The case has no aftercare plan.');
+        $visit = validator($data['payload'], ['case_id' => 'required|integer', 'visited_on' => 'required|date|before_or_equal:' . PhilippineDate::today(),
+            'status' => ['required', Rule::in(array_keys(Aftercare::STATUSES))], 'notes' => 'required|string|min:5|max:5000'])->validate();
+        DB::table('offline_sync_items')->updateOrInsert(['offline_id' => $data['offline_id']], ['user_id' => $request->user()->id, 'resource' => $data['resource'], 'payload' => json_encode($data['payload']), 'status' => 'syncing', 'updated_at' => now(), 'created_at' => now()]);
+        $id = DB::table('aftercare_visits')->insertGetId(['case_id' => $case->id, 'aftercare_plan_id' => $plan->id, 'visited_on' => $visit['visited_on'], 'status' => $visit['status'], 'notes' => $visit['notes'],
+            'recorded_by' => $request->user()->id, 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('offline_sync_items')->where('offline_id', $data['offline_id'])->update(['status' => 'synced', 'updated_at' => now()]);
+        AuditLog::record('aftercare.visit_recorded', 'case', (int) $case->id, ['case_id' => $case->id, 'visit_id' => $id, 'status' => $visit['status'], 'offline' => true], $request->user()->id, 'success',
+            ['description' => 'Aftercare follow-up visit recorded in field mode: ' . Aftercare::STATUSES[$visit['status']]]);
+        if ($visit['status'] === 'at_risk') {
+            foreach (Supervisors::forLgu($case->lgu_id) as $supervisor) {
+                $this->notifications->send($supervisor, 'aftercare_at_risk', 'Aftercare: child at risk', "{$case->case_number} - the follow-up visit found the child at risk. Consider reopening the case.", "/cases/{$case->id}?section=closure");
+            }
+        }
+
+        return response()->json(['status' => 'synced', 'offline_id' => $data['offline_id'], 'case_id' => $case->id]);
     }
 
     /**

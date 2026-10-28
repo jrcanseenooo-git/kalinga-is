@@ -21,7 +21,8 @@ import { formatPh, parseStored, manilaToday } from '@/utils/philippineTime';
 import KavatPanel from '@/Components/Kavat/KavatPanel.vue';
 import CaseFormEditor from '@/Components/Forms/CaseFormEditor.vue';
 import { emptyKavatAnswers, scoreKavat, type KavatAnswers, type KavatDefinition, type KavatRecord } from '@/Casework/kavat';
-import type { CaseForm, FormContent, FormType, FormsDefinition } from '@/Casework/caseForms';
+import type { CaseForm, FormContent, FormType, FormsDefinition, PlanDeadline } from '@/Casework/caseForms';
+import FieldCaseUpdate, { type FieldUpdate } from '@/Components/Offline/FieldCaseUpdate.vue';
 
 const props = defineProps<{ intakeOptions?: IntakeOptions }>();
 /** Risk factor options come with the page; a device that has never loaded them uses the defaults. */
@@ -30,7 +31,8 @@ const intakeOptions = computed<IntakeOptions>(() => props.intakeOptions?.riskFac
 type PackForm = { content:FormContent; revision:number; status:string; dirty?:boolean };
 type PackKavat = { id:number|null; revision:number; answers:KavatAnswers; notes:string|null; occasion:string; administered_at:string; dirty?:boolean; awaiting_id?:boolean };
 type OfflineCase = { id:number; case_number:string; status:string; priority:string; category?:string; offline_version:number; first_name:string; last_name:string; region?:string; province?:string; municipality?:string; barangay?:string;
-  forms?:Record<FormType, PackForm>|null; kavat_draft?:PackKavat|null; kavat_count?:number; kavat_recorded?:string[] };
+  forms?:Record<FormType, PackForm>|null; kavat_draft?:PackKavat|null; kavat_count?:number; kavat_recorded?:string[];
+  plan_deadline?:PlanDeadline|null; aftercare?:{ next_due:string; living_arrangement:string|null; last_status:string|null }|null };
 type OfflinePack = { generated_at:string; expires_at?:string; user_id:number; cases:OfflineCase[]; kavatDefinition?:KavatDefinition; formsDefinition?:FormsDefinition };
 type DeviceRecord = { id:number; device_id:string; device_name:string|null; last_seen_at:string; pack_expires_at:string|null; revoked_at:string|null; created_at:string };
 
@@ -38,7 +40,20 @@ const passphrase = ref(''); const confirmPassphrase = ref(''); const isConfigure
 const page = usePage<PageProps>();
 const workspaceChannel = typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel('kalinga-workspace-security');
 const { online } = useConnectivity();
-const fieldAppReady = ref(false); const pack = ref<OfflinePack | null>(null); const operations = ref<OfflineOperation[]>([]); const selectedCaseId = ref<number | null>(null); const activity = ref<'case_note'|'monitoring_visit'>('case_note'); const body = ref(''); const location = ref(''); const message = ref(''); const error = ref(''); const syncing = ref(false);
+const fieldAppReady = ref(false); const pack = ref<OfflinePack | null>(null); const operations = ref<OfflineOperation[]>([]); const selectedCaseId = ref<number | null>(null); const fieldUpdate = ref<{ reset: () => void } | null>(null);
+/* Case list: search and what to do next on each case (from the pack, no signal needed). */
+const caseSearch = ref('');
+const visibleCases = computed(() => { const term = caseSearch.value.trim().toLowerCase(); const cases = pack.value?.cases ?? [];
+  return term ? cases.filter(item => [item.first_name, item.last_name, item.case_number, item.barangay, item.municipality].some(value => String(value ?? '').toLowerCase().includes(term))) : cases; });
+const statusText = (status: string) => status.toLowerCase().replaceAll('_', ' ').replace(/^\w/, c => c.toUpperCase());
+const caseHints = (item: OfflineCase) => {
+  const hints: { text: string; urgent: boolean }[] = [];
+  const deadline = item.plan_deadline;
+  if (deadline && !deadline.submitted_at) hints.push(deadline.overdue ? { text: 'Intervention Plan overdue', urgent: true } : (deadline.days_left ?? 99) <= 2 ? { text: `Plan due ${formatPh(deadline.due, 'dateShort')}`, urgent: false } : { text: '', urgent: false });
+  if (item.kavat_draft) hints.push({ text: 'KaVAT in progress', urgent: false });
+  if (item.aftercare) hints.push({ text: item.aftercare.last_status === 'at_risk' ? 'Aftercare: at risk' : `Aftercare visit ${formatPh(item.aftercare.next_due, 'dateShort')}`, urgent: item.aftercare.last_status === 'at_risk' || item.aftercare.next_due < manilaToday() });
+  return hints.filter(hint => hint.text);
+}; const message = ref(''); const error = ref(''); const syncing = ref(false);
 
 const devices = ref<DeviceRecord[]>([]);
 const devicesLoading = ref(false);
@@ -238,7 +253,7 @@ async function checkDeviceStatus() {
       isUnlocked.value = false;
       pack.value = null; operations.value = [];
       selectedCaseId.value = null;
-      body.value = ''; location.value = ''; clearIntakeMemory();
+      fieldUpdate.value?.reset(); clearIntakeMemory();
       try { await clearSecureWorkspace(); isConfigured.value = false; }
       catch { error.value = 'Device access is revoked. Close other Kalinga tabs and reload to finish clearing encrypted storage.'; }
     }
@@ -255,15 +270,12 @@ async function persistFieldOperation(operation: OfflineOperation): Promise<boole
   } finally { fieldSaving.value = false; }
 }
 
-async function saveActivity() {
+async function saveActivity(update: FieldUpdate) {
   if (fieldSaving.value) return;
   if (!canCollectOffline.value) { error.value = 'Refresh the authorized offline pack before recording new work.'; return; }
-  if (!selectedCase.value || !body.value.trim()) return;
-  const payload: Record<string, unknown> = activity.value === 'case_note'
-    ? { case_id:selectedCase.value.id, body:body.value.trim() }
-    : { case_id:selectedCase.value.id, visited_at:manilaToday(), observations:body.value.trim(), location:location.value.trim() || null };
-  if (!await persistFieldOperation({ local_id:crypto.randomUUID(), entity_type:activity.value, operation:'create', payload, base_version:selectedCase.value.offline_version, sync_status:'pending', retry_count:0, created_offline_at:new Date().toISOString() })) return;
-  body.value = ''; location.value = '';
+  if (!selectedCase.value) return;
+  if (!await persistFieldOperation({ local_id:crypto.randomUUID(), entity_type:update.entity_type, operation:'create', payload:update.payload, base_version:selectedCase.value.offline_version, sync_status:'pending', retry_count:0, created_offline_at:new Date().toISOString() })) return;
+  fieldUpdate.value?.reset();
   await refreshSecureData();
   message.value = 'Saved securely on this device. It will sync automatically after reconnection.';
   if (!online.value) notify('Update saved securely on this device. It will be sent when you are back online.');
@@ -513,12 +525,12 @@ async function renameDevice(id: number) {
   } catch { error.value = 'Could not rename device.'; }
 }
 
-async function lockWorkspace() { if (draftDirty.value && !(await askConfirm({ title: 'Lock with unsaved edits?', message: 'The latest intake edits are not saved. Only the last encrypted saved version is kept.', confirmLabel: 'Lock anyway', tone: 'danger' }))) return; workspaceChannel?.postMessage('locked'); clearIntakeMemory(); syncSession++; lock(); isUnlocked.value = false; pack.value = null; operations.value = []; selectedCaseId.value = null; body.value = ''; location.value = ''; message.value = 'Offline workspace locked.'; }
+async function lockWorkspace() { if (draftDirty.value && !(await askConfirm({ title: 'Lock with unsaved edits?', message: 'The latest intake edits are not saved. Only the last encrypted saved version is kept.', confirmLabel: 'Lock anyway', tone: 'danger' }))) return; workspaceChannel?.postMessage('locked'); clearIntakeMemory(); syncSession++; lock(); isUnlocked.value = false; pack.value = null; operations.value = []; selectedCaseId.value = null; fieldUpdate.value?.reset(); message.value = 'Offline workspace locked.'; }
 
 if (workspaceChannel) workspaceChannel.onmessage = event => {
   if (event.data !== 'locked' && event.data !== 'revoked') return;
   clearIntakeMemory(); syncSession++; lock(); isUnlocked.value = false;
-  pack.value = null; operations.value = []; selectedCaseId.value = null; body.value = ''; location.value = '';
+  pack.value = null; operations.value = []; selectedCaseId.value = null; fieldUpdate.value?.reset();
   reviewTarget.value = null; message.value = 'Workspace locked in another tab. Unlock again only if authorized.';
   if (event.data === 'revoked') { revocationDetected.value = true; isConfigured.value = false; }
 };
@@ -658,10 +670,14 @@ watch(intakeInProgress, busy => { if (!busy && deferredSync.value) void autoSync
           </ul>
           <p v-if="!offlineIntakes.length" class="p-5 text-sm text-slate-600">No intakes saved in field mode yet.</p>
         </section>
-        <section v-if="pack" id="field-cases" class="mt-6 grid scroll-mt-24 gap-6 lg:grid-cols-[19rem_1fr]"><aside class="overflow-hidden rounded-2xl border bg-white"><div class="border-b p-4"><h2 class="font-bold">Downloaded case pack</h2><p class="mt-1 text-xs text-slate-500">Updated {{ formatPh(pack.generated_at, 'dateTimeShort') }}</p></div><button v-for="item in pack.cases" :key="item.id" type="button" class="block w-full border-b p-4 text-left hover:bg-brand-50" :class="selectedCaseId === item.id ? 'bg-brand-50' : ''" @click="selectedCaseId = item.id"><p class="font-bold text-slate-900">{{ item.first_name }} {{ item.last_name }}</p><p class="mt-1 text-xs text-slate-500">{{ item.case_number }} · {{ item.status }}</p></button><p v-if="!pack.cases.length" class="p-5 text-sm text-slate-500">No authorized cases were included in this pack.</p></aside><article class="rounded-2xl border bg-white p-6"><template v-if="selectedCase"><p class="text-sm font-bold text-brand-700">{{ selectedCase.case_number }}</p><h2 class="mt-1 text-2xl font-extrabold">{{ selectedCase.first_name }} {{ selectedCase.last_name }}</h2><p class="mt-2 text-sm text-slate-500">{{ [selectedCase.barangay, selectedCase.municipality, selectedCase.province, selectedCase.region].filter(Boolean).join(', ') || 'Location not recorded' }}</p><nav v-if="ownCase" class="mt-5 flex flex-wrap gap-2" aria-label="Field work for this case"><button v-for="option in ([['update','Note or visit'],['kavat','KaVAT'],['forms','Kalinga forms']] as const)" :key="option[0]" type="button" class="min-h-11 rounded-xl border px-4 text-sm font-bold" :class="caseWork === option[0] ? 'border-brand-600 bg-brand-50 text-brand-800' : 'border-slate-200'" :aria-current="caseWork === option[0] ? 'page' : undefined" @click="caseWork = option[0]">{{ option[1] }}</button></nav>
+        <section v-if="pack" id="field-cases" class="mt-6 grid scroll-mt-24 gap-6 lg:grid-cols-[19rem_1fr]"><aside class="overflow-hidden rounded-2xl border bg-white"><div class="border-b p-4"><h2 class="font-bold">Downloaded case pack</h2><p class="mt-1 text-xs text-slate-600">Updated {{ formatPh(pack.generated_at, 'dateTimeShort') }}</p>
+  <label class="mt-3 block text-xs font-semibold text-slate-700" for="field-case-search">Find a case<input id="field-case-search" v-model="caseSearch" type="search" autocomplete="off" class="mt-1 w-full rounded-xl border-slate-300 text-sm" placeholder="Name, case number or barangay"></label></div>
+  <button v-for="item in visibleCases" :key="item.id" type="button" class="block w-full border-b p-4 text-left hover:bg-brand-50" :class="selectedCaseId === item.id ? 'bg-brand-50' : ''" @click="selectedCaseId = item.id"><p class="font-bold text-slate-900">{{ item.first_name }} {{ item.last_name }}</p><p class="mt-1 text-xs text-slate-600">{{ item.case_number }} · {{ statusText(item.status) }}<span v-if="item.barangay"> · {{ item.barangay }}</span></p>
+    <span v-for="hint in caseHints(item)" :key="hint.text" class="mt-1.5 mr-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold" :class="hint.urgent ? 'bg-rose-50 text-rose-800' : 'bg-amber-50 text-amber-900'">{{ hint.text }}</span></button>
+  <p v-if="!pack.cases.length" class="p-5 text-sm text-slate-500">No authorized cases were included in this pack.</p><p v-else-if="!visibleCases.length" class="p-5 text-sm text-slate-500">No case matches "{{ caseSearch }}".</p></aside><article class="rounded-2xl border bg-white p-6"><template v-if="selectedCase"><p class="text-sm font-bold text-brand-700">{{ selectedCase.case_number }}</p><h2 class="mt-1 text-2xl font-extrabold">{{ selectedCase.first_name }} {{ selectedCase.last_name }}</h2><p class="mt-2 text-sm text-slate-500">{{ [selectedCase.barangay, selectedCase.municipality, selectedCase.province, selectedCase.region].filter(Boolean).join(', ') || 'Location not recorded' }}</p><nav v-if="ownCase" class="mt-5 flex flex-wrap gap-2" aria-label="Field work for this case"><button v-for="option in ([['update','Note or visit'],['kavat','KaVAT'],['forms','Kalinga forms']] as const)" :key="option[0]" type="button" class="min-h-11 rounded-xl border px-4 text-sm font-bold" :class="caseWork === option[0] ? 'border-brand-600 bg-brand-50 text-brand-800' : 'border-slate-200'" :aria-current="caseWork === option[0] ? 'page' : undefined" @click="caseWork = option[0]">{{ option[1] }}</button></nav>
 <div v-if="ownCase && caseWork === 'kavat' && pack?.kavatDefinition" class="mt-6 border-t pt-6"><KavatPanel :case-id="selectedCase.id" :definition="pack.kavatDefinition" :records="kavatRecords" :recorded-occasions="selectedCase.kavat_recorded ?? []" :can-edit="canCollectOffline" :saver="saveKavatLocally" @start="startKavatLocally" /><p v-if="selectedCase.kavat_count" class="mt-3 text-xs text-slate-600">{{ selectedCase.kavat_count }} finalized KaVAT on record; see the history on the case page.</p></div>
 <div v-else-if="ownCase && caseWork === 'forms' && pack?.formsDefinition" class="mt-6 space-y-4 border-t pt-6"><p class="text-sm text-slate-600">Write here while offline. Your writing is encrypted on this device and sent at the next sync. Finalize the forms from the case page when you are online.</p><div class="flex flex-wrap gap-2"><button v-for="(title, type) in pack.formsDefinition.types" :key="type" type="button" class="min-h-11 rounded-xl border px-3 text-sm font-semibold" :class="openForm === type ? 'border-brand-600 bg-brand-50 text-brand-800' : 'border-slate-200'" @click="openForm = openForm === type ? null : type">{{ title }}<span v-if="selectedCase.forms?.[type]?.dirty" class="ml-1 text-xs text-amber-700">(unsent)</span></button></div><CaseFormEditor v-if="openForm && packForm(openForm)" :key="`${selectedCase.id}-${openForm}`" :case-id="selectedCase.id" :form="packForm(openForm)!" :definition="pack.formsDefinition" :suggestions="{}" :can-edit="canCollectOffline" :saver="formSaver(openForm)" /></div>
-<div v-else class="mt-6 border-t pt-6"><h3 class="font-bold">Record field update</h3><div class="mt-4 grid gap-4 sm:grid-cols-2"><label class="text-sm font-bold">Update type<select v-model="activity" class="mt-2 w-full rounded-xl border-slate-300"><option value="case_note">Case note</option><option value="monitoring_visit">Monitoring visit</option></select></label><label v-if="activity === 'monitoring_visit'" class="text-sm font-bold">Visit location<OptionSelect v-model="location" :options="VISIT_LOCATIONS" /></label></div><label class="mt-4 block text-sm font-bold">{{ activity === 'case_note' ? 'Case note' : 'Observations' }}<textarea v-model="body" rows="7" class="mt-2 w-full rounded-xl border-slate-300" placeholder="Record factual field observations only…" /></label><button type="button" class="mt-4 rounded-xl bg-brand-700 px-4 py-3 text-sm font-bold text-white disabled:opacity-50" :disabled="fieldSaving || !body.trim()" @click="saveActivity">Save encrypted update on this device</button></div></template><p v-else class="text-slate-500">Select a case from the encrypted offline pack.</p></article></section>
+<FieldCaseUpdate v-else ref="fieldUpdate" :case-id="selectedCase.id" :closed="selectedCase.status === 'CLOSED'" :aftercare-due="selectedCase.aftercare?.next_due ? formatPh(selectedCase.aftercare.next_due, 'dateShort') : null" :busy="fieldSaving" @save="saveActivity" /></template><p v-else class="text-slate-500">Select a case from the encrypted offline pack.</p></article></section>
         <section v-else id="field-cases" class="mt-6 scroll-mt-24 rounded-2xl border border-dashed p-8 text-center text-sm text-slate-600">Case updates need a current authorized pack. Connect securely and download a fresh pack. New intakes still work without it, and existing encrypted drafts are retained.</section>
 
         <section v-if="operations.length" id="encrypted-operation-queue" aria-labelledby="operation-queue-title" :aria-busy="syncing" class="mt-6 overflow-hidden rounded-2xl border bg-white"><div class="border-b p-4"><h2 id="operation-queue-title" class="font-bold">Local encrypted queue</h2></div><div v-for="item in operations" :key="item.local_id" class="flex flex-col items-start justify-between gap-3 border-b p-4 last:border-0 sm:flex-row"><div><p class="font-bold">{{ item.entity_type.replaceAll('_', ' ') }} · <span :class="{'text-emerald-700': item.sync_status === 'synced', 'text-amber-700': item.sync_status === 'pending' || item.sync_status === 'syncing', 'text-rose-700': item.sync_status === 'failed', 'text-violet-700': item.sync_status === 'conflict'}">{{ item.sync_status }}</span></p><p class="mt-1 text-sm text-slate-500">Saved {{ formatPh(item.created_offline_at, 'dateTimeShort') }}<span v-if="item.retry_count > 0"> · {{ item.retry_count }} attempt(s)</span><span v-if="item.error_message"> · {{ item.error_message }}</span></p></div><div v-if="item.sync_status === 'failed'" class="flex shrink-0 gap-2"><button type="button" class="min-h-11 rounded-lg border px-3 py-1.5 text-xs font-bold text-brand-700 hover:bg-brand-50" @click="retryOperation(item.local_id)">Retry now</button><button type="button" class="min-h-11 rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-50" @click="discardOperation(item.local_id)">Discard</button></div></div></section>
@@ -724,8 +740,9 @@ watch(intakeInProgress, busy => { if (!busy && deferredSync.value) void autoSync
                 <p v-if="item.error_message" class="mt-1 text-sm text-slate-600">{{ item.error_message }}</p>
                 <div v-if="canViewQueuedPayload(item)" class="mt-3 rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
                   <p class="font-bold text-slate-700 mb-1">Saved data preview:</p>
-                  <p v-if="item.payload.body"><strong>Note:</strong> {{ (item.payload.body as string).slice(0, 200) }}{{ (item.payload.body as string).length > 200 ? '…' : '' }}</p>
-                  <p v-if="item.payload.observations"><strong>Observations:</strong> {{ (item.payload.observations as string).slice(0, 200) }}{{ (item.payload.observations as string).length > 200 ? '…' : '' }}</p>
+                  <p v-if="item.payload.body"><strong>Note:</strong> {{ (item.payload.body as string).slice(0, 200) }}{{ (item.payload.body as string).length > 200 ? '...' : '' }}</p>
+                  <p v-if="item.payload.observations"><strong>Observations:</strong> {{ (item.payload.observations as string).slice(0, 200) }}{{ (item.payload.observations as string).length > 200 ? '...' : '' }}</p>
+                  <p v-if="item.entity_type === 'aftercare_visit' && item.payload.notes"><strong>Aftercare visit ({{ String(item.payload.status ?? '').replaceAll('_', ' ') }}):</strong> {{ String(item.payload.notes).slice(0, 200) }}</p>
                   <p v-if="item.payload.first_name"><strong>Name:</strong> {{ item.payload.first_name }} {{ item.payload.last_name }}</p>
                   <p v-if="item.payload.case_id"><strong>Case ID:</strong> {{ item.payload.case_id }}</p>
                   <p v-if="item.base_version"><strong>Base version:</strong> {{ item.base_version }}</p>
@@ -757,7 +774,7 @@ watch(intakeInProgress, busy => { if (!busy && deferredSync.value) void autoSync
         <div role="region" aria-label="Complete saved field entry" tabindex="0" class="mt-3 max-h-64 overflow-y-auto rounded-xl border border-slate-200 p-4 text-sm text-slate-800">
           <p v-if="reviewTarget?.payload.visited_at" class="mb-2">Visit date: {{ reviewTarget.payload.visited_at }}</p>
           <p v-if="reviewTarget?.payload.location" class="mb-2">Recorded location: {{ reviewTarget.payload.location }}</p>
-          <p class="whitespace-pre-wrap break-words">{{ reviewTarget?.payload.body || reviewTarget?.payload.observations }}</p>
+          <p class="whitespace-pre-wrap break-words">{{ reviewTarget?.payload.body || reviewTarget?.payload.observations || reviewTarget?.payload.notes }}</p>
         </div>
         <label class="mt-4 flex min-h-11 items-start gap-2 text-sm font-semibold text-slate-800"><input v-model="reviewConfirmed" type="checkbox" class="mt-1 rounded border-slate-300" />I reviewed the saved entry and the current case information.</label>
         <p v-if="reviewError" role="alert" class="mt-3 text-sm text-rose-800">{{ reviewError }}</p>

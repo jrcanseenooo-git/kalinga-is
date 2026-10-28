@@ -69,7 +69,7 @@ class AftercareTest extends TestCase
         Artisan::call('kalinga:dispatch-deadline-alerts');
         $this->assertDatabaseHas('notifications', ['user_id' => $this->worker->id, 'type' => 'aftercare_visit_due']);
 
-        $this->post(route('cases.aftercare.visits.store', $this->case), ['visited_on' => now()->addDay()->toDateString(), 'status' => 'stable', 'notes' => 'Synthetic visit.'])->assertSessionHasErrors('visited_on');
+        $this->post(route('cases.aftercare.visits.store', $this->case), ['visited_on' => now('Asia/Manila')->addDay()->toDateString(), 'status' => 'stable', 'notes' => 'Synthetic visit.'])->assertSessionHasErrors('visited_on');
         $this->post(route('cases.aftercare.visits.store', $this->case), ['visited_on' => now()->subDays(5)->toDateString(), 'status' => 'stable', 'notes' => 'Doing well at home.'])->assertSessionHasNoErrors();
         $this->assertSame(now()->subDays(5)->addMonthNoOverflow()->toDateString(), Aftercare::forCase($this->case)['next_due']);
         $this->get(route('calendar.index'))->assertInertia(fn ($page) => $page->where('caseEvents', fn ($events) => collect($events)->contains(fn ($event) => $event['source'] === 'Aftercare plan' && $event['case_number'] === 'KLG-AFT-1')));

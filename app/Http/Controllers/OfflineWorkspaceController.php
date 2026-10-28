@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\Aftercare;
 use App\Services\CaseAccessScope;
 use App\Services\CaseForms;
 use App\Services\CaseIntake;
@@ -33,9 +34,14 @@ class OfflineWorkspaceController extends Controller
             ->whereNull('cases.deleted_at');
 
         $this->scope->scopeCases($cases, $user);
+        // Closed cases travel only while the case manager still has aftercare visits to make
+        // (minimum necessary on the device).
+        $cases->where(fn ($open) => $open->where('cases.status', '!=', 'CLOSED')->orWhere(fn ($aftercare) => $aftercare->where('cases.assigned_to', $user->id)
+            ->whereExists(fn ($plan) => $plan->selectRaw('1')->from('case_aftercare_plans')->whereColumn('case_aftercare_plans.case_id', 'cases.id')->whereNotNull('case_aftercare_plans.living_arrangement'))));
 
         $rows = $cases->orderByDesc('cases.updated_at')->limit(50)->get([
             'cases.id', 'cases.case_number', 'cases.status', 'cases.priority', 'cases.category', 'cases.offline_version', 'cases.last_activity_at', 'cases.assigned_to',
+            'cases.intake_completed_at', 'cases.opened_at', 'cases.created_at',
             'clients.first_name', 'clients.last_name', 'clients.sex', 'clients.region', 'clients.province', 'clients.municipality', 'clients.barangay',
         ]);
         // The Kalinga forms and the KaVAT in progress travel only for the case manager's own open cases,
@@ -50,8 +56,15 @@ class OfflineWorkspaceController extends Controller
             $case->kavat_count = $own ? DB::table('kavat_assessments')->where('case_id', $case->id)->where('status', 'final')->count() : 0;
             // Midline / Endline already recorded, so field mode offers only the next one.
             $case->kavat_recorded = $own ? DB::table('kavat_assessments')->where('case_id', $case->id)->distinct()->pluck('occasion')->values()->all() : [];
-            unset($case->assigned_to);
+            // What to do next on this case, so the field worker can plan the day without signal.
+            $case->plan_deadline = $own ? CaseForms::planDeadline($case) : null;
+            $aftercare = (int) $case->assigned_to === (int) $user->id && $case->status === 'CLOSED' ? Aftercare::forCase((int) $case->id) : null;
+            $case->aftercare = $aftercare && $aftercare['next_due'] ? ['next_due' => $aftercare['next_due'], 'living_arrangement' => $aftercare['plan']['living_arrangement'] ?? null,
+                'last_status' => $aftercare['visits'][0]['status'] ?? null] : null;
+            unset($case->assigned_to, $case->intake_completed_at, $case->opened_at, $case->created_at);
         });
+        // A closed case whose follow-up period has ended is not kept on the device.
+        $rows = $rows->reject(fn ($case) => $case->status === 'CLOSED' && !$case->aftercare)->values();
 
         return response()->json([
             'generated_at' => now()->toIso8601String(),
