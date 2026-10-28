@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Services\Aftercare;
 use App\Services\CaseAccessScope;
 use App\Services\CaseAssignmentEligibility;
 use App\Services\CaseClosureHistory;
@@ -362,7 +363,7 @@ class CaseworkController extends Controller
             'consentForm' => $this->consentForm($case), 'relationships' => DB::table('relationships')->where('client_id', $record->client_id)->latest()->get(),
             'remarks' => app(CaseRemarks::class)->thread($case),
             'kavatDefinition' => Kavat::definition(), 'kavat' => CaseFormController::kavatHistory($case), 'kavatBaseline' => CaseFormController::kavatBaseline($case),
-            'formsDefinition' => CaseForms::definition(), 'forms' => CaseForms::forCase($case), 'planDeadline' => CaseForms::planDeadline($record), 'formSuggestions' => CaseForms::suggestions($record, $record),
+            'formsDefinition' => CaseForms::definition(), 'forms' => CaseForms::forCase($case), 'planDeadline' => CaseForms::planDeadline($record), 'aftercare' => Aftercare::forCase($case), 'formSuggestions' => CaseForms::suggestions($record, $record),
             'grants' => CaseGrants::forCase($case) + ['types' => CaseGrants::types(), 'purposes' => CaseGrants::PURPOSES],
             // Labels of the extra intake fields (answers are in caseRecord.custom_fields).
             'customFieldLabels' => DB::table('form_fields')->where('form', 'intake')->pluck('label', 'key'),

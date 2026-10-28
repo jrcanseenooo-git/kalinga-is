@@ -132,6 +132,17 @@ export const HELP_ARTICLES: HelpArticle[] = [
     keywords: 'service services provided assistance financial amount medical transport educational aics',
   },
   {
+    id: 'aftercare', category: 'Case work', title: 'Aftercare after closure', permission: 'cases.update',
+    summary: 'Write the aftercare plan at closure, then record the follow-up visits after the child returns to the community.',
+    steps: [
+      'Open the case, then Closure & aftercare. Under Aftercare, write where and with whom the child will live, the people who will support the child, the services that continue and the risks to watch.',
+      'Choose how often to visit (every month, 2 months or 3 months), the first visit and until when. The next visit shows on your calendar and you get a reminder when it is due.',
+      'After the case is closed, choose Record a follow-up visit: the date, how the child is (Stable, Needs support or At risk) and what was seen.',
+      'At risk tells your supervisor and suggests reopening the case. Reopening is still your decision, through the closure records below.',
+    ],
+    keywords: 'aftercare after care follow up visit closed case reintegration community stable at risk reopen',
+  },
+  {
     id: 'calendar', category: 'Case work', title: 'Plan visits and deadlines in the Calendar', permission: 'activities.manage',
     summary: 'Tap a date to schedule; case dates appear on their own.',
     steps: [

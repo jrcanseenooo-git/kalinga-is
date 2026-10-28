@@ -14,6 +14,7 @@ import CaseClientContextPanel from '@/Components/CaseClientContextPanel.vue';
 import CaseServicesPanel from '@/Components/CaseServicesPanel.vue';
 import PlanMonitoringPanel from '@/Components/Forms/PlanMonitoringPanel.vue';
 import CaseClosurePanel from '@/Components/CaseClosurePanel.vue';
+import AftercarePanel, { type AftercareData } from '@/Components/Closure/AftercarePanel.vue';
 import CaseProfileOverview from '@/Components/CaseProfileOverview.vue';
 import KavatPanel from '@/Components/Kavat/KavatPanel.vue';
 import CaseFormsPanel from '@/Components/Forms/CaseFormsPanel.vue';
@@ -44,6 +45,7 @@ const props = defineProps<{
     cpuMembers?: { id: number; name: string; cpu_role: string; position: string | null; has_account: boolean }[];
     hasSharingConsent?: boolean;
     planDeadline?: PlanDeadline | null;
+    aftercare?: AftercareData;
     visits: MonitoringVisit[];
     documents: any[];
     consentForm: ConsentForm;
@@ -129,6 +131,9 @@ onMounted(() => {
 const monitoringPanel = ref<{ compose: (kind: 'service_delivery') => void } | null>(null);
 /** Referrals and services are written as progress notes. */
 async function composeNote(kind: 'service_delivery') { activeSection.value = 'notes'; await nextTick(); monitoringPanel.value?.compose(kind); }
+/** Aftercare is recorded by the case manager, also after closure. */
+const canEditAftercare = computed(() => page.props.auth.permissions.includes('cases.update') && props.caseRecord.status !== 'ARCHIVED');
+const scrollToClosure = () => document.getElementById('case-closure-records')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 const formsPanel = ref<{ openForm: (type: FormType) => Promise<void> } | null>(null);
 /** Referrals live with the Intervention Plan. */
 async function openPlanReferrals() { await openSection('forms'); await formsPanel.value?.openForm('plan'); }
@@ -196,6 +201,9 @@ const smartAlerts = computed(() => {
     if (pending.length) alerts.push({ level: 'info', text: `${pending.length} ${pending.length === 1 ? 'referral' : 'referrals'} awaiting response`, tab: 'forms' });
     if (!props.consentForm.document_id) alerts.push({ level: 'info', text: 'No photo of the signed consent / assent form - add it in Client & Intake', tab: 'people' });
     if (status === 'FOR_CLOSURE_REVIEW') alerts.push({ level: 'warning', text: 'Case is for closure review - check the closure checklist', tab: 'closure' });
+    if (status === 'FOR_CLOSURE_REVIEW' && !props.aftercare?.plan) alerts.push({ level: 'warning', text: 'Write the aftercare plan before the case is closed', tab: 'closure' });
+    if (status === 'CLOSED' && props.aftercare?.suggest_reopen) alerts.push({ level: 'critical', text: 'Aftercare: the child was found at risk - consider reopening the case', tab: 'closure' });
+    else if (status === 'CLOSED' && props.aftercare?.next_due && props.aftercare.next_due < manilaToday) alerts.push({ level: 'warning', text: `Aftercare follow-up visit past due (${calendarDateLabel(props.aftercare.next_due)})`, tab: 'closure' });
     return alerts;
 });
 
@@ -216,7 +224,11 @@ const tabBadges = computed(() => {
 /** What to do next, in the order of the Kalinga forms. Guidance only; status changes keep their server rules. */
 const nextStep = computed(() => {
     const status = props.caseRecord.status;
-    if (status === 'CLOSED') return { text: 'Case closed. Follow the aftercare plan; reopen through the closure workspace if needed.', tab: 'closure' as TabKey };
+    if (status === 'CLOSED') {
+        if (props.aftercare?.suggest_reopen) return { text: 'The last follow-up visit found the child at risk. Consider reopening the case.', tab: 'closure' as TabKey };
+        if (!props.aftercare?.plan) return { text: 'Case closed. Write the aftercare plan for the follow-up visits.', tab: 'closure' as TabKey };
+        return { text: props.aftercare.next_due ? `Case closed. Next aftercare follow-up visit: ${calendarDateLabel(props.aftercare.next_due)}.` : 'Case closed. The aftercare follow-up period has ended.', tab: 'closure' as TabKey };
+    }
     if (unreadRemarks.value.length) return { text: 'Read and answer the remarks from your supervisor or monitors.', tab: 'overview' as TabKey };
     if (!props.kavatBaseline) return { text: 'Record the baseline KaVAT result from the screening tool.', tab: 'kavat' as TabKey };
     if (kavatDraft.value) return { text: 'Finish the KaVAT in progress with the child.', tab: 'kavat' as TabKey };
@@ -230,11 +242,12 @@ const nextStep = computed(() => {
 
 /** Closure checklist: guidance from the record, not a gate. */
 const closureChecklist = computed(() => [
-    { done: finalKavat.value.some(item => item.occasion === 'closure'), text: 'KaVAT administered at closure', detail: latestKavat.value ? `Latest: ${latestKavat.value.score.final_score} (${priorityLabel(latestKavat.value.score.priority)})` : 'No KaVAT yet', tab: 'kavat' as TabKey },
+    { done: finalKavat.value.some(item => item.occasion === 'endline'), text: 'Endline KaVAT administered', detail: latestKavat.value ? `Latest: ${latestKavat.value.score.final_score} (${priorityLabel(latestKavat.value.score.priority)})` : 'No KaVAT yet', tab: 'kavat' as TabKey },
     { done: formState('plan') === 'final', text: 'Intervention Plan finalized', detail: formState('plan') === 'draft' ? 'Draft' : formState('plan') === 'final' ? 'Finalized' : 'Not started', tab: 'forms' as TabKey },
     { done: formState('study') === 'final', text: 'Social Case Study Report finalized', detail: formState('study') === 'draft' ? 'Draft' : formState('study') === 'final' ? 'Finalized' : 'Not started', tab: 'forms' as TabKey },
     { done: openReferrals.value.length === 0, text: 'No unfinished referrals', detail: openReferrals.value.length ? `${openReferrals.value.length} still open` : 'All referrals completed or closed', tab: 'forms' as TabKey },
     { done: openTasks.value.length === 0, text: 'No open tasks', detail: openTasks.value.length ? `${openTasks.value.length} open` : 'All tasks done', tab: 'overview' as TabKey },
+    { done: Boolean(props.aftercare?.plan), text: 'Aftercare plan written', detail: props.aftercare?.plan ? 'Written' : 'Not yet written', tab: 'closure' as TabKey },
     { done: unreadRemarks.value.length === 0, text: 'All remarks read', detail: unreadRemarks.value.length ? `${unreadRemarks.value.length} unread` : 'None waiting', tab: 'overview' as TabKey },
 ]);
 
@@ -374,7 +387,8 @@ const archiveCase = async () => { if (await askConfirm({ title: 'Archive this ca
                                 <li v-for="item in closureChecklist" :key="item.text"><button type="button" class="flex w-full items-start gap-2 rounded-lg border p-3 text-left text-sm" :class="item.done ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-white'" @click="openSection(item.tab)"><component :is="item.done ? CheckCircle2 : Circle" class="mt-0.5 h-4 w-4 shrink-0" :class="item.done ? 'text-emerald-700' : 'text-slate-400'" aria-hidden="true" /><span><span class="block font-semibold text-slate-900">{{ item.text }}<span class="sr-only">{{ item.done ? ' - done' : ' - not yet' }}</span></span><span class="block text-xs text-slate-600">{{ item.detail }}</span></span></button></li>
                             </ul>
                         </section>
-                        <CaseClosurePanel v-if="closureLoaded" :case-id="Number(caseRecord.id)" @updated="router.reload()" />
+                        <AftercarePanel v-if="aftercare" :case-id="Number(caseRecord.id)" :status="caseRecord.status" :aftercare="aftercare" :can-edit="canEditAftercare" @reopen="scrollToClosure" />
+                        <div id="case-closure-records"><CaseClosurePanel v-if="closureLoaded" :case-id="Number(caseRecord.id)" @updated="router.reload()" /></div>
                     </section>
 
                     <section v-show="activeSection === 'records'" id="case-panel-records" role="tabpanel" aria-labelledby="case-tab-records" class="scroll-mt-24 ui-panel overflow-hidden p-0">

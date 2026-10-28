@@ -29,7 +29,10 @@ class CaseLifecyclePolicy
             'high_or_critical_risk' => DB::table('cases')->where('id', $case)->whereIn('current_risk_level', ['high', 'critical'])->exists(),
             'open_tasks' => DB::table('tasks')->where('case_id', $case)->where('status', 'open')->exists(),
             'open_referrals' => DB::table('referrals')->where('case_id', $case)->whereNotIn('status', ['COMPLETED', 'WITHDRAWN'])->exists(),
-            'aftercare_required' => DB::table('case_aftercare_plans')->where('case_id', $case)->where('required', true)->whereNotIn('status', ['completed', 'not_required'])->exists(),
+            // Kalinga (owner, 2026-10-28): an aftercare plan is written at closure; older required
+            // aftercare records that are unfinished also count.
+            'aftercare_required' => !Aftercare::plan($case)
+                || DB::table('case_aftercare_plans')->where('case_id', $case)->whereNull('living_arrangement')->where('required', true)->whereNotIn('status', ['completed', 'not_required'])->exists(),
         ];
         $result = ['critical_blockers' => [], 'warnings' => [], 'policy_validation_required' => true];
         foreach ($facts as $key => $present) {

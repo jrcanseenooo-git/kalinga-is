@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Services\Aftercare;
 use App\Services\CaseForms;
 use App\Services\OperationalNotification;
 use App\Services\Supervisors;
@@ -85,6 +86,18 @@ class DispatchDeadlineAlerts extends Command
             foreach (Supervisors::forLgu($case->lgu_id) as $supervisor) {
                 $created += $this->createOnce($supervisor, 'plan_overdue', 'Intervention Plan overdue', "{$case->case_number} - the Intervention Plan was due {$due}", "/cases/{$case->id}?section=forms");
             }
+        }
+
+        // Aftercare: remind the case manager on the day a follow-up visit is due (and once when past due).
+        foreach (DB::table('cases')->where('status', 'CLOSED')->whereNull('deleted_at')->whereNotNull('assigned_to')
+            ->whereExists(fn ($plan) => $plan->selectRaw('1')->from('case_aftercare_plans')->whereColumn('case_aftercare_plans.case_id', 'cases.id')->whereNotNull('case_aftercare_plans.living_arrangement'))
+            ->get(['id', 'case_number', 'assigned_to']) as $case) {
+            $next = Aftercare::forCase((int) $case->id)['next_due'];
+            if (!$next || $next > $now->toDateString()) {
+                continue;
+            }
+            $eligible++;
+            $created += $this->createOnce((int) $case->assigned_to, 'aftercare_visit_due', 'Aftercare follow-up visit due', "{$case->case_number} - follow-up visit due " . Carbon::parse($next)->format('M j'), "/cases/{$case->id}?section=closure");
         }
 
         $this->info($this->option('dry-run')

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Services\Aftercare;
 use App\Services\CalendarSharing;
 use App\Services\CaseAccessScope;
 use App\Services\CaseAssignmentEligibility;
@@ -260,13 +261,22 @@ class OperationsController extends Controller
     {
         $service = app(WorkerTasks::class);
         $caseIds = $service->cases($user)->whereNotIn('cases.status', ['CLOSED', 'ARCHIVED'])->pluck('cases.id');
-        if ($caseIds->isEmpty()) {
-            return [];
-        }
         $from = now()->subDays(45);
         $to = now()->addDays(120);
         $iso = fn ($value) => $value ? Carbon::parse($value)->toIso8601String() : null;
         $events = [];
+        // Aftercare: the next follow-up visit of closed cases.
+        foreach ($service->cases($user)->where('cases.status', 'CLOSED')->whereExists(fn ($plan) => $plan->selectRaw('1')->from('case_aftercare_plans')->whereColumn('case_aftercare_plans.case_id', 'cases.id')->whereNotNull('case_aftercare_plans.living_arrangement'))
+            ->get(['cases.id', 'cases.case_number']) as $closed) {
+            $next = Aftercare::forCase((int) $closed->id)['next_due'];
+            if ($next && Carbon::parse($next)->between($from, $to)) {
+                $events[] = ['key' => 'aftercare-' . $closed->id, 'type' => 'monitoring_visit', 'title' => 'Aftercare follow-up visit', 'at' => Carbon::parse($next . ' 08:00', 'Asia/Manila')->toIso8601String(),
+                    'case_id' => $closed->id, 'case_number' => $closed->case_number, 'source' => 'Aftercare plan'];
+            }
+        }
+        if ($caseIds->isEmpty()) {
+            return $events;
+        }
         foreach (DB::table('case_conferences')->join('cases', 'cases.id', '=', 'case_conferences.case_id')->whereIn('case_conferences.case_id', $caseIds)
             ->whereNotNull('case_conferences.scheduled_at')->whereNull('case_conferences.completed_at')->whereBetween('case_conferences.scheduled_at', [$from, $to])
             ->get(['case_conferences.id', 'case_conferences.case_id', 'case_conferences.scheduled_at', 'case_conferences.conference_type', 'cases.case_number']) as $row) {

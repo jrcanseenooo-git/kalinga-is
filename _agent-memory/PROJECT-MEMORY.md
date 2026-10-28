@@ -94,7 +94,7 @@ only way to change a case manager); page /cases/{id}/plan-workspace still works.
 | G | Monitoring tab (plan monitoring) | Done (60c1480) |
 | H | Calendar: invite anyone by name; supervisor sees CM activities; reschedule = attention item for CM and supervisor; plan dates on calendar | Done (c573dd4) |
 | I | Hide Case Plan and Plan & continuity; service Other specify; grants = Transportation Support Allowance only, no fund source | Done (b7c7271) |
-| J | Dashboard -> Workboard; analytics (Reporting Pipeline, age-sex by exact age, priority charts on top, services chart, average plan submission time) | Pending |
+| J | Dashboard -> Workboard; analytics (Reporting Pipeline, age-sex by exact age, priority charts on top, services chart, average plan submission time) | Done (fdd5133) |
 | K | Aftercare module | Pending |
 | L | Offline field mode upgrade | Pending |
 | M | Tests, docs, push | Pending |
