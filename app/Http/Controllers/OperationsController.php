@@ -275,10 +275,7 @@ class OperationsController extends Controller
         foreach (DB::table('cases')->whereIn('id', $caseIds)->whereNotNull('next_review_at')->whereBetween('next_review_at', [$from, $to])->get(['id', 'case_number', 'next_review_at']) as $row) {
             $events[] = ['key' => 'review-' . $row->id, 'type' => 'assessment', 'title' => 'Safety review due', 'at' => $iso($row->next_review_at), 'case_id' => $row->id, 'case_number' => $row->case_number, 'source' => 'Intake safety plan'];
         }
-        foreach (DB::table('case_plans')->join('cases', 'cases.id', '=', 'case_plans.case_id')->whereIn('case_plans.case_id', $caseIds)->where('case_plans.is_current', true)
-            ->whereNotNull('case_plans.review_due_at')->whereBetween('case_plans.review_due_at', [$from, $to])->get(['case_plans.id', 'case_plans.case_id', 'case_plans.review_due_at', 'cases.case_number']) as $row) {
-            $events[] = ['key' => 'plan-' . $row->id, 'type' => 'deadline', 'title' => 'Care plan review due', 'at' => $iso($row->review_due_at), 'case_id' => $row->case_id, 'case_number' => $row->case_number, 'source' => 'Care plan'];
-        }
+        // The Case plan (Plan & continuity) is hidden for now (owner, 2026-10-28): its review dates are not shown.
         $targets = app(ReferralTracking::class)->targets();
         foreach (DB::table('referrals')->join('cases', 'cases.id', '=', 'referrals.case_id')->whereIn('referrals.case_id', $caseIds)->whereIn('referrals.status', ['SENT', 'ACCEPTED', 'IN_PROGRESS'])
             ->get(['referrals.id', 'referrals.case_id', 'referrals.status', 'referrals.service_category', 'referrals.referred_at', 'referrals.accepted_at', 'referrals.created_at', 'cases.case_number']) as $row) {

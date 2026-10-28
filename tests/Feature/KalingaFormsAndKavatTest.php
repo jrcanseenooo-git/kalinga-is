@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use App\Services\CaseForms;
+use App\Services\CaseGrants;
 use App\Services\Kavat;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -133,14 +134,32 @@ class KalingaFormsAndKavatTest extends TestCase
     public function test_grants_log_records_and_voids_without_deleting(): void
     {
         $this->actingAs($this->worker);
-        $this->post(route('cases.grants.store', $this->case), ['grant_type' => 'educational', 'amount' => 3000, 'released_at' => now()->toDateString(), 'fund_source' => 'LGU'])->assertRedirect();
-        $this->post(route('cases.grants.store', $this->case), ['grant_type' => 'financial', 'amount' => 2000, 'released_at' => now()->toDateString()])->assertRedirect();
-        $this->post(route('cases.grants.store', $this->case), ['grant_type' => 'nope', 'amount' => 0, 'released_at' => now('Asia/Manila')->addDay()->toDateString()])->assertSessionHasErrors(['grant_type', 'amount', 'released_at']);
-        $grant = DB::table('case_grants')->where('grant_type', 'financial')->value('id');
+        // Transportation Support Allowance only; no fund source.
+        $this->post(route('cases.grants.store', $this->case), ['amount' => 3000, 'released_at' => now()->toDateString(), 'purpose' => 'Court hearing or legal appointment', 'received_by' => 'Parent', 'fund_source' => 'LGU'])->assertSessionHasNoErrors();
+        $this->post(route('cases.grants.store', $this->case), ['grant_type' => 'transportation', 'amount' => 2000, 'released_at' => now()->toDateString(), 'purpose' => 'Case conference', 'received_by' => 'The child'])->assertRedirect();
+        $this->post(route('cases.grants.store', $this->case), ['grant_type' => 'educational', 'amount' => 0, 'released_at' => now('Asia/Manila')->addDay()->toDateString()])
+            ->assertSessionHasErrors(['grant_type', 'amount', 'released_at', 'purpose', 'received_by']);
+        $this->assertSame(['transportation'], DB::table('case_grants')->distinct()->pluck('grant_type')->all());
+        $this->assertNull(DB::table('case_grants')->value('fund_source'));
+        $grant = DB::table('case_grants')->where('amount', 2000)->value('id');
         $this->post(route('cases.grants.void', [$this->case, $grant]), ['reason' => 'Entered twice by mistake.'])->assertRedirect();
         $this->assertSame(2, DB::table('case_grants')->count());
-        $this->get(route('cases.show', $this->case))->assertInertia(fn ($page) => $page->where('grants.total', 3000)->where('grants.count', 1));
+        $this->get(route('cases.show', $this->case))->assertInertia(fn ($page) => $page->where('grants.total', 3000)->where('grants.count', 1)
+            ->where('grants.types', ['transportation' => 'Transportation Support Allowance'])->where('grants.items.1.type_label', 'Transportation Support Allowance'));
         $this->assertDatabaseHas('audit_logs', ['event' => 'grant.voided', 'log_type' => 'data_modification']);
+        // An entry recorded earlier under another type keeps its label.
+        DB::table('case_grants')->insert(['case_id' => $this->case, 'grant_type' => 'educational', 'amount' => 500, 'released_at' => now()->subYear()->toDateString(), 'recorded_by' => $this->worker->id, 'created_at' => now(), 'updated_at' => now()]);
+        $this->assertSame('Educational assistance', collect(CaseGrants::forCase($this->case)['items'])->firstWhere('grant_type', 'educational')['type_label']);
+    }
+
+    public function test_other_record_type_and_other_service_need_a_specification(): void
+    {
+        $this->actingAs($this->worker);
+        $note = ['body' => 'Synthetic record.', 'occurred_at' => now()->subHour()->toIso8601String()];
+        $this->post(route('cases.notes.store', $this->case), $note + ['note_type' => 'other'])->assertSessionHasErrors('note_type_other');
+        $this->post(route('cases.notes.store', $this->case), $note + ['note_type' => 'other', 'note_type_other' => 'Barangay council meeting'])->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('case_notes', ['case_id' => $this->case, 'note_type' => 'other', 'note_type_other' => 'Barangay council meeting']);
+        $this->post(route('cases.notes.store', $this->case), $note + ['note_type' => 'service_delivery', 'service' => ['service_type' => 'Other', 'date_provided' => now()->toDateString()]])->assertSessionHasErrors('service.specific_detail');
     }
 
     public function test_field_mode_carries_forms_and_kavat_and_syncs_them_with_conflict_detection(): void

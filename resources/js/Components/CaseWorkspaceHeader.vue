@@ -54,7 +54,7 @@ const lastActivity = computed(() => props.activityDays === null ? 'Not recorded'
                 </div>
             </div>
             <div class="flex shrink-0 flex-wrap gap-2">
-                <Link :href="route('cases.plans.workspace', caseRecord.id)" class="ui-button">Plan &amp; continuity</Link>
+                <!-- Plan & continuity is hidden for now (owner, 2026-10-28); planning is the Intervention Plan in Kalinga forms. -->
                 <div v-if="canGenerateReport" ref="menu" class="relative">
                     <button type="button" class="ui-button-primary" aria-haspopup="true" :aria-expanded="menuOpen" aria-controls="case-report-menu" @click="menuOpen = !menuOpen"><FileText class="h-4 w-4" aria-hidden="true" />Reports<ChevronDown class="h-4 w-4 transition" :class="menuOpen ? 'rotate-180' : ''" aria-hidden="true" /></button>
                     <ul v-show="menuOpen" id="case-report-menu" class="absolute right-0 z-30 mt-1 w-64 overflow-hidden rounded-xl border border-[var(--color-line)] bg-white py-1 shadow-lg" aria-label="Print a case report">

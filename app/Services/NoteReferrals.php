@@ -46,7 +46,7 @@ class NoteReferrals
     {
         return [
             $prefix . 'service_type' => 'required|in:' . implode(',', self::SERVICE_TYPES),
-            $prefix . 'specific_detail' => 'nullable|string|max:255',
+            $prefix . 'specific_detail' => 'required_if:' . $prefix . 'service_type,Other|nullable|string|max:255',
             $prefix . 'amount' => 'nullable|numeric|min:0|max:9999999',
             $prefix . 'date_provided' => 'required|date|before_or_equal:' . PhilippineDate::today(),
             $prefix . 'provided_by' => 'nullable|string|max:160',

@@ -87,13 +87,13 @@ export const HELP_ARTICLES: HelpArticle[] = [
   },
   {
     id: 'grants', category: 'Case work', title: 'Record grants released', permission: 'cases.update',
-    summary: 'Each case has a grants log with the total released.',
+    summary: 'Each case has a grants log of the Transportation Support Allowance released, with the total.',
     steps: [
       'Open the case, then Progress notes, then Grants log.',
-      'Choose Record a grant. Enter the type, amount, date released, fund source and who received it.',
+      'Choose Record a release. Enter the amount, the date released, the purpose of the travel (tap a common purpose or type one) and who received it.',
       'A wrong entry is voided with a reason. It stays in the log, crossed out, and is not counted in the total.',
     ],
-    keywords: 'grant grants assistance amount financial educational released disbursed total void',
+    keywords: 'grant grants transportation support allowance travel fare amount released disbursed total void',
   },
   {
     id: 'progress-notes', category: 'Case work', title: 'Write a progress note', permission: 'cases.note',
@@ -125,7 +125,7 @@ export const HELP_ARTICLES: HelpArticle[] = [
     summary: 'Every service the child or family actually received, with amounts for financial help.',
     steps: [
       'Open the case and choose Record service (in Progress notes).',
-      'Choose the service type and date provided, and describe the specific service.',
+      'Choose the service type and date provided, and describe the specific service. For Other, say what the service was. A progress note of record type Other also asks you to specify it.',
       'For financial assistance, enter the amount. Link it to a referral if it came from one.',
       'Services show in green on the Overview, in Progress notes, and in the reports, with the total assistance.',
     ],

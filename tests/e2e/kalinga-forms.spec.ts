@@ -107,15 +107,19 @@ test('Kalinga forms save as the case manager types and keep their order', async 
     await expectNoHorizontalOverflow(page);
 });
 
-test('grants log records a grant and totals it', async ({ page }) => {
+test('grants log records a transportation allowance and totals it', async ({ page }) => {
     await openCase(page);
     await page.getByRole('tab', { name: /^Progress notes/ }).click();
     const grants = page.getByRole('region', { name: 'Grants log' });
-    await grants.getByRole('button', { name: 'Record a grant' }).click();
-    await grants.getByLabel('Type of grant').selectOption({ label: 'Educational assistance' });
+    await expect(grants).toContainText('Transportation Support Allowance');
+    await grants.getByRole('button', { name: 'Record a release' }).click();
+    await expect(grants.getByLabel('Fund source')).toHaveCount(0);
     await grants.getByLabel('Amount (PHP)').fill('2500');
-    await grants.getByRole('button', { name: 'Save grant' }).click();
-    await expect(grants.getByRole('table')).toContainText('Educational assistance');
+    await grants.getByRole('button', { name: 'Case conference' }).click();
+    await grants.getByLabel('Received by').fill('Parent');
+    await grants.getByRole('button', { name: 'Save release' }).click();
+    await expect(grants.getByRole('table')).toContainText('Case conference');
+    await expectNoHorizontalOverflow(page);
     // Referrals moved to the Intervention Plan and Referrals form.
     await expect(page.locator('#case-panel-notes').getByRole('heading', { name: /Referrals to CPU members/ })).toHaveCount(0);
 });

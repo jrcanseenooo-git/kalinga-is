@@ -234,9 +234,11 @@ class CaseFormController extends Controller
     {
         $this->writable($request, $case);
         $data = $request->validate([
-            'grant_type' => ['required', Rule::in(array_keys(CaseGrants::types()))], 'amount' => 'required|numeric|min:1|max:9999999',
-            'released_at' => 'required|date|before_or_equal:' . PhilippineDate::today(), 'fund_source' => 'nullable|string|max:160', 'purpose' => 'nullable|string|max:255', 'received_by' => 'nullable|string|max:160',
+            'grant_type' => ['nullable', Rule::in(array_keys(CaseGrants::types()))], 'amount' => 'required|numeric|min:1|max:9999999',
+            'released_at' => 'required|date|before_or_equal:' . PhilippineDate::today(), 'purpose' => 'required|string|max:255', 'received_by' => 'required|string|max:160',
         ]);
+        // Transportation Support Allowance is the only grant (owner, 2026-10-28).
+        $data['grant_type'] = 'transportation';
         $id = DB::table('case_grants')->insertGetId($data + ['case_id' => $case, 'recorded_by' => $request->user()->id, 'created_at' => now(), 'updated_at' => now()]);
         DB::table('cases')->where('id', $case)->update(['last_activity_at' => now(), 'updated_at' => now()]);
         AuditLog::record('grant.created', 'case', $case, ['case_id' => $case, 'grant_id' => $id, 'grant_type' => $data['grant_type']], $request->user()->id, 'success',

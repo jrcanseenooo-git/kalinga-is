@@ -363,7 +363,7 @@ class CaseworkController extends Controller
             'remarks' => app(CaseRemarks::class)->thread($case),
             'kavatDefinition' => Kavat::definition(), 'kavat' => CaseFormController::kavatHistory($case), 'kavatBaseline' => CaseFormController::kavatBaseline($case),
             'formsDefinition' => CaseForms::definition(), 'forms' => CaseForms::forCase($case), 'planDeadline' => CaseForms::planDeadline($record), 'formSuggestions' => CaseForms::suggestions($record, $record),
-            'grants' => CaseGrants::forCase($case) + ['types' => CaseGrants::types()],
+            'grants' => CaseGrants::forCase($case) + ['types' => CaseGrants::types(), 'purposes' => CaseGrants::PURPOSES],
             // Labels of the extra intake fields (answers are in caseRecord.custom_fields).
             'customFieldLabels' => DB::table('form_fields')->where('form', 'intake')->pluck('label', 'key'),
             'canEditForms' => $request->user()->hasPermission('cases.update') && $record->status !== 'CLOSED',
@@ -418,6 +418,7 @@ class CaseworkController extends Controller
             'action_taken' => 'nullable|string|max:3000',
             'next_steps' => 'nullable|string|max:3000',
             'note_type' => 'required|in:contact,monitoring,referral,service_delivery,coordination,case_review,other',
+            'note_type_other' => 'required_if:note_type,other|nullable|string|max:120',
             'occurred_at' => 'required|date|before_or_equal:now',
             'create_follow_up' => 'sometimes|boolean',
             'follow_up_title' => 'required_if:create_follow_up,true|nullable|string|max:255',
@@ -440,7 +441,8 @@ class CaseworkController extends Controller
             $id = DB::table('case_notes')->insertGetId([
                 'case_id' => $case, 'body' => $data['body'], 'action_taken' => $data['action_taken'] ?? null, 'next_steps' => $data['next_steps'] ?? null,
                 'visibility' => 'CASE_NOTES', 'record_type' => 'progress_note',
-                'note_type' => $data['note_type'], 'occurred_at' => $data['occurred_at'], 'finalized_at' => now(),
+                'note_type' => $data['note_type'], 'note_type_other' => $data['note_type'] === 'other' ? trim((string) ($data['note_type_other'] ?? '')) : null,
+                'occurred_at' => $data['occurred_at'], 'finalized_at' => now(),
                 'finalized_by' => $request->user()->id, 'is_current' => true, 'created_by' => $request->user()->id,
                 'created_at' => now(), 'updated_at' => now(),
             ]);
