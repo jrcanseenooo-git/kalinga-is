@@ -10,7 +10,7 @@ export function reportActions(r: ReportProps): { at: string; action: string; who
   for (const note of r.notes ?? []) if (note.at && note.type !== 'referral' && note.type !== 'service_delivery') rows.push({ at: note.at, action: note.action || noteLabel(note.type), who: note.author ?? '' });
   for (const ref of r.referrals ?? []) rows.push({ at: ref.referred_at || ref.created_at, action: `Referral for ${(ref.purpose || ref.service_category).toLowerCase()} - ${human(ref.status).toLowerCase()}`, who: ref.referred_to ?? '' });
   for (const svc of r.services ?? []) rows.push({ at: svc.date_provided, action: `${svc.service_type}${svc.specific_detail ? `: ${svc.specific_detail}` : ''}${svc.amount ? ` (${peso(svc.amount)})` : ''}`, who: svc.provided_by ?? '' });
-  for (const grant of r.grants?.items ?? []) if (!grant.voided_at) rows.push({ at: grant.released_at, action: `${grant.type_label} (${peso(grant.amount)})${grant.purpose ? ` - ${grant.purpose}` : ''}`, who: grant.fund_source ?? '' });
+  for (const grant of r.grants?.items ?? []) if (!grant.voided_at) rows.push({ at: grant.released_at, action: `${grant.type_label} (${peso(grant.amount)})${grant.purpose ? ` - ${grant.purpose}` : ''}`, who: grant.received_by ?? '' });
   return rows.sort((a, b) => a.at.localeCompare(b.at));
 }
 

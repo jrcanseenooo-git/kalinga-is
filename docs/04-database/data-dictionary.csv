@@ -1,5 +1,5 @@
 Group,Table,Column,Type,Required,Notes
-Clients and identity,clients,,,,"The child (client) of a case: identifying information, address, safe contact and primary caregiver."
+Clients and identity,clients,,,,"The child (client) of a case: identifying information, address, child contact details (mobile number and other channels in contact_channels) and primary caregiver."
 ,clients,first_name,text,Yes,
 ,clients,last_name,text,Yes,
 ,clients,birthdate,date,,
@@ -39,6 +39,7 @@ Clients and identity,clients,,,,"The child (client) of a case: identifying infor
 ,clients,caregiver_province,varchar(120),,
 ,clients,caregiver_municipality,varchar(120),,
 ,clients,caregiver_barangay,varchar(120),,
+,clients,contact_channels,text,,
 Clients and identity,client_identifiers,,,,"Official identifiers recorded for a client, used for duplicate checks."
 ,client_identifiers,client_id,bigint,Yes,Links to clients
 ,client_identifiers,identifier_type,varchar(80),Yes,
@@ -265,7 +266,7 @@ Case folder,case_lifecycle_policies,,,,Rules for allowed case status changes.
 ,case_lifecycle_policies,value,varchar(40),Yes,
 ,case_lifecycle_policies,description,text,,
 ,case_lifecycle_policies,requires_owner_validation,boolean,Yes,Yes/no: requires owner validation.
-Case folder,case_notes,,,,"Progress notes and their addenda (corrections), with purpose, action taken and next steps."
+Case folder,case_notes,,,,"Progress notes and their addenda (corrections), with record type (Other is specified in note_type_other), action taken and next steps. Referrals are kept here too."
 ,case_notes,case_id,bigint,Yes,Links to cases
 ,case_notes,body,text,Yes,Text of the note or message.
 ,case_notes,visibility,text,Yes,
@@ -284,6 +285,7 @@ Case folder,case_notes,,,,"Progress notes and their addenda (corrections), with 
 ,case_notes,is_current,boolean,Yes,Whether this is the current version.
 ,case_notes,action_taken,text,,
 ,case_notes,next_steps,text,,
+,case_notes,note_type_other,varchar(120),,
 Case folder,monitoring_visits,,,,Home and monitoring visits.
 ,monitoring_visits,case_id,bigint,Yes,Links to cases
 ,monitoring_visits,visited_at,date,Yes,Date and time: visited.
@@ -311,13 +313,15 @@ Case folder,task_participants,,,,"People invited to a calendar activity, with th
 ,task_participants,response,varchar(12),Yes,
 ,task_participants,invited_by,bigint,Yes,Links to users. User who invited the record.
 ,task_participants,responded_at,timestamp,,Date and time: responded.
-Case folder,task_history,,,,Change history of a calendar activity: rescheduling and cancellation with the reason given.
+Case folder,task_history,,,,"Change history of a calendar activity: rescheduling and cancellation with the reason given. A move is reviewed by the supervisor (reviewed_at, reviewed_by)."
 ,task_history,task_id,bigint,Yes,Links to tasks
 ,task_history,event,varchar(20),Yes,Event name.
 ,task_history,actor_id,bigint,Yes,Links to users
 ,task_history,from_due_at,timestamp,,Date and time: from due.
 ,task_history,to_due_at,timestamp,,Date and time: to due.
 ,task_history,reason,varchar(500),,Reason given.
+,task_history,reviewed_at,timestamp,,Date and time: reviewed.
+,task_history,reviewed_by,bigint,,Links to users. User who reviewed the record.
 Case folder,consents,,,,Consent and lawful basis for processing and sharing case information.
 ,consents,case_id,bigint,Yes,Links to cases
 ,consents,lawful_basis,text,Yes,Lawful basis under the Data Privacy Act.
@@ -347,7 +351,7 @@ Case folder,case_remarks,,,,"Remarks from the LGU Head, Field Office or Project 
 ,case_remarks,kind,varchar(30),Yes,
 ,case_remarks,body,text,Yes,Text of the note or message.
 ,case_remarks,acknowledged_at,timestamp,,Date and time: acknowledged.
-Case folder,case_grants,,,,"Grants log per case: type, amount, date released, fund source and receiver. Wrong entries are voided with a reason, never deleted."
+Case folder,case_grants,,,,"Grants log per case: Transportation Support Allowance only (older entries keep their type), amount, date released, purpose of the travel and receiver. The fund source is no longer asked. Wrong entries are voided with a reason, never deleted."
 ,case_grants,case_id,bigint,Yes,Links to cases
 ,case_grants,grant_type,varchar(60),Yes,
 ,case_grants,amount,numeric,Yes,
@@ -369,7 +373,7 @@ Kalinga forms and KaVAT,kavat_baselines,,,,"Result of the baseline KaVAT done be
 ,kavat_baselines,notes,text,,
 ,kavat_baselines,document_id,bigint,,Links to documents
 ,kavat_baselines,recorded_by,bigint,Yes,Links to users. User who recorded the record.
-Kalinga forms and KaVAT,kavat_assessments,,,,"Kalinga Vulnerability Assessment Tool administrations: answers (draft or final), scores, priority and red flags."
+Kalinga forms and KaVAT,kavat_assessments,,,,"Kalinga Vulnerability Assessment Tool administrations in Kalinga: one Midline and one Endline per case; answers (draft or final), scores, priority and red flags. A correction keeps the previous answers until it is finalized with a reason."
 ,kavat_assessments,case_id,bigint,Yes,Links to cases
 ,kavat_assessments,instrument_version,varchar(20),Yes,
 ,kavat_assessments,occasion,varchar(20),Yes,
@@ -388,6 +392,11 @@ Kalinga forms and KaVAT,kavat_assessments,,,,"Kalinga Vulnerability Assessment T
 ,kavat_assessments,red_flags,json,,
 ,kavat_assessments,revision,integer,Yes,
 ,kavat_assessments,finalized_at,timestamp,,When the record was finalized (locked).
+,kavat_assessments,previous_answers,json,,
+,kavat_assessments,previous_final_score,numeric,,
+,kavat_assessments,correction_reason,text,,
+,kavat_assessments,corrected_at,timestamp,,Date and time: corrected.
+,kavat_assessments,corrected_by,bigint,,Links to users. User who corrected the record.
 Kalinga forms and KaVAT,case_forms,,,,"Working copy of each Kalinga form written by the case manager (Case Summary, Intervention Plan matrix, Social Case Study Report), with a revision number."
 ,case_forms,case_id,bigint,Yes,Links to cases
 ,case_forms,form_type,varchar(20),Yes,
@@ -625,7 +634,7 @@ Planning and services,service_providers,,,,Directory of agencies and offices tha
 ,service_providers,region,text,,
 ,service_providers,province,text,,
 ,service_providers,barangay,text,,
-Planning and services,referrals,,,,"Referrals to CPU members and agencies, with status, outcome and dates."
+Planning and services,referrals,,,,"Referrals to CPU members and agencies, with status, outcome and dates; plan_row_key links a referral conducted from an Intervention Plan row."
 ,referrals,case_id,bigint,Yes,Links to cases
 ,referrals,service_provider_id,bigint,,Links to service_providers
 ,referrals,status,text,Yes,Current status of the record.
@@ -647,6 +656,7 @@ Planning and services,referrals,,,,"Referrals to CPU members and agencies, with 
 ,referrals,recipient_user_id,bigint,,Links to users
 ,referrals,mdt_case_access_id,bigint,,Links to mdt_case_access
 ,referrals,target_date,date,,Target completion date.
+,referrals,plan_row_key,varchar(40),,
 Planning and services,referral_events,,,,Each status change of a referral.
 ,referral_events,referral_id,bigint,Yes,Links to referrals
 ,referral_events,from_status,varchar(40),,
@@ -732,7 +742,7 @@ Planning and services,case_conference_history,,,,Changes to case conference reco
 ,case_closure_records,reviewed_at,timestamp,,Date and time: reviewed.
 ,case_closure_records,closed_at,timestamp,,Date and time: closed.
 ,case_closure_records,superseded_at,timestamp,,Date and time: superseded.
-"Closure, transfer and aftercare",case_aftercare_plans,,,,Aftercare plans after closure.
+"Closure, transfer and aftercare",case_aftercare_plans,,,,"Aftercare plan written at closure: where and with whom the child will live, support people, services that continue, risks to watch, visit frequency, first visit and end date (older continuity records keep their earlier fields)."
 ,case_aftercare_plans,case_id,bigint,Yes,Links to cases
 ,case_aftercare_plans,case_plan_id,bigint,,Links to case_plans
 ,case_aftercare_plans,required,boolean,Yes,Yes/no: required.
@@ -743,6 +753,20 @@ Planning and services,case_conference_history,,,,Changes to case conference reco
 ,case_aftercare_plans,status,varchar(30),Yes,Current status of the record.
 ,case_aftercare_plans,continuity_notes,text,,
 ,case_aftercare_plans,created_by,bigint,Yes,Links to users. User who created the record.
+,case_aftercare_plans,living_arrangement,text,,
+,case_aftercare_plans,support_people,text,,
+,case_aftercare_plans,services_to_continue,text,,
+,case_aftercare_plans,risks_to_watch,text,,
+,case_aftercare_plans,follow_up_frequency,varchar(20),,
+,case_aftercare_plans,follow_up_until,date,,
+,case_aftercare_plans,updated_by,bigint,,Links to users. User who updated the record.
+"Closure, transfer and aftercare",aftercare_visits,,,,"Follow-up visits after closure: date, the child's status (stable, needs support, at risk) and notes. At risk suggests reopening the case."
+,aftercare_visits,case_id,bigint,Yes,Links to cases
+,aftercare_visits,aftercare_plan_id,bigint,,Links to case_aftercare_plans
+,aftercare_visits,visited_on,date,Yes,
+,aftercare_visits,status,varchar(20),Yes,Current status of the record.
+,aftercare_visits,notes,text,Yes,
+,aftercare_visits,recorded_by,bigint,Yes,Links to users. User who recorded the record.
 "Closure, transfer and aftercare",case_reintegrations,,,,Reintegration plans.
 ,case_reintegrations,case_id,bigint,Yes,Links to cases
 ,case_reintegrations,case_plan_id,bigint,,Links to case_plans
@@ -886,6 +910,7 @@ Multidisciplinary team and coordination,coordination_direct_messages,,,,Particip
 ,coordination_direct_messages,body,text,Yes,Text of the note or message.
 ,coordination_direct_messages,is_urgent,boolean,Yes,Yes/no: is urgent.
 ,coordination_direct_messages,follow_up,boolean,Yes,Yes/no: follow up.
+,coordination_direct_messages,read_at,timestamp,,Date and time: read.
 Multidisciplinary team and coordination,connect_threads,,,,Project team chat conversations: direct (two people) or named groups such as Region VIII.
 ,connect_threads,kind,varchar(10),Yes,
 ,connect_threads,title,varchar(120),,

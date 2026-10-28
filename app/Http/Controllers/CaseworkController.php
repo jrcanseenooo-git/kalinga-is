@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Services\Aftercare;
 use App\Services\CaseAccessScope;
 use App\Services\CaseAssignmentEligibility;
 use App\Services\CaseClosureHistory;
@@ -11,6 +12,7 @@ use App\Services\CaseGrants;
 use App\Services\CaseIntake;
 use App\Services\CaseLifecyclePolicy;
 use App\Services\CaseRemarks;
+use App\Services\CaseStatusAutomation;
 use App\Services\CaseVersionGuard;
 use App\Services\DashboardTodos;
 use App\Services\IdentityIntegrity;
@@ -39,13 +41,16 @@ class CaseworkController extends Controller
 {
     public function __construct(private readonly ReferenceNumberService $references, private readonly CaseAccessScope $scope, private readonly CaseLifecyclePolicy $lifecyclePolicies, private readonly RecordsGovernance $records, private readonly IdentityIntegrity $identity, private readonly LguAssignmentScope $lgus, private readonly OperationalNotification $notifications, private readonly CaseAssignmentEligibility $assignments) {}
 
+    /** Statuses a person sets by hand: the closure workflow only. The rest are automatic. */
+    private const MANUAL_TARGETS = ['FOR_CLOSURE_REVIEW', 'CLOSED', 'REOPENED'];
+
     private const CASE_TRANSITIONS = [
-        'OPEN' => ['IN_PROGRESS', 'AWAITING_REFERRAL', 'FOR_FOLLOW_UP'],
+        'OPEN' => ['IN_PROGRESS', 'AWAITING_REFERRAL', 'FOR_FOLLOW_UP', 'FOR_CLOSURE_REVIEW'],
         'IN_PROGRESS' => ['AWAITING_REFERRAL', 'FOR_FOLLOW_UP', 'FOR_CLOSURE_REVIEW'],
-        'AWAITING_REFERRAL' => ['IN_PROGRESS', 'FOR_FOLLOW_UP'],
+        'AWAITING_REFERRAL' => ['IN_PROGRESS', 'FOR_FOLLOW_UP', 'FOR_CLOSURE_REVIEW'],
         'FOR_FOLLOW_UP' => ['IN_PROGRESS', 'FOR_CLOSURE_REVIEW'],
         'FOR_CLOSURE_REVIEW' => ['CLOSED', 'IN_PROGRESS'],
-        'CLOSED' => ['REOPENED'], 'REOPENED' => ['IN_PROGRESS'],
+        'CLOSED' => ['REOPENED'], 'REOPENED' => ['IN_PROGRESS', 'FOR_CLOSURE_REVIEW'],
     ];
 
     private function caseAccess(Request $request, object $case, bool $write = false): void
@@ -295,6 +300,11 @@ class CaseworkController extends Controller
         ]);
         abort_unless($record, 404);
         $this->caseAccess($request, $record);
+        // The status follows the recorded work (CaseStatusAutomation); keep it current on every view.
+        if ($changed = CaseStatusAutomation::sync($case, $request->user()->hasPermission('cases.update') ? $request->user()->id : null)) {
+            $record->status = $changed;
+            $record->stage = strtolower(str_replace('_', ' ', $changed));
+        }
         // Access log for the PIA: one "case.viewed" row per user and case every 30 minutes.
         if (Cache::add("case-viewed:{$request->user()->id}:{$case}", true, now()->addMinutes(30))) {
             AuditLog::record('case.viewed', 'case', $case);
@@ -353,15 +363,17 @@ class CaseworkController extends Controller
             'consentForm' => $this->consentForm($case), 'relationships' => DB::table('relationships')->where('client_id', $record->client_id)->latest()->get(),
             'remarks' => app(CaseRemarks::class)->thread($case),
             'kavatDefinition' => Kavat::definition(), 'kavat' => CaseFormController::kavatHistory($case), 'kavatBaseline' => CaseFormController::kavatBaseline($case),
-            'formsDefinition' => CaseForms::definition(), 'forms' => CaseForms::forCase($case), 'formSuggestions' => CaseForms::suggestions($record, $record),
-            'grants' => CaseGrants::forCase($case) + ['types' => CaseGrants::types()],
+            'formsDefinition' => CaseForms::definition(), 'forms' => CaseForms::forCase($case), 'planDeadline' => CaseForms::planDeadline($record), 'aftercare' => Aftercare::forCase($case), 'formSuggestions' => CaseForms::suggestions($record, $record),
+            'grants' => CaseGrants::forCase($case) + ['types' => CaseGrants::types(), 'purposes' => CaseGrants::PURPOSES],
             // Labels of the extra intake fields (answers are in caseRecord.custom_fields).
             'customFieldLabels' => DB::table('form_fields')->where('form', 'intake')->pluck('label', 'key'),
             'canEditForms' => $request->user()->hasPermission('cases.update') && $record->status !== 'CLOSED',
             'timeline' => DB::table('audit_logs')->where('auditable_type', 'case')->where('auditable_id', $case)->where('event', '!=', 'case.viewed')->latest()->limit(30)->get(['id', 'event', 'changes', 'outcome', 'created_at']),
             'tasks' => app(WorkerTasks::class)->withIsoDates(DB::table('tasks')->where('case_id', $case)->orderBy('due_at')->get()),
             'canGenerateReport' => $request->user()->can('reports.social.generate'),
-            'transitions' => self::CASE_TRANSITIONS[$record->status] ?? [], 'canAssessRisk' => $request->user()->hasPermission('risk.assess'), 'canArchive' => $request->user()->hasPermission('cases.archive'), 'canReviewClosure' => $request->user()->hasPermission('cases.close'), 'canGovernRecords' => $request->user()->hasPermission('records.retention.review'),
+            'statusInfo' => in_array($record->status, CaseStatusAutomation::AUTOMATIC, true) ? ['automatic' => true, 'reason' => CaseStatusAutomation::evaluate($case, $record->status)['reason']]
+                : ['automatic' => false, 'reason' => ['FOR_CLOSURE_REVIEW' => 'Waiting for the closure review in Closure & aftercare.', 'CLOSED' => 'The case is closed; aftercare follow-up continues in Closure & aftercare.'][$record->status] ?? ''],
+            'transitions' => array_values(array_filter(self::CASE_TRANSITIONS[$record->status] ?? [], fn ($to) => in_array($to, self::MANUAL_TARGETS, true) || ($record->status === 'FOR_CLOSURE_REVIEW' && $to === 'IN_PROGRESS'))), 'canAssessRisk' => $request->user()->hasPermission('risk.assess'), 'canArchive' => $request->user()->hasPermission('cases.archive'), 'canReviewClosure' => $request->user()->hasPermission('cases.close'), 'canGovernRecords' => $request->user()->hasPermission('records.retention.review'),
             'canManageMdt' => $canManageMdt, 'mdtAssignments' => $canManageMdt ? DB::table('mdt_case_access')->join('users', 'users.id', '=', 'mdt_case_access.user_id')->where('mdt_case_access.case_id', $case)->latest('mdt_case_access.assigned_at')->get(['mdt_case_access.*', 'users.name as member_name']) : [], 'mdtUsers' => $canManageMdt ? DB::table('users')->where('role', 'cpu_member')->where('active', true)->orderBy('name')->get(['id', 'name']) : [],
         ]);
     }
@@ -407,6 +419,7 @@ class CaseworkController extends Controller
             'action_taken' => 'nullable|string|max:3000',
             'next_steps' => 'nullable|string|max:3000',
             'note_type' => 'required|in:contact,monitoring,referral,service_delivery,coordination,case_review,other',
+            'note_type_other' => 'required_if:note_type,other|nullable|string|max:120',
             'occurred_at' => 'required|date|before_or_equal:now',
             'create_follow_up' => 'sometimes|boolean',
             'follow_up_title' => 'required_if:create_follow_up,true|nullable|string|max:255',
@@ -429,7 +442,8 @@ class CaseworkController extends Controller
             $id = DB::table('case_notes')->insertGetId([
                 'case_id' => $case, 'body' => $data['body'], 'action_taken' => $data['action_taken'] ?? null, 'next_steps' => $data['next_steps'] ?? null,
                 'visibility' => 'CASE_NOTES', 'record_type' => 'progress_note',
-                'note_type' => $data['note_type'], 'occurred_at' => $data['occurred_at'], 'finalized_at' => now(),
+                'note_type' => $data['note_type'], 'note_type_other' => $data['note_type'] === 'other' ? trim((string) ($data['note_type_other'] ?? '')) : null,
+                'occurred_at' => $data['occurred_at'], 'finalized_at' => now(),
                 'finalized_by' => $request->user()->id, 'is_current' => true, 'created_by' => $request->user()->id,
                 'created_at' => now(), 'updated_at' => now(),
             ]);
@@ -508,6 +522,8 @@ class CaseworkController extends Controller
             DB::table('user_lgu_assignments')->where('user_id', $request->user()->id)->orderBy('id')->lockForUpdate()->get(['id']);
             abort_unless($actor && $actor->can($permission) && $this->assignments->canRead($actor, $record), 403);
             abort_unless(in_array($data['status'], self::CASE_TRANSITIONS[$record->status] ?? [], true), 422, 'Invalid workflow transition.');
+            // Other statuses follow the recorded work automatically (CaseStatusAutomation).
+            abort_unless(in_array($data['status'], self::MANUAL_TARGETS, true) || ($record->status === 'FOR_CLOSURE_REVIEW' && $data['status'] === 'IN_PROGRESS'), 422, 'This status is set automatically from the recorded work.');
             if ($data['status'] === 'CLOSED') {
                 abort_unless(!empty($record->closure_summary) && !empty($record->closure_reviewed_at), 422, 'An independently reviewed closure record is required before closing the case.');
                 abort_unless((int) $record->closure_reviewed_by === (int) $actor->id, 403, 'Only the authorized closure reviewer may close this case.');

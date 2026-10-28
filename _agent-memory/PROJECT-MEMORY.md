@@ -10,7 +10,7 @@ build, tests or deployment reads it, and it is excluded from the Docker
 image. **To remove it before turnover:** delete the `_agent-memory/` folder
 and the one line marked `agent-memory` in `AGENTS.md`.
 
-Last updated: 2026-10-28 (Asia/Manila)
+Last updated: 2026-10-29 (Asia/Manila)
 
 ---
 
@@ -65,6 +65,40 @@ Owner answers that still apply:
 | 7 | Smart (rule-based, no external AI) assistance across the whole system; rename the cut-off "Office profile & signatories" nav label | Done (8637205) |
 | 8 | Bug sweep, tests, docs, push | Done (02edb5e) |
 
+### Batch of 2026-10-28 evening (owner request, done 2026-10-29, Release 9)
+
+Owner decisions: case status fully automatic (Open -> In progress when work
+is recorded; Awaiting referral while a referral is unanswered; For follow-up
+when referrals answered but plan items open; manual buttons removed, closure
+steps stay). Plan rows keep the free-text Time frame (printed) and gain
+target start/end dates (calendar and monitoring only, not printed). KaVAT is
+Baseline (external score), Midline and Endline only; in-system test KaVATs
+are deleted (owner approved). Aftercare = plan at closure + follow-up visits.
+Assumption to flag: Midline is suggested 3 months after the case opened (info
+reminder); Endline when the case is in closure review. Owner to confirm timing.
+Plan deadline: due = intake date + 7 days; submission = first finalized plan version
+(case_form_versions v1). Supervisor = LGU Head of the case LGU (App\Services\Supervisors).
+Referrals now conducted from plan rows (referrals.plan_row_key); the note form no
+longer creates referrals.
+FLAG for owner: hiding Plan & continuity also hides the formal handover button (the
+only way to change a case manager); page /cases/{id}/plan-workspace still works.
+
+| # | Item | Status |
+|---|---|---|
+| A | Intake: saved-intake Continue hangs on loading; step shows negative after Back; better smart start page; "Child Contact Details" (child mobile 11 digits, plus Messenger etc.); text size for the form only | Done (a371bbb) |
+| B | Sidebar unread badges: Kalinga Connect, Project team chat | Done (36d8fa2) |
+| C | Automatic case status | Done (9eff657) |
+| D | KaVAT Baseline/Midline/Endline, editable for corrections, no "reversed" label, no option points, 3-result history | Done (33d1023) |
+| E | Forms order Intake > CSR > SCSR > Intervention Plan and Referrals > Progress Notes (also Reports menu); Intake print fixes; CSR template; SCSR carries CSR | Done (be28bbc) |
+| F | Intervention Plan and Referrals (no KaVAT suggestions, target dates, Conduct referral per row, 7-day deadline + supervisor status) | Done (4c48ec6) |
+| G | Monitoring tab (plan monitoring) | Done (60c1480) |
+| H | Calendar: invite anyone by name; supervisor sees CM activities; reschedule = attention item for CM and supervisor; plan dates on calendar | Done (c573dd4) |
+| I | Hide Case Plan and Plan & continuity; service Other specify; grants = Transportation Support Allowance only, no fund source | Done (b7c7271) |
+| J | Dashboard -> Workboard; analytics (Reporting Pipeline, age-sex by exact age, priority charts on top, services chart, average plan submission time) | Done (fdd5133) |
+| K | Aftercare module | Done (47a0255) |
+| L | Offline field mode upgrade | Done (f05e89f) |
+| M | Tests, docs, push | Done (25c6ed8 + test fixes) |
+
 ## 3. Current progress
 
 - All 8 phases built, tested and merged to `main` (PR #3, merged
@@ -84,13 +118,17 @@ Owner answers that still apply:
 
 ## 4. Next things to do
 
+0. Owner: open a pull request from `feature-enhancements` to `main` for
+   Release 9 (everything after ce07506) and run the Release 9 checklist in
+   `docs/10-migration-history/2026-10/RELEASE-9-...md`. Answer the two new
+   review items (Midline timing; formal handover while Plan & continuity is
+   hidden).
 1. Owner: confirm the Render deploy is Live and the VAPID keys are set; test
    "Turn on phone notifications" from the bell on a phone.
 2. Owner: run the release-7 checklist (dashboard, calendar invite and
    reason, analytics map and PDF, form options, feedback, team chat).
 3. Owner to finish the open items in section 5 (list defaults, Release 6
    KaVAT and form questions); apply the answers.
-4. Merge the README commit with the next pull request.
 5. Housekeeping noticed: release note files RELEASE-6 and RELEASE-7 carry
    dates 2026-10-28 and 2026-10-29 in their names although work finished
    2026-10-27; rename if the owner wants accurate dates.
@@ -139,6 +177,8 @@ Still open:
 
 | Date | Task | Commit |
 |---|---|---|
+| 2026-10-29 | Release 9 finished: intake fixes and Child Contact Details, chat badges, automatic status, KaVAT Midline/Endline with corrections, forms order and prints, Intervention Plan and Referrals with 7-day deadline, Monitoring tab, calendar team view and reviewed moves, grants transport only, Workboard and analytics, aftercare, field mode upgrade. Tests: PHP 502 (SQLite) / 503 (PostgreSQL), front end 46, browser 253 | a371bbb..25c6ed8 |
+| 2026-10-28 | PR #5 merged to main (everything up to ce07506 is live) | 897f65e |
 | 2026-10-28 | Batch of 2026-10-28 finished; all tests green (PHP SQLite and PostgreSQL, front end, browser 246); not yet merged to main | 02edb5e |
 | 2026-10-28 | Analytics PDF report layout; Kalinga Assist on every page; nav label Office & signatories; release notes RELEASE-8 | b50d38d, 8637205 |
 | 2026-10-28 | Consent register removed; camera capture with smart checks; intake redesign + text size; modern dialogs; KaVAT baseline result + quarterly; Philippine date fix (dates were rejected before 8 AM) | b44ef0b..c5d3038 |

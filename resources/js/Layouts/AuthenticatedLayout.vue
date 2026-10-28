@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import KalingaAssist from '@/Components/Assist/KalingaAssist.vue';
 import ConfirmDialogHost from '@/Components/UI/ConfirmDialogHost.vue';
-import TextSizeControl from '@/Components/UI/TextSizeControl.vue';
 import { formatPh } from '@/utils/philippineTime';
 import ConnectionStatus from '@/Components/UI/ConnectionStatus.vue';
 import { accessCheckPending } from '@/Security/browserHistory';
@@ -24,11 +23,11 @@ const open = ref(false); const collapsed = ref(false); const confirmLogout = ref
 const permissions = computed(() => new Set<string>(page.props.auth.permissions ?? []));
 const can = (permission: string) => permissions.value.has(permission);
 const isActive = (link: NavigationLink) => link.match.some((name) => route().current(name));
-// The dashboard is everyone's to-do list; CPU members start from their referred cases.
+// The Workboard (dashboard) is everyone's to-do list; CPU members start from their referred cases.
 const homeLink = computed(() => page.props.auth.user.role === 'cpu_member'
   ? { label:'My referred cases', icon:'home', route:'mdt.collaboration.index', match:['mdt.collaboration.index','mdt.workspace'] }
-  : { label:'Dashboard', icon:'home', route:'dashboard', match:['dashboard'] });
-const navCounts = computed(() => (page.props as unknown as { navCounts?: { activeCases: number | null; calendarDue: number | null } | null }).navCounts ?? null);
+  : { label:'Workboard', icon:'home', route:'dashboard', match:['dashboard'] });
+const navCounts = computed(() => (page.props as unknown as { navCounts?: { activeCases: number | null; calendarDue: number | null; connectUnread?: number | null; teamUnread?: number | null } | null }).navCounts ?? null);
 const groups = computed<{ title: string; links: NavigationLink[] }[]>(() => [
   { title:'', links:[homeLink.value] },
   { title:'Case work', links:[
@@ -38,8 +37,8 @@ const groups = computed<{ title: string; links: NavigationLink[] }[]>(() => [
     ...(can('activities.manage') ? [{ label:'Calendar', icon:'calendar', route:'calendar.index', match:['calendar.index','tasks.index'], badge: navCounts.value?.calendarDue, badgeTone: 'alert' as const }] : []),
   ]},
   { title:'Coordination', links:[
-    ...(can('cpu.chat.view') ? [{ label:'Kalinga Connect', icon:'connect', route:'cpu.coordination.index', match:['cpu.coordination.index'] }] : []),
-    ...(can('connect.network') || can('cases.monitor') || can('cases.update') ? [{ label:'Project team chat', icon:'connect', route:'connect.network', match:['connect.network'] }] : []),
+    ...(can('cpu.chat.view') ? [{ label:'Kalinga Connect', icon:'connect', route:'cpu.coordination.index', match:['cpu.coordination.index'], badge: navCounts.value?.connectUnread, badgeTone: 'alert' as const }] : []),
+    ...(can('connect.network') || can('cases.monitor') || can('cases.update') ? [{ label:'Project team chat', icon:'connect', route:'connect.network', match:['connect.network'], badge: navCounts.value?.teamUnread, badgeTone: 'alert' as const }] : []),
   ]},
   ...(can('analytics.view') || can('analytics.quarterly') ? [{ title:'Insights', links:[
     { label:'Analytics', icon:'bars', route:'analytics.index', match:['analytics.index','analytics.quarterly'] },
@@ -65,7 +64,7 @@ function submitSearch(){ const term=searchTerm.value.trim(); router.get(route(ca
 function onDocumentClick(event: MouseEvent){ if(userMenuOpen.value && userMenu.value && !userMenu.value.contains(event.target as Node)) userMenuOpen.value=false; }
 const today = computed(() => formatPh(new Date(), 'weekdayDate'));
 const pageTitle = computed(() => {
-  if (route().current('dashboard')) return 'Dashboard';
+  if (route().current('dashboard')) return 'Workboard';
   if (route().current('reports.index')) return 'Cases · Intake screening';
   if (route().current('cases.create')) return 'Cases · New case';
   if (route().current('cases.index')) return 'Cases';
@@ -142,7 +141,7 @@ onUnmounted(()=>{ removeEventListener('storage', readOfflinePending); removeEven
     <button type="button" class="ui-button h-11 gap-1.5 border-violet-200 bg-violet-50 px-2.5 text-violet-800 hover:bg-violet-100 sm:px-3" aria-label="Open Kalinga Assist" @click="assistOpen=true"><Sparkles aria-hidden="true" class="h-5 w-5"/><span class="hidden sm:inline">Assist</span></button><button type="button" class="ui-button relative h-11 w-11 border-0 bg-transparent px-0 hover:bg-slate-100" aria-label="Open notifications" aria-controls="notification-panel" :aria-expanded="notificationsOpen" @click="notificationsOpen=!notificationsOpen"><Bell class="h-5 w-5"/><span v-if="unreadAlerts" class="absolute right-1 top-1 grid min-h-4 min-w-4 place-items-center rounded-full bg-rose-600 px-1 text-[10px] font-semibold text-white">{{unreadAlerts>9?'9+':unreadAlerts}}</span></button>
     <div ref="userMenu" class="relative">
      <button type="button" class="flex min-h-11 items-center gap-2 rounded-xl px-1.5 hover:bg-slate-100 sm:px-2" aria-haspopup="menu" :aria-expanded="userMenuOpen" aria-controls="user-menu" @click.stop="userMenuOpen=!userMenuOpen"><span class="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-100 text-xs font-bold text-brand-800">{{initials}}</span><span class="hidden min-w-0 text-left min-[1024px]:block"><span class="block max-w-40 truncate text-sm font-semibold text-slate-900">{{page.props.auth.user.name}}</span><span class="block max-w-40 truncate text-xs text-slate-600">{{roleLabel}}</span></span><ChevronDown aria-hidden="true" class="hidden h-4 w-4 text-slate-500 min-[1024px]:block"/></button>
-     <div v-if="userMenuOpen" id="user-menu" role="menu" class="absolute right-0 top-12 z-50 w-64 overflow-hidden rounded-xl border border-[var(--color-line)] bg-white py-1 shadow-lg"><div class="border-b border-slate-100 px-4 py-3 min-[1024px]:hidden"><p class="truncate text-sm font-semibold text-slate-900">{{page.props.auth.user.name}}</p><p class="truncate text-xs text-slate-600">{{roleLabel}}</p></div><div class="border-b border-slate-100 px-4 py-2"><TextSizeControl /></div><button type="button" role="menuitem" class="flex min-h-11 w-full items-center gap-3 px-4 text-left text-sm text-slate-700 hover:bg-slate-50" @click="userMenuOpen=false; feedbackOpen=true"><MessageSquareText aria-hidden="true" class="h-4 w-4"/>Send feedback</button><Link role="menuitem" :href="route('profile.edit')" class="flex min-h-11 items-center gap-3 px-4 text-sm text-slate-700 hover:bg-slate-50" @click="userMenuOpen=false"><UserRound aria-hidden="true" class="h-4 w-4"/>Profile and security</Link><Link role="menuitem" :href="route('help.guide')" class="flex min-h-11 items-center gap-3 px-4 text-sm text-slate-700 hover:bg-slate-50" @click="userMenuOpen=false"><CircleHelp aria-hidden="true" class="h-4 w-4"/>Help and guides</Link><button role="menuitem" type="button" class="flex min-h-11 w-full items-center gap-3 border-t border-slate-100 px-4 text-left text-sm text-rose-700 hover:bg-rose-50" @click="userMenuOpen=false;logout()"><LogOut aria-hidden="true" class="h-4 w-4"/>Sign out</button></div>
+     <div v-if="userMenuOpen" id="user-menu" role="menu" class="absolute right-0 top-12 z-50 w-64 overflow-hidden rounded-xl border border-[var(--color-line)] bg-white py-1 shadow-lg"><div class="border-b border-slate-100 px-4 py-3 min-[1024px]:hidden"><p class="truncate text-sm font-semibold text-slate-900">{{page.props.auth.user.name}}</p><p class="truncate text-xs text-slate-600">{{roleLabel}}</p></div><button type="button" role="menuitem" class="flex min-h-11 w-full items-center gap-3 px-4 text-left text-sm text-slate-700 hover:bg-slate-50" @click="userMenuOpen=false; feedbackOpen=true"><MessageSquareText aria-hidden="true" class="h-4 w-4"/>Send feedback</button><Link role="menuitem" :href="route('profile.edit')" class="flex min-h-11 items-center gap-3 px-4 text-sm text-slate-700 hover:bg-slate-50" @click="userMenuOpen=false"><UserRound aria-hidden="true" class="h-4 w-4"/>Profile and security</Link><Link role="menuitem" :href="route('help.guide')" class="flex min-h-11 items-center gap-3 px-4 text-sm text-slate-700 hover:bg-slate-50" @click="userMenuOpen=false"><CircleHelp aria-hidden="true" class="h-4 w-4"/>Help and guides</Link><button role="menuitem" type="button" class="flex min-h-11 w-full items-center gap-3 border-t border-slate-100 px-4 text-left text-sm text-rose-700 hover:bg-rose-50" @click="userMenuOpen=false;logout()"><LogOut aria-hidden="true" class="h-4 w-4"/>Sign out</button></div>
     </div>
     <Link v-if="can('cases.create')" :href="route('cases.create')" aria-label="Create new case" class="ui-button ui-button-primary ml-1"><Plus class="h-4 w-4"/><span class="hidden sm:inline">New case</span></Link>
    </div>

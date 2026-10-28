@@ -67,17 +67,24 @@ class SmartSuggestions
             }
         }
 
-        // 2. KaVAT. The baseline is done before intake in the project's separate tool:
-        // remind to record its result. The KaVAT in Kalinga is quarterly.
+        // 2. KaVAT: Baseline (separate tool; only its result is recorded here), Midline
+        // and Endline (answered in Kalinga). The Midline is suggested 3 months after the
+        // case opened; the Endline when the case goes to closure review.
         $withBaseline = DB::table('kavat_baselines')->whereIn('case_id', $caseIds)->pluck('case_id')->all();
         $kavatDraft = DB::table('kavat_assessments')->whereIn('case_id', $caseIds)->where('status', 'draft')->distinct()->pluck('case_id')->all();
+        $done = DB::table('kavat_assessments')->whereIn('case_id', $caseIds)->get(['case_id', 'occasion'])->groupBy('occasion')->map(fn ($rows) => $rows->pluck('case_id')->all());
         foreach (DB::table('cases')->whereIn('id', $caseIds)->whereNotIn('id', $withBaseline)->get(['id']) as $case) {
             $add('kavat', 'action', (int) $case->id, 'Record the baseline KaVAT result', 'Enter the scores from the baseline KaVAT done before intake.', 'kavat');
         }
-        $quarter = Kavat::quarterLabel(now('Asia/Manila')->toDateString());
-        foreach (Kavat::quarterlyDue(collect($caseIds)->map(fn ($id) => (int) $id)->values()->all()) as $caseId) {
-            $add('kavat', 'action', $caseId, in_array($caseId, $kavatDraft) ? "Finish the {$quarter} KaVAT" : "Quarterly KaVAT due ({$quarter})",
-                'Administer this quarter\'s KaVAT with the child.', 'kavat');
+        foreach ($kavatDraft as $caseId) {
+            $add('kavat', 'action', (int) $caseId, 'Finish the KaVAT in progress', 'Answer the remaining statements, then finalize it.', 'kavat');
+        }
+        foreach (DB::table('cases')->whereIn('id', $caseIds)->whereNotIn('id', array_merge($kavatDraft, $done['midline'] ?? []))->where('status', '!=', 'FOR_CLOSURE_REVIEW')
+            ->where('opened_at', '<', now()->subMonths(3))->get(['id']) as $case) {
+            $add('kavat', 'info', (int) $case->id, 'Midline KaVAT not done yet', 'The case opened over 3 months ago. Administer the Midline KaVAT with the child.', 'kavat');
+        }
+        foreach (DB::table('cases')->whereIn('id', $caseIds)->whereNotIn('id', array_merge($kavatDraft, $done['endline'] ?? []))->where('status', 'FOR_CLOSURE_REVIEW')->get(['id']) as $case) {
+            $add('kavat', 'action', (int) $case->id, 'Administer the Endline KaVAT', 'The case is in closure review. The Endline KaVAT shows the change since the baseline.', 'kavat');
         }
         // 3. Remarks from the supervisor or monitors not yet read.
         foreach (DB::table('case_remarks')->whereIn('case_id', $caseIds)->whereNull('parent_id')->whereNull('acknowledged_at')->select('case_id', DB::raw('COUNT(*) as total'))->groupBy('case_id')->get() as $row) {
@@ -88,8 +95,16 @@ class SmartSuggestions
         foreach (DB::table('cases')->whereIn('id', $caseIds)->where('opened_at', '<', now()->subDays(7))->whereNotIn('id', $written['summary'] ?? [])->get(['id']) as $case) {
             $add('forms', 'action', (int) $case->id, 'Write the Case Summary Report', 'The case was opened over a week ago.', 'forms');
         }
-        foreach (DB::table('cases')->whereIn('id', $caseIds)->where('opened_at', '<', now()->subDays(14))->whereNotIn('id', $written['plan'] ?? [])->get(['id']) as $case) {
-            $add('forms', 'action', (int) $case->id, 'Write the Intervention Plan', 'The case was opened over two weeks ago and has no plan yet.', 'forms');
+        // Intervention Plan: submitted (finalized) within 7 days of the intake; reminded 2 days before.
+        $submitted = DB::table('case_form_versions')->whereIn('case_id', $caseIds)->where('form_type', 'plan')->distinct()->pluck('case_id')->all();
+        foreach (DB::table('cases')->whereIn('id', $caseIds)->whereNotIn('id', $submitted)->get(['id', 'intake_completed_at', 'opened_at', 'created_at']) as $case) {
+            $deadline = CaseForms::planDeadline($case);
+            if (!$deadline['overdue'] && $deadline['days_left'] > 2) {
+                continue; // The case page shows the due date; the reminder starts 2 days before.
+            }
+            $due = Carbon::parse($deadline['due'])->format('M j');
+            $add('forms', $deadline['overdue'] ? 'urgent' : 'action', (int) $case->id, $deadline['overdue'] ? 'Intervention Plan overdue' : 'Submit the Intervention Plan',
+                $deadline['overdue'] ? "It was due {$due}, 7 days after the intake." : "Finalize it by {$due} (7 days after the intake).", 'forms');
         }
 
         // 4. No progress note in 30 days.

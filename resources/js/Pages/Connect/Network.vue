@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { refreshNavBadges } from '@/utils/navBadges';
 import { askConfirm } from '@/utils/confirmDialog';
 /**
  * Kalinga Connect - project team: Project Managers find case managers, LGU
@@ -34,6 +35,7 @@ async function load(reset = false) {
   try {
     const { data } = await axios.get(route('connect.network.messages', activeId.value), { params: after ? { after } : {} });
     messages.value = reset ? data.messages : [...messages.value, ...data.messages];
+    if (reset || data.messages.length) refreshNavBadges();
     if (data.messages.length) { await nextTick(); list.value?.scrollTo({ top: list.value.scrollHeight }); }
   } catch { error.value = 'Messages could not be loaded. Check your connection.'; }
 }

@@ -21,7 +21,7 @@ export const isLowerThan = (chosen: string, suggested: RiskLevel) => LEVEL_ORDER
 
 const STEP_FIELDS: Record<number, readonly string[]> = {
     1: ['privacy_notice_acknowledged', 'privacy_notice_method', 'consent_form_type', 'consent_photo'],
-    2: ['first_name', 'middle_name', 'last_name', 'suffix', 'alias', 'birthdate', 'sex', 'phone', 'disability_evidence', 'civil_status', 'religion', 'ip_category', 'education_attainment',
+    2: ['first_name', 'middle_name', 'last_name', 'suffix', 'alias', 'birthdate', 'sex', 'phone', 'contact_channels', 'disability_evidence', 'civil_status', 'religion', 'ip_category', 'education_attainment',
         'safe_contact_method', 'safe_contact_notes', 'house_no_street', 'region', 'province', 'municipality', 'barangay', 'permanent_same_as_present', 'permanent_house_no_street',
         'permanent_region', 'permanent_province', 'permanent_municipality', 'permanent_barangay', 'primary_caregiver_name', 'primary_caregiver_relationship', 'primary_caregiver_contact',
         'caregiver_same_address', 'caregiver_house_no_street', 'caregiver_region', 'caregiver_province', 'caregiver_municipality', 'caregiver_barangay', 'family_members'],
@@ -33,6 +33,8 @@ export const intakeStepForField = (field: string) => Number(Object.keys(STEP_FIE
 export const intakeFieldId = (field: string) => {
     const member = /^family_members\.(\d+)\.(\w+)$/.exec(field);
     if (member) return `family-${member[1]}-${member[2]}`;
+    const channel = /^contact_channels\.(\d+)\.(\w+)$/.exec(field);
+    if (channel) return `intake-channel-${channel[1]}-${channel[2]}`;
     return `intake-${field.split('.')[0].replace(/[^a-zA-Z0-9_-]/g, '-')}`;
 };
 

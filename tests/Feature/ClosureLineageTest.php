@@ -32,7 +32,7 @@ class ClosureLineageTest extends TestCase
         $this->actingAs($worker)->patch(route('cases.transition', $case), ['status' => 'REOPENED'])->assertRedirect();
         $this->assertDatabaseHas('cases', ['id' => $case, 'closure_summary' => null, 'closure_reviewed_by' => null, 'closure_reviewed_at' => null]);
         $this->assertDatabaseHas('case_closure_records', ['case_id' => $case, 'summary' => 'Synthetic first closure recommendation.', 'current_slot' => null, 'reviewed_by' => $reviewer->id]);
-        $this->patch(route('cases.transition', $case), ['status' => 'IN_PROGRESS'])->assertRedirect();
+        // A reopened case can go straight to a new closure review (working statuses are automatic).
         $this->patch(route('cases.transition', $case), ['status' => 'FOR_CLOSURE_REVIEW'])->assertRedirect();
         $this->actingAs($reviewer)->patch(route('cases.transition', $case), ['status' => 'CLOSED'])->assertUnprocessable();
         $this->assertSame(1, DB::table('case_plans')->where('case_id', $case)->count());

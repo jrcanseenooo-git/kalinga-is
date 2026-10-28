@@ -100,6 +100,17 @@ class KalingaIntakeTest extends TestCase
         $this->assertAuditNeverContains('data:image');
     }
 
+    public function test_child_contact_details_take_an_11_digit_number_and_other_channels(): void
+    {
+        $this->asWorker()->post(route('cases.store'), $this->intake(['phone' => '+639171234567']))->assertSessionHasErrors('phone');
+        $this->post(route('cases.store'), $this->intake(['phone' => '0917 123 4567']))->assertSessionHasErrors('phone');
+        $this->post(route('cases.store'), $this->intake(['contact_channels' => [['channel' => 'Carrier pigeon', 'handle' => 'x']]]))->assertSessionHasErrors('contact_channels.0.channel');
+        $this->post(route('cases.store'), $this->intake(['phone' => '09171234567', 'contact_channels' => [['channel' => 'Facebook Messenger', 'handle' => ' fb.com/synthetic.child ']]]))->assertSessionHasNoErrors();
+        $client = DB::table('clients')->latest('id')->first();
+        $this->assertSame('09171234567', $client->phone);
+        $this->assertSame([['channel' => 'Facebook Messenger', 'handle' => 'fb.com/synthetic.child']], json_decode($client->contact_channels, true));
+    }
+
     public function test_a_level_lower_than_the_risk_factors_suggest_needs_a_reason(): void
     {
         $data = $this->intake(['risk_indicators' => ['immediate_danger'], 'initial_risk_level' => 'moderate']);

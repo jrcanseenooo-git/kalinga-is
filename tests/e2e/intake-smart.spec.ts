@@ -36,11 +36,18 @@ test('intake starts with address boxes unticked, labels the mobile number and ne
     await page.getByRole('button', { name: 'Continue', exact: true }).click();
     await expect(page.getByRole('checkbox', { name: /Permanent \(primary\) address is the same/ })).not.toBeChecked();
     await expect(page.locator('#intake-caregiver_same_address')).not.toBeChecked();
-    await expect(page.locator('label[for="intake-phone"]')).toContainText('Mobile Number (Parent or Child)');
-    await expect(page.locator('label[for="intake-phone"] i')).toHaveText('Parent or Child');
-    // Smart tidy-ups.
-    await page.locator('#intake-phone').fill('+63 917 123 4567'); await page.locator('#intake-phone').blur();
+    // Child Contact Details: the child's own number, digits only, plus other ways to reach the child.
+    await expect(page.getByRole('heading', { name: 'Child Contact Details' })).toBeVisible();
+    await expect(page.locator('label[for="intake-phone"]')).toContainText("Child's mobile number");
+    await page.locator('#intake-phone').fill('+63 917 123 4567');
     await expect(page.locator('#intake-phone')).toHaveValue('09171234567');
+    await expect(page.locator('#intake-phone-hint')).toHaveText('Looks right: 11 digits.');
+    await page.locator('#intake-phone').fill('0917');
+    await expect(page.locator('#intake-phone-hint')).toHaveText('4 of 11 digits.');
+    await page.locator('#intake-phone').fill('09171234567');
+    await page.getByRole('button', { name: 'Add a way to reach the child' }).click();
+    await expect(page.locator('#intake-channel-0-channel')).toHaveValue('Facebook Messenger');
+    await page.locator('#intake-channel-0-handle').fill('fb.com/synthetic.child');
     await page.locator('#intake-first_name').fill('MARIA'); await page.locator('#intake-first_name').blur();
     await expect(page.locator('#intake-first_name')).toHaveValue('Maria');
     // Family composition: a second tap opens the same empty card instead of adding another.

@@ -722,15 +722,16 @@
     "part2Max": 98,
     "threshold": 70,
     "occasions": {
+        "midline": "Midline KaVAT",
+        "endline": "Endline KaVAT",
+        "baseline": "Baseline",
         "quarterly": "Quarterly KaVAT",
         "closure": "At closure",
-        "other": "Other",
-        "baseline": "Baseline (start of case management)",
-        "review": "Review"
+        "review": "Review",
+        "other": "Other"
     },
     "startOccasions": [
-        "quarterly",
-        "closure",
-        "other"
+        "midline",
+        "endline"
     ]
 }

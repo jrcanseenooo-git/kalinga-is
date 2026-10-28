@@ -115,7 +115,8 @@ for(const width of [360,390,768,1024,1440,1920])test(`closure interface responsi
     await page.screenshot({path:`docs/implementation/evidence/ui-13/history-${width}.png`,animations:'disabled'});
 });
 
-test('closure continuing-support link opens the real aftercare activity',async({page})=>{
-    const panel=await open(page,'VISUAL');await panel.getByRole('link',{name:'Open aftercare & reintegration',exact:true}).click();
-    await expect(page.getByRole('region',{name:'Aftercare and reintegration',exact:true})).toBeVisible();await expect(page.getByRole('heading',{name:'Aftercare continuity',exact:true})).toBeVisible();
+// Aftercare is now written in the Closure & aftercare tab itself (owner, 2026-10-28), not in the hidden plan workspace.
+test('closure tab carries the aftercare plan instead of a link to the plan workspace',async({page})=>{
+    const panel=await open(page,'VISUAL');await expect(panel.getByRole('link',{name:'Open aftercare & reintegration',exact:true})).toHaveCount(0);
+    await expect(page.locator('section[aria-labelledby="aftercare-title"]')).toBeVisible();await expect(page.getByRole('heading',{name:'Aftercare',exact:true})).toBeVisible();
 });

@@ -31,6 +31,8 @@ export type KavatScore = {
 export type KavatRecord = {
   id: number; occasion: string; administered_at: string; administered_by: string | null; status: 'draft' | 'final'; revision: number;
   answers: KavatAnswers; notes: string | null; finalized_at: string | null; score: KavatScore;
+  /** A finalized KaVAT reopened for correction (the previous answers are kept until it is finalized or cancelled). */
+  correcting?: boolean; previous_final_score?: number | null; correction_reason?: string | null; corrected_at?: string | null;
 };
 
 const round2 = (value: number) => Math.round(value * 100) / 100;

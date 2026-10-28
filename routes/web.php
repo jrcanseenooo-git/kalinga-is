@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\AftercareController;
 use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\AssistController;
 use App\Http\Controllers\AuditLogController;
@@ -70,6 +71,7 @@ Route::middleware('auth')->group(function () {
     Route::patch('/referrals/{referral}/status', [OperationsController::class, 'transitionReferral'])->middleware('throttle:sensitive-write')->name('referrals.transition');
     Route::get('/tasks', [OperationsController::class, 'tasks'])->name('tasks.index');
     Route::get('/calendar', [OperationsController::class, 'calendar'])->name('calendar.index');
+    Route::post('/calendar/moves/{history}/review', [OperationsController::class, 'reviewMove'])->whereNumber('history')->name('calendar.moves.review');
     Route::post('/tasks', [OperationsController::class, 'storeTask'])->middleware('throttle:sensitive-write')->name('tasks.store');
     Route::patch('/tasks/{task}', [OperationsController::class, 'updateTask'])->middleware('throttle:sensitive-write')->name('tasks.update');
     Route::get('/calendar/invitees', [OperationsController::class, 'inviteCandidates'])->name('calendar.invitees');
@@ -212,6 +214,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/cases/{case}/kavat', [CaseFormController::class, 'startKavat'])->middleware('throttle:sensitive-write')->name('cases.kavat.store');
     Route::put('/cases/{case}/kavat/{kavat}', [CaseFormController::class, 'saveKavat'])->middleware('throttle:intake-autosave')->name('cases.kavat.save');
     Route::post('/cases/{case}/kavat/{kavat}/finalize', [CaseFormController::class, 'finalizeKavat'])->middleware('throttle:sensitive-write')->name('cases.kavat.finalize');
+    Route::put('/cases/{case}/aftercare-plan', [AftercareController::class, 'savePlan'])->whereNumber('case')->middleware('throttle:sensitive-write')->name('cases.aftercare.plan');
+    Route::post('/cases/{case}/aftercare-visits', [AftercareController::class, 'storeVisit'])->whereNumber('case')->middleware('throttle:sensitive-write')->name('cases.aftercare.visits.store');
+    Route::post('/cases/{case}/kavat/{kavat}/correct', [CaseFormController::class, 'correctKavat'])->middleware('throttle:sensitive-write')->name('cases.kavat.correct');
     Route::delete('/cases/{case}/kavat/{kavat}', [CaseFormController::class, 'discardKavat'])->middleware('throttle:sensitive-write')->name('cases.kavat.destroy');
     Route::post('/cases/{case}/grants', [CaseFormController::class, 'storeGrant'])->middleware('throttle:sensitive-write')->name('cases.grants.store');
     Route::post('/cases/{case}/grants/{grant}/void', [CaseFormController::class, 'voidGrant'])->middleware('throttle:sensitive-write')->name('cases.grants.void');

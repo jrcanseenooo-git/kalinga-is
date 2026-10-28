@@ -34,9 +34,9 @@ class CaseReports
     public const TYPES = [
         'intake' => 'Kalinga Intake Sheet',
         'summary' => 'Case Summary Report',
-        'notes' => 'Progress Notes',
-        'plan' => 'Intervention Plan',
         'study' => 'Social Case Study Report',
+        'plan' => 'Intervention Plan',
+        'notes' => 'Progress Notes',
     ];
 
     /** Report number prefixes, for example GIS-KLG-2026-00001-20261022. */
@@ -75,10 +75,11 @@ class CaseReports
             'client' => $this->client($client),
             'family' => DB::table('relationships')->where('client_id', $case->client_id)->orderBy('id')
                 ->get(['name', 'relationship_type', 'sex', 'civil_status', 'birthdate', 'education', 'occupation', 'same_address_as_client', 'house_no_street', 'barangay', 'municipality', 'province'])
+                // "Same address as the child" prints the child's actual address.
                 ->map(fn ($member) => ['name' => $member->name, 'relationship_type' => $member->relationship_type, 'sex' => $member->sex, 'civil_status' => $member->civil_status,
                     'birthdate' => $member->birthdate, 'education' => $member->education, 'occupation' => $member->occupation,
-                    'area' => $member->same_address_as_client ? 'Same as the child' : (implode(', ', array_filter([$member->barangay, $member->municipality, $member->province])) ?: null),
-                    'street' => $member->same_address_as_client ? null : $member->house_no_street]),
+                    'area' => implode(', ', array_filter($member->same_address_as_client ? [$client->barangay, $client->municipality, $client->province] : [$member->barangay, $member->municipality, $member->province])) ?: null,
+                    'street' => $member->same_address_as_client ? ($client->house_no_street ?? null) : $member->house_no_street]),
         ];
 
         return $data + $this->workingForm($case->id, $type) + match ($type) {
@@ -141,9 +142,14 @@ class CaseReports
             'address' => $address($client->house_no_street ?? null, $client->barangay, $client->municipality, $client->province),
             'permanent_address' => $address($client->permanent_house_no_street ?? null, $client->permanent_barangay ?? null, $client->permanent_municipality ?? null, $client->permanent_province ?? null),
             'contact' => $client->phone ?? null, 'safe_contact_method' => $client->safe_contact_method ?? null,
+            'contact_channels' => collect(json_decode($client->contact_channels ?? '[]', true) ?: [])->filter(fn ($item) => is_array($item) && trim((string) ($item['handle'] ?? '')) !== '')
+                ->map(fn ($item) => ['channel' => (string) ($item['channel'] ?? ''), 'handle' => (string) $item['handle']])->values()->all(),
             'caregiver' => $client->primary_caregiver_name ?? null, 'caregiver_relationship' => $client->primary_caregiver_relationship ?? null,
             'caregiver_contact' => $client->primary_caregiver_contact ?? null,
-            'caregiver_address' => ($client->caregiver_same_address ?? null) ? 'Same as the child' : ($address($client->caregiver_house_no_street ?? null, $client->caregiver_barangay ?? null, $client->caregiver_municipality ?? null, $client->caregiver_province ?? null) ?: null),
+            // "Same address as the child" prints the child's actual address.
+            'caregiver_address' => (($client->caregiver_same_address ?? null)
+                ? $address($client->house_no_street ?? null, $client->barangay, $client->municipality, $client->province)
+                : $address($client->caregiver_house_no_street ?? null, $client->caregiver_barangay ?? null, $client->caregiver_municipality ?? null, $client->caregiver_province ?? null)) ?: null,
         ];
     }
 
@@ -151,11 +157,12 @@ class CaseReports
     {
         return ['intake' => [
             'privacy_notice_method' => $case->privacy_notice_method, 'privacy_notice_at' => $case->privacy_notice_provided_at,
-            'consent_status' => $case->consent_status, 'data_sharing_basis' => $case->data_sharing_basis,
+            'consent_status' => $case->consent_status, 'consent_form_type' => $case->consent_form_type ?? null, 'consent_photo' => (bool) ($case->consent_document_id ?? null),
             'immediate_safety_concern' => (bool) $case->immediate_safety_concern, 'risk_indicators' => json_decode($case->risk_indicators ?? '[]', true) ?: [],
             'next_review_at' => $case->next_review_at, 'remarks' => $case->intake_remarks,
-            // Health items are reported only as recorded / not recorded.
-            'health_recorded' => (bool) ($case->pregnancy_parenting_status || $case->pregnancy_status || $case->disability_evidence || $case->functional_difficulty),
+            // Health items are reported only as recorded / not recorded; "not recorded" choices are no data.
+            'health_recorded' => collect([$case->pregnancy_parenting_status, $case->pregnancy_status, $case->disability_evidence, $case->functional_difficulty])
+                ->contains(fn ($value) => !in_array(strtolower(trim((string) $value)), ['', 'not_recorded', 'not recorded', 'none', 'no_support_need_declared', 'unknown'], true)),
         ]];
     }
 

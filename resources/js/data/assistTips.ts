@@ -4,7 +4,7 @@
  */
 export type PageTips = { title: string; tips: string[]; guides: string[] };
 
-const DEFAULT: PageTips = { title: 'Getting around', tips: ['Use the search box at the top to find a case by number.', 'Your name at the top right has Send feedback, text size and Help.'], guides: ['first-day', 'dashboard'] };
+const DEFAULT: PageTips = { title: 'Getting around', tips: ['Use the search box at the top to find a case by number.', 'Your name at the top right has Send feedback, Profile and Help.'], guides: ['first-day', 'dashboard'] };
 
 export const ASSIST_TIPS: Record<string, PageTips> = {
     Dashboard: { title: 'Your to-do list', tips: ['Work from the top: red items are urgent.', 'Kalinga suggests lists the next step for each of your cases.', 'Coming up shows your next dated activities.'], guides: ['dashboard', 'calendar'] },

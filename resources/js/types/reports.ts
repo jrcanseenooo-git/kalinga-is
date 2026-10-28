@@ -5,7 +5,7 @@ export type Signatory = { name: string; position: string | null; designation: st
 export type FamilyMember = { name: string; relationship_type: string; sex: string | null; civil_status?: string | null; birthdate: string | null; education: string | null; occupation: string | null; area?: string | null; street?: string | null };
 export type Referral = { id: number; service_category: string; referred_to: string | null; purpose: string | null; status: string; referred_at: string | null; completed_at: string | null; outcome: string | null; case_note_id: number | null; created_at: string };
 export type Service = { id: number; service_type: string; specific_detail: string | null; amount: string | number | null; date_provided: string; provided_by: string | null };
-export type GrantItem = { id: number; grant_type: string; type_label: string; amount: number; released_at: string; fund_source: string | null; purpose: string | null; received_by: string | null; voided_at: string | null; void_reason: string | null; recorded_by_name: string | null; created_at: string };
+export type GrantItem = { id: number; grant_type: string; type_label: string; amount: number; released_at: string; purpose: string | null; received_by: string | null; voided_at: string | null; void_reason: string | null; recorded_by_name: string | null; created_at: string };
 export type SummaryNote = { id: number; type: string | null; at: string | null; body: string; action: string | null; next: string | null; author: string | null };
 export type ProgressNote = SummaryNote & { author_position: string | null; addenda: { at: string | null; reason: string | null; body: string; author: string | null }[] };
 export type PlanIntervention = { activity: string | null; service_category: string | null; responsible: string | null; start_date: string | null; target_date: string | null; status: string | null; expected_outcome: string | null };
@@ -25,7 +25,7 @@ export interface ReportProps extends ReportBase {
     // summary / study use a light plan; the intervention plan report uses the full one
     plan?: any;
     // intake
-    intake?: { privacy_notice_method: string | null; privacy_notice_at: string | null; consent_status: string | null; data_sharing_basis: string | null; immediate_safety_concern: boolean; risk_indicators: string[]; next_review_at: string | null; remarks: string | null; health_recorded: boolean };
+    intake?: { privacy_notice_method: string | null; privacy_notice_at: string | null; consent_status: string | null; consent_form_type: string | null; consent_photo: boolean; immediate_safety_concern: boolean; risk_indicators: string[]; next_review_at: string | null; remarks: string | null; health_recorded: boolean };
     // Kalinga forms written by the case manager (summary / plan / study)
     form?: { status: string; version: number | null; content: { sections?: Record<string, string>; rows?: Record<string, string>[] }; hasContent: boolean;
         sections: { key: string; title: string; kind: 'text' | 'auto'; guide: string | null }[]; planColumns: Record<string, string> };

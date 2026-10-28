@@ -107,7 +107,7 @@ test('an intake can be paused, found in Saved intakes, resumed and discarded', a
     await page.getByRole('button', { name: 'Save and continue later', exact: true }).click();
     const saved = page.getByRole('region', { name: /Saved intakes/ });
     await expect(saved).toContainText('P**R**OS');
-    await expect(saved).toContainText('Stopped at step 2 of 4');
+    await expect(saved).toContainText('Step 2 of 4');
     await expect(saved).not.toContainText('Ramos');
     await saved.getByRole('link', { name: 'Continue', exact: true }).first().click();
     await expect(firstName(page)).toHaveValue('Paused');

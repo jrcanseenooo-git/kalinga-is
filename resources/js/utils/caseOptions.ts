@@ -125,7 +125,8 @@ export const HOLD_REASONS = list('Pending legal case', 'Court order', 'Investiga
 export const HOLD_AUTHORITIES = list('Court', 'Prosecutor', 'DSWD Legal Service', 'Data Protection Officer', 'Head of office');
 export const RECORD_TYPES: Option[] = [
   { value: 'document', label: 'Document' }, { value: 'case_note', label: 'Progress note' },
-  { value: 'assessment', label: 'Assessment' }, { value: 'case_plan', label: 'Case plan' },
+  { value: 'assessment', label: 'Assessment' },
+  // 'case_plan' (Case plan) is hidden for now (owner, 2026-10-28).
 ];
 
 /** MDT professional note categories. */

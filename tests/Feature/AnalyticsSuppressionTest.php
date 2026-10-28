@@ -52,6 +52,36 @@ class AnalyticsSuppressionTest extends TestCase
         $this->assertDatabaseHas('audit_logs', ['event' => 'analytics.exported']);
     }
 
+    public function test_age_sex_by_exact_age_services_and_plan_submission_time(): void
+    {
+        $worker = User::factory()->create(['role' => 'social_worker']);
+        $lgu = DB::table('lgu_units')->insertGetId(['psgc_code' => 'AGE-1', 'name' => 'Synthetic Age Town', 'province' => 'Kalinga', 'region' => 'CAR', 'active' => true, 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('user_lgu_assignments')->insert(['user_id' => $worker->id, 'lgu_id' => $lgu, 'active' => true, 'effective_from' => now()->subDay(), 'created_at' => now(), 'updated_at' => now()]);
+        $this->be($worker);
+        $make = function (string $sex, int $age, int $intakeDaysAgo, ?int $planAfterDays) use ($worker, $lgu) {
+            $client = DB::table('clients')->insertGetId(['first_name' => 'S', 'last_name' => 'C', 'sex' => $sex, 'birthdate' => now('Asia/Manila')->subYears($age)->subDays(10)->toDateString(), 'created_at' => now(), 'updated_at' => now()]);
+            $case = DB::table('cases')->insertGetId(['case_number' => 'AGE-' . $client, 'client_id' => $client, 'lgu_id' => $lgu, 'assigned_to' => $worker->id, 'status' => 'IN_PROGRESS', 'priority' => 'normal',
+                'opened_at' => now()->subDays($intakeDaysAgo), 'intake_completed_at' => now()->subDays($intakeDaysAgo), 'created_at' => now(), 'updated_at' => now()]);
+            if ($planAfterDays !== null) {
+                DB::table('case_form_versions')->insert(['case_id' => $case, 'form_type' => 'plan', 'version' => 1, 'content' => '{}', 'finalized_by' => $worker->id,
+                    'created_at' => now()->subDays($intakeDaysAgo - $planAfterDays), 'updated_at' => now()]);
+            }
+
+            return $case;
+        };
+        $first = $make('Female', 15, 20, 4);
+        $make('Female', 15, 20, 10);
+        $make('Male', 16, 20, null);
+        $make('Female', 17, 2, null);
+        DB::table('services_provided')->insert(['case_id' => $first, 'service_type' => 'Transportation', 'amount' => 300, 'date_provided' => now()->toDateString(), 'recorded_by' => $worker->id, 'created_at' => now(), 'updated_at' => now()]);
+
+        $this->get(route('analytics.index'))->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->where('age', [['label' => '15', 'total' => 2], ['label' => '16', 'total' => 1], ['label' => '17', 'total' => 1]])
+            ->where('ageSex.0', ['age' => '15', 'female' => 2, 'male' => 0])->where('ageSex.1', ['age' => '16', 'female' => 0, 'male' => 1])
+            ->where('services.0.label', 'Transportation')->where('services.0.cases', 1)->where('services.0.amount', 300)
+            ->where('planSubmission.averageDays', 7)->where('planSubmission.onTime', 1)->where('planSubmission.late', 1)->where('planSubmission.overdue', 1));
+    }
+
     public function test_quarterly_payload_and_export_apply_the_same_small_count_rule(): void
     {
         $this->cases(4);

@@ -3,10 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Services\CaseAccessScope;
+use App\Services\CaseForms;
 use App\Services\Kavat;
 use App\Services\MonitoringScope;
 use App\Services\RolePermissions;
 use App\Support\AuditLog;
+use App\Support\PhilippineDate;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -58,15 +60,6 @@ class AnalyticsController extends Controller
         }
 
         return '"' . str_replace('"', '""', $value) . '"';
-    }
-
-    private function ageBandExpression(): string
-    {
-        if (DB::connection()->getDriverName() === 'sqlite') {
-            return "CASE WHEN clients.birthdate IS NULL THEN 'Not recorded' WHEN CAST((julianday('now') - julianday(clients.birthdate)) / 365.2425 AS INTEGER) <= 5 THEN '0-5' WHEN CAST((julianday('now') - julianday(clients.birthdate)) / 365.2425 AS INTEGER) <= 11 THEN '6-11' WHEN CAST((julianday('now') - julianday(clients.birthdate)) / 365.2425 AS INTEGER) <= 17 THEN '12-17' ELSE '18+' END";
-        }
-
-        return "CASE WHEN clients.birthdate IS NULL THEN 'Not recorded' WHEN EXTRACT(YEAR FROM AGE(CURRENT_DATE, clients.birthdate)) <= 5 THEN '0-5' WHEN EXTRACT(YEAR FROM AGE(CURRENT_DATE, clients.birthdate)) <= 11 THEN '6-11' WHEN EXTRACT(YEAR FROM AGE(CURRENT_DATE, clients.birthdate)) <= 17 THEN '12-17' ELSE '18+' END";
     }
 
     private function grouped($query, string $group, Request $request)
@@ -227,8 +220,12 @@ class AnalyticsController extends Controller
             'quarters' => $quarters,
             'sex' => (clone $base)->selectRaw("COALESCE(clients.sex, 'Not recorded') as label, count(*) as total")->groupBy('label')->havingRaw('COUNT(*) >= ?', [$min])->orderByDesc('total')->get(),
             'classification' => $this->classificationCounts(clone $base, $min),
-            'age' => (clone $base)->selectRaw($this->ageBandExpression() . ' as label, count(*) as total')->groupBy('label')->havingRaw('COUNT(*) >= ?', [$min])->get(),
-            'services' => DB::table('services_provided')->whereIn('case_id', $caseIds)->select('service_type as label', DB::raw('count(*) as total'))->groupBy('service_type')->havingRaw('COUNT(*) >= ?', [$min])->orderByDesc('total')->limit(8)->get(),
+            ...$this->ageAndSex(clone $base, $min),
+            'services' => DB::table('services_provided')->whereIn('case_id', $caseIds)
+                ->select('service_type as label', DB::raw('count(*) as total'), DB::raw('count(distinct case_id) as cases'), DB::raw('COALESCE(SUM(amount), 0) as amount'))
+                ->groupBy('service_type')->havingRaw('COUNT(*) >= ?', [$min])->orderByDesc('total')->get()
+                ->map(fn ($row) => ['label' => $row->label, 'total' => (int) $row->total, 'cases' => (int) $row->cases >= $min ? (int) $row->cases : 'Suppressed', 'amount' => round((float) $row->amount, 2)]),
+            'planSubmission' => $this->planSubmission(clone $base, $request),
             'kavatPriority' => (clone $latestKavat)->select('k.priority as label', DB::raw('count(*) as total'))->groupBy('k.priority')->havingRaw('COUNT(*) >= ?', [$min])->get()
                 ->map(fn ($row) => ['label' => Kavat::priorityLabel($row->label), 'total' => (int) $row->total]),
             'totals' => $this->safeCounts($request, ['cases' => (clone $base)->count(), 'clients' => (clone $base)->distinct('clients.id')->count('clients.id'), 'openReferrals' => DB::table('referrals')->whereIn('case_id', $caseIds)->whereNotIn('status', ['COMPLETED', 'WITHDRAWN'])->count(),
@@ -241,6 +238,66 @@ class AnalyticsController extends Controller
     }
 
     /** CEFMU classification counts (a case can have more than one), falling back to the category. */
+    /**
+     * Age and sex by exact current age in years (owner, 2026-10-28; not age
+     * ranges). Cells smaller than the minimum are withheld (null).
+     *
+     * @return array{age: list<array{label: string, total: int}>, ageSex: list<array{age: string, female: ?int, male: ?int}>}
+     */
+    private function ageAndSex($cases, int $min): array
+    {
+        $today = Carbon::parse(PhilippineDate::today());
+        $cells = [];
+        foreach ($cases->select('clients.birthdate', 'clients.sex')->cursor() as $row) {
+            $age = $row->birthdate ? (string) Carbon::parse($row->birthdate)->diffInYears($today) : 'Not recorded';
+            $age = is_numeric($age) ? (string) (int) $age : $age;
+            $sex = in_array(strtolower((string) $row->sex), ['female', 'male'], true) ? strtolower($row->sex) : 'other';
+            $cells[$age][$sex] = ($cells[$age][$sex] ?? 0) + 1;
+        }
+        uksort($cells, fn ($a, $b) => is_numeric($a) && is_numeric($b) ? (int) $a <=> (int) $b : (is_numeric($a) ? -1 : (is_numeric($b) ? 1 : strcmp($a, $b))));
+        $safe = fn (?int $count) => $count === null || $count === 0 ? 0 : ($count >= $min ? $count : null);
+        $age = $ageSex = [];
+        foreach ($cells as $label => $bySex) {
+            $total = array_sum($bySex);
+            if ($total >= $min) {
+                $age[] = ['label' => (string) $label, 'total' => $total];
+            }
+            $ageSex[] = ['age' => (string) $label, 'female' => $safe($bySex['female'] ?? 0), 'male' => $safe($bySex['male'] ?? 0)];
+        }
+
+        return ['age' => $age, 'ageSex' => $ageSex];
+    }
+
+    /**
+     * Intervention Plan submission: days from the intake to the first
+     * finalized plan (target 7 days), for the cases in the area and period.
+     */
+    private function planSubmission($cases, Request $request): array
+    {
+        $rows = $cases->leftJoinSub(DB::table('case_form_versions')->where('form_type', 'plan')->selectRaw('case_id, MIN(created_at) as submitted_at')->groupBy('case_id'), 'plan', 'plan.case_id', '=', 'cases.id')
+            ->whereNotIn('cases.status', ['ARCHIVED'])
+            ->get(['cases.id', 'cases.intake_completed_at', 'cases.opened_at', 'cases.created_at', 'plan.submitted_at']);
+        $days = [];
+        $overdue = 0;
+        $today = Carbon::parse(PhilippineDate::today(), 'Asia/Manila');
+        foreach ($rows as $row) {
+            $intake = Carbon::parse($row->intake_completed_at ?? $row->opened_at ?? $row->created_at)->timezone('Asia/Manila')->startOfDay();
+            if ($row->submitted_at) {
+                $days[] = (int) $intake->diffInDays(Carbon::parse($row->submitted_at)->timezone('Asia/Manila')->startOfDay());
+            } elseif ($today->gt($intake->copy()->addDays(CaseForms::PLAN_DUE_DAYS))) {
+                $overdue++;
+            }
+        }
+        $submitted = count($days);
+        $onTime = count(array_filter($days, fn ($value) => $value <= CaseForms::PLAN_DUE_DAYS));
+
+        return [
+            'averageDays' => $submitted >= $this->minimum($request) ? round(array_sum($days) / max(1, $submitted), 1) : null,
+            'submitted' => $this->safeCount($request, $submitted), 'onTime' => $this->safeCount($request, $onTime),
+            'late' => $this->safeCount($request, $submitted - $onTime), 'overdue' => $this->safeCount($request, $overdue), 'targetDays' => CaseForms::PLAN_DUE_DAYS,
+        ];
+    }
+
     private function classificationCounts($cases, int $min): array
     {
         $labels = ['early_marriage' => 'Early marriage', 'early_union' => 'Early union', 'forced_marriage' => 'Forced marriage', 'forced_union' => 'Forced union'];

@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
-import { expectNoHorizontalOverflow, login } from './helpers';
+import { acceptConfirm, expectNoHorizontalOverflow, login } from './helpers';
 
 /** Phase 4: KaVAT, the Kalinga forms and the grants log in the case workspace. */
 async function openCase(page: Page, number = 'DEMO-KLG-2026-0002') {
@@ -31,9 +31,25 @@ test('case manager answers the KaVAT with a live score and finalizes it', async 
     await expectNoHorizontalOverflow(page);
     const scan = await new AxeBuilder({ page }).include('#case-panel-kavat').analyze();
     expect(scan.violations.filter(item => ['critical', 'serious'].includes(item.impact ?? ''))).toEqual([]);
+    // No scoring hints next to the statements or the options.
+    await expect(panel.locator('#kavat-item-p1-4')).not.toContainText('reversed');
+    await expect(panel.locator('#kavat-item-p2-safety')).not.toContainText('pts');
     await score.getByRole('button', { name: 'Finalize' }).click();
-    await expect(panel.getByRole('heading', { name: 'KaVAT history' })).toBeVisible();
-    await expect(panel.getByRole('table')).toContainText('26.92');
+    await expect(panel.getByRole('heading', { name: 'KaVAT results' })).toBeVisible();
+    const midline = panel.locator('[data-kavat-slot="midline"]');
+    await expect(midline).toContainText('26.92');
+    await expect(panel.locator('[data-kavat-slot="endline"]')).toContainText('Not yet done');
+    await expectNoHorizontalOverflow(page);
+
+    // Correct the Midline: the result is kept until the correction is finalized with a reason.
+    await midline.getByRole('button', { name: 'Correct the Midline KaVAT' }).click();
+    await acceptConfirm(page);
+    await expect(panel.getByText(/Correcting the Midline KaVAT/)).toBeVisible();
+    await score.getByRole('button', { name: 'Finalize the correction' }).click();
+    await expect(score).toContainText('at least 5 characters');
+    await score.getByLabel(/Reason for the correction/).fill('Checked the answers with the child again.');
+    await score.getByRole('button', { name: 'Finalize the correction' }).click();
+    await expect(midline).toContainText('Checked the answers with the child again.');
 });
 
 test('baseline KaVAT result from the screening tool is recorded with a live score check', async ({ page }) => {
@@ -59,15 +75,22 @@ test('Kalinga forms save as the case manager types and keep their order', async 
     const steps = panel.getByRole('list', { name: 'Order of the Kalinga forms' }).getByRole('listitem');
     await expect(steps).toHaveCount(5);
     await expect(steps.nth(0)).toContainText('Intake Sheet');
-    await expect(steps.nth(4)).toContainText('Social Case Study Report');
+    await expect(steps.nth(2)).toContainText('Social Case Study Report');
+    await expect(steps.nth(3)).toContainText('Intervention Plan and Referrals');
+    await expect(steps.nth(3).getByRole('link', { name: 'Print Kalinga Intervention Plan' })).toHaveText('Print Intervention Plan');
+    await expect(steps.nth(4)).toContainText('Progress Notes');
     await steps.nth(1).getByRole('button', { name: /Write|Continue/ }).click();
     const text = 'Synthetic presenting problem written in the Case Summary Report.';
-    await panel.getByRole('textbox', { name: 'Presenting problem / reason for referral' }).fill(text);
+    await panel.getByRole('textbox', { name: 'Presenting problem', exact: true }).fill(text);
     await expect(panel.getByRole('status').filter({ hasText: /^Saved/ })).toBeVisible({ timeout: 10_000 });
     await page.reload();
     await page.getByRole('tab', { name: /^Kalinga forms/ }).click();
     await steps.nth(1).getByRole('button', { name: /Continue/ }).click();
-    await expect(panel.getByRole('textbox', { name: 'Presenting problem / reason for referral' })).toHaveValue(text);
+    await expect(panel.getByRole('textbox', { name: 'Presenting problem', exact: true })).toHaveValue(text);
+    // The Social Case Study Report starts from the Case Summary Report.
+    await steps.nth(2).getByRole('button', { name: /Write|Continue/ }).click();
+    await expect(panel.getByRole('textbox', { name: 'III. Presented problem' })).toHaveValue(text);
+    await expect(panel.getByText('From the Case Summary Report - add to it or update it for the case study.')).toBeVisible();
 
     await steps.nth(3).getByRole('button', { name: /Write|Continue/ }).click();
     const plan = panel.getByRole('article');
@@ -76,17 +99,27 @@ test('Kalinga forms save as the case manager types and keep their order', async 
     await plan.getByRole('button', { name: /Finalize version/ }).click();
     await expect(steps.nth(3)).toContainText('Finalized version 1');
     await expectNoHorizontalOverflow(page);
+    // Monitoring shows the plan items with their status (read only).
+    await page.getByRole('tab', { name: /^Monitoring/ }).click();
+    const monitoring = page.locator('#case-panel-monitoring');
+    await expect(monitoring.locator('[data-monitor-row="1"]')).toContainText('Stopped schooling after the union');
+    await expect(monitoring.locator('[data-monitor-row="1"]')).toContainText('Not started');
+    await expectNoHorizontalOverflow(page);
 });
 
-test('grants log records a grant and totals it', async ({ page }) => {
+test('grants log records a transportation allowance and totals it', async ({ page }) => {
     await openCase(page);
-    await page.getByRole('tab', { name: /^Progress notes & referrals/ }).click();
+    await page.getByRole('tab', { name: /^Progress notes/ }).click();
     const grants = page.getByRole('region', { name: 'Grants log' });
-    await grants.getByRole('button', { name: 'Record a grant' }).click();
-    await grants.getByLabel('Type of grant').selectOption({ label: 'Educational assistance' });
+    await expect(grants).toContainText('Transportation Support Allowance');
+    await grants.getByRole('button', { name: 'Record a release' }).click();
+    await expect(grants.getByLabel('Fund source')).toHaveCount(0);
     await grants.getByLabel('Amount (PHP)').fill('2500');
-    await grants.getByRole('button', { name: 'Save grant' }).click();
-    await expect(grants.getByRole('table')).toContainText('Educational assistance');
-    await expect(page.getByRole('heading', { name: 'Referrals to CPU members', exact: false })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Referrals to external agencies', exact: false })).toBeVisible();
+    await grants.getByRole('button', { name: 'Case conference' }).click();
+    await grants.getByLabel('Received by').fill('Parent');
+    await grants.getByRole('button', { name: 'Save release' }).click();
+    await expect(grants.getByRole('table')).toContainText('Case conference');
+    await expectNoHorizontalOverflow(page);
+    // Referrals moved to the Intervention Plan and Referrals form.
+    await expect(page.locator('#case-panel-notes').getByRole('heading', { name: /Referrals to CPU members/ })).toHaveCount(0);
 });

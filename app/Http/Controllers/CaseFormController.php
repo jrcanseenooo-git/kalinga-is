@@ -7,11 +7,14 @@ use App\Services\CaseForms;
 use App\Services\CaseGrants;
 use App\Services\ConsentFormImage;
 use App\Services\Kavat;
+use App\Services\OperationalNotification;
+use App\Services\Supervisors;
 use App\Support\AuditLog;
 use App\Support\PhilippineDate;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 /**
  * The case manager's working forms (Case Summary, Intervention Plan, Social
@@ -49,6 +52,18 @@ class CaseFormController extends Controller
         abort_unless(isset(CaseForms::TYPES[$type]), 404);
         $this->writable($request, $case);
         $version = CaseForms::finalize($case, $type, $request->user()->id);
+        if ($type === 'plan' && $version === 1) {
+            // Submission of the Intervention Plan: the supervisor sees how long it took (target: 7 days from intake).
+            $record = DB::table('cases')->find($case);
+            $deadline = CaseForms::planDeadline($record);
+            $timing = $deadline['days_to_submit'] <= CaseForms::PLAN_DUE_DAYS ? 'on time' : ($deadline['days_to_submit'] - CaseForms::PLAN_DUE_DAYS) . ' day(s) late';
+            foreach (Supervisors::forLgu($record->lgu_id) as $supervisor) {
+                if ($supervisor !== $request->user()->id) {
+                    app(OperationalNotification::class)->send($supervisor, 'plan_submitted', 'Intervention Plan submitted',
+                        "{$record->case_number} - submitted {$deadline['days_to_submit']} day(s) after intake ({$timing})", "/cases/{$case}?section=forms");
+                }
+            }
+        }
 
         return back()->with('success', CaseForms::TYPES[$type] . " finalized as version {$version}. You can keep updating it; the next finalize makes a new version.");
     }
@@ -106,6 +121,9 @@ class CaseFormController extends Controller
         $this->writable($request, $case);
         $data = $request->validate(['occasion' => ['required', Rule::in(array_keys(Kavat::OCCASIONS))], 'administered_at' => 'required|date|before_or_equal:' . PhilippineDate::today()]);
         abort_if(DB::table('kavat_assessments')->where('case_id', $case)->where('status', 'draft')->exists(), 422, 'Finish or discard the KaVAT already in progress first.');
+        if (DB::table('kavat_assessments')->where('case_id', $case)->where('occasion', $data['occasion'])->exists()) {
+            throw ValidationException::withMessages(['occasion' => 'The ' . Kavat::OCCASIONS[$data['occasion']] . ' is already recorded. Use Correct on it to change answers.']);
+        }
         $id = DB::table('kavat_assessments')->insertGetId(['case_id' => $case, 'instrument_version' => Kavat::VERSION, 'occasion' => $data['occasion'], 'administered_at' => $data['administered_at'],
             'administered_by' => $request->user()->id, 'status' => 'draft', 'answers' => json_encode(['part1' => (object) [], 'part2' => (object) [], 'details' => (object) []]),
             'revision' => 1, 'created_at' => now(), 'updated_at' => now()]);
@@ -154,16 +172,25 @@ class CaseFormController extends Controller
     public function finalizeKavat(Request $request, int $case, int $kavat)
     {
         $this->writable($request, $case);
-        DB::transaction(function () use ($case, $kavat, $request) {
+        $reason = trim((string) $request->input('correction_reason', ''));
+        DB::transaction(function () use ($case, $kavat, $request, $reason) {
             $row = DB::table('kavat_assessments')->where('case_id', $case)->lockForUpdate()->find($kavat);
             abort_unless($row && $row->status === 'draft', 404);
             $score = Kavat::score(json_decode($row->answers, true) ?: []);
             abort_unless($score['complete'], 422, "Answer every statement and question first ({$score['answered']} of {$score['questions']} answered).");
+            $correcting = $row->previous_answers !== null;
+            if ($correcting && mb_strlen($reason) < 5) {
+                throw ValidationException::withMessages(['correction_reason' => 'Say why the answers were corrected (at least 5 characters).']);
+            }
             DB::table('kavat_assessments')->where('id', $kavat)->update([
-                'status' => 'final', 'finalized_at' => now(), 'part1_score' => $score['part1'], 'part2_score' => $score['part2'], 'empowerment_rate' => $score['empowerment_rate'],
+                'status' => 'final', 'finalized_at' => $correcting ? $row->finalized_at : now(), 'part1_score' => $score['part1'], 'part2_score' => $score['part2'], 'empowerment_rate' => $score['empowerment_rate'],
                 'objective_risk_rate' => $score['objective_risk_rate'], 'safety_rate' => $score['safety_rate'], 'final_score' => $score['final_score'], 'priority' => $score['priority'],
                 'red_flags' => json_encode($score['red_flags']), 'updated_at' => now(),
-            ]);
+            ] + ($correcting ? ['previous_answers' => null, 'previous_final_score' => null, 'correction_reason' => $reason, 'corrected_at' => now(), 'corrected_by' => $request->user()->id] : []));
+            if ($correcting) {
+                AuditLog::record('kavat.corrected', 'case', $case, ['case_id' => $case, 'kavat_id' => $kavat], $request->user()->id, 'success',
+                    ['description' => 'KaVAT answers corrected: ' . mb_strimwidth($reason, 0, 120, '...'), 'old_value' => (string) $row->previous_final_score, 'new_value' => (string) $score['final_score']]);
+            }
             DB::table('cases')->where('id', $case)->update(['last_activity_at' => now(), 'offline_version' => DB::raw('offline_version + 1'), 'updated_at' => now()]);
             AuditLog::record('kavat.finalized', 'case', $case, ['case_id' => $case, 'kavat_id' => $kavat, 'priority' => $score['priority']], $request->user()->id, 'success',
                 ['description' => 'KaVAT finalized: protection score ' . $score['final_score'] . ' (' . Kavat::priorityLabel($score['priority']) . ')', 'new_value' => (string) $score['final_score']]);
@@ -172,11 +199,32 @@ class CaseFormController extends Controller
         return back()->with('success', 'KaVAT finalized.');
     }
 
+    /** Open a finalized KaVAT again to correct its answers (kept until the correction is finalized or cancelled). */
+    public function correctKavat(Request $request, int $case, int $kavat)
+    {
+        $this->writable($request, $case);
+        abort_if(DB::table('kavat_assessments')->where('case_id', $case)->where('status', 'draft')->exists(), 422, 'Finish or discard the KaVAT already in progress first.');
+        $row = DB::table('kavat_assessments')->where('case_id', $case)->where('id', $kavat)->where('status', 'final')->first();
+        abort_unless($row, 404);
+        DB::table('kavat_assessments')->where('id', $kavat)->update(['status' => 'draft', 'previous_answers' => $row->answers, 'previous_final_score' => $row->final_score, 'revision' => DB::raw('revision + 1'), 'updated_at' => now()]);
+        AuditLog::record('kavat.correction_started', 'case', $case, ['case_id' => $case, 'kavat_id' => $kavat], $request->user()->id, 'success', ['description' => 'KaVAT opened for correction']);
+
+        return back()->with('success', 'The KaVAT is open for correction. Change the answers, then finalize with the reason.');
+    }
+
     public function discardKavat(Request $request, int $case, int $kavat)
     {
         $this->writable($request, $case);
-        $deleted = DB::table('kavat_assessments')->where('case_id', $case)->where('id', $kavat)->where('status', 'draft')->delete();
-        abort_unless($deleted, 404);
+        $row = DB::table('kavat_assessments')->where('case_id', $case)->where('id', $kavat)->where('status', 'draft')->first();
+        abort_unless($row, 404);
+        if ($row->previous_answers !== null) {
+            // Cancelling a correction restores the finalized answers.
+            DB::table('kavat_assessments')->where('id', $kavat)->update(['status' => 'final', 'answers' => $row->previous_answers, 'previous_answers' => null, 'previous_final_score' => null, 'revision' => DB::raw('revision + 1'), 'updated_at' => now()]);
+            AuditLog::record('kavat.correction_cancelled', 'case', $case, ['case_id' => $case, 'kavat_id' => $kavat], $request->user()->id, 'success', ['description' => 'KaVAT correction cancelled; the finalized answers were kept']);
+
+            return back()->with('success', 'Correction cancelled. The finalized answers are kept.');
+        }
+        DB::table('kavat_assessments')->where('id', $kavat)->delete();
         AuditLog::record('kavat.discarded', 'case', $case, ['case_id' => $case], $request->user()->id, 'success', ['description' => 'Unfinished KaVAT discarded']);
 
         return back()->with('success', 'Unfinished KaVAT discarded.');
@@ -186,9 +234,11 @@ class CaseFormController extends Controller
     {
         $this->writable($request, $case);
         $data = $request->validate([
-            'grant_type' => ['required', Rule::in(array_keys(CaseGrants::types()))], 'amount' => 'required|numeric|min:1|max:9999999',
-            'released_at' => 'required|date|before_or_equal:' . PhilippineDate::today(), 'fund_source' => 'nullable|string|max:160', 'purpose' => 'nullable|string|max:255', 'received_by' => 'nullable|string|max:160',
+            'grant_type' => ['nullable', Rule::in(array_keys(CaseGrants::types()))], 'amount' => 'required|numeric|min:1|max:9999999',
+            'released_at' => 'required|date|before_or_equal:' . PhilippineDate::today(), 'purpose' => 'required|string|max:255', 'received_by' => 'required|string|max:160',
         ]);
+        // Transportation Support Allowance is the only grant (owner, 2026-10-28).
+        $data['grant_type'] = 'transportation';
         $id = DB::table('case_grants')->insertGetId($data + ['case_id' => $case, 'recorded_by' => $request->user()->id, 'created_at' => now(), 'updated_at' => now()]);
         DB::table('cases')->where('id', $case)->update(['last_activity_at' => now(), 'updated_at' => now()]);
         AuditLog::record('grant.created', 'case', $case, ['case_id' => $case, 'grant_id' => $id, 'grant_type' => $data['grant_type']], $request->user()->id, 'success',
@@ -219,6 +269,8 @@ class CaseFormController extends Controller
             ->map(fn ($row) => [
                 'id' => $row->id, 'occasion' => $row->occasion, 'administered_at' => $row->administered_at, 'administered_by' => $row->administered_by_name, 'status' => $row->status,
                 'revision' => (int) $row->revision, 'answers' => json_decode($row->answers, true), 'notes' => $row->notes, 'finalized_at' => $row->finalized_at,
+                'correcting' => $row->previous_answers !== null, 'previous_final_score' => $row->previous_final_score !== null ? (float) $row->previous_final_score : null,
+                'correction_reason' => $row->correction_reason, 'corrected_at' => $row->corrected_at,
                 'score' => Kavat::score(json_decode($row->answers, true) ?: []),
             ])->all();
     }

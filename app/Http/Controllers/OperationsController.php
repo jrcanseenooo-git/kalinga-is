@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Services\Aftercare;
 use App\Services\CalendarSharing;
 use App\Services\CaseAccessScope;
 use App\Services\CaseAssignmentEligibility;
@@ -10,6 +11,7 @@ use App\Services\NoteReferrals;
 use App\Services\OperationalNotification;
 use App\Services\ReferenceNumberService;
 use App\Services\ReferralTracking;
+use App\Services\TeamActivities;
 use App\Services\WorkerTasks;
 use App\Support\AuditLog;
 use Carbon\Carbon;
@@ -111,7 +113,7 @@ class OperationsController extends Controller
         });
 
         return Inertia::render('Calendar/Index', [
-            'tasks' => $events->values()->merge($this->invitedActivities($user))->values(),
+            'tasks' => $this->withTeam($user, $events->values()->merge($this->invitedActivities($user))->values()),
             'caseEvents' => $this->caseCalendarEvents($user),
             'availableCases' => $service->cases($user)->whereNotIn('cases.status', ['CLOSED', 'ARCHIVED'])->orderByDesc('cases.updated_at')->limit(300)->get(['cases.id', 'cases.case_number']),
             'summary' => ['open' => (clone $open)->count(), 'overdue' => (clone $open)->where('tasks.due_at', '<', $now)->count(),
@@ -143,6 +145,27 @@ class OperationsController extends Controller
                 'case_number' => $visible ? $row->case_number : ($row->case_id ? 'Case-linked activity' : null),
                 'shared' => true, 'organizer' => $row->organizer, 'my_response' => $row->response, 'participants' => [], 'history' => []];
         });
+    }
+
+    /** The supervisor also sees the case managers' activities (read only), once each. */
+    private function withTeam($user, Collection $tasks): Collection
+    {
+        $teams = app(TeamActivities::class);
+        if (!$teams->isSupervisor($user)) {
+            return $tasks;
+        }
+        $known = $tasks->pluck('id')->all();
+
+        return $tasks->merge($teams->calendar($user)->reject(fn ($row) => in_array($row->id, $known, true)))->values();
+    }
+
+    /** The supervisor marks a rescheduled activity of a case manager as reviewed. */
+    public function reviewMove(Request $request, int $history)
+    {
+        $this->authorize('activities.manage');
+        abort_unless(app(TeamActivities::class)->review($request->user(), $history), 404);
+
+        return back()->with('success', 'Marked as reviewed.');
     }
 
     /** Users the organizer can invite (name search), for the activity form. */
@@ -238,13 +261,22 @@ class OperationsController extends Controller
     {
         $service = app(WorkerTasks::class);
         $caseIds = $service->cases($user)->whereNotIn('cases.status', ['CLOSED', 'ARCHIVED'])->pluck('cases.id');
-        if ($caseIds->isEmpty()) {
-            return [];
-        }
         $from = now()->subDays(45);
         $to = now()->addDays(120);
         $iso = fn ($value) => $value ? Carbon::parse($value)->toIso8601String() : null;
         $events = [];
+        // Aftercare: the next follow-up visit of closed cases.
+        foreach ($service->cases($user)->where('cases.status', 'CLOSED')->whereExists(fn ($plan) => $plan->selectRaw('1')->from('case_aftercare_plans')->whereColumn('case_aftercare_plans.case_id', 'cases.id')->whereNotNull('case_aftercare_plans.living_arrangement'))
+            ->get(['cases.id', 'cases.case_number']) as $closed) {
+            $next = Aftercare::forCase((int) $closed->id)['next_due'];
+            if ($next && Carbon::parse($next)->between($from, $to)) {
+                $events[] = ['key' => 'aftercare-' . $closed->id, 'type' => 'monitoring_visit', 'title' => 'Aftercare follow-up visit', 'at' => Carbon::parse($next . ' 08:00', 'Asia/Manila')->toIso8601String(),
+                    'case_id' => $closed->id, 'case_number' => $closed->case_number, 'source' => 'Aftercare plan'];
+            }
+        }
+        if ($caseIds->isEmpty()) {
+            return $events;
+        }
         foreach (DB::table('case_conferences')->join('cases', 'cases.id', '=', 'case_conferences.case_id')->whereIn('case_conferences.case_id', $caseIds)
             ->whereNotNull('case_conferences.scheduled_at')->whereNull('case_conferences.completed_at')->whereBetween('case_conferences.scheduled_at', [$from, $to])
             ->get(['case_conferences.id', 'case_conferences.case_id', 'case_conferences.scheduled_at', 'case_conferences.conference_type', 'cases.case_number']) as $row) {
@@ -253,10 +285,7 @@ class OperationsController extends Controller
         foreach (DB::table('cases')->whereIn('id', $caseIds)->whereNotNull('next_review_at')->whereBetween('next_review_at', [$from, $to])->get(['id', 'case_number', 'next_review_at']) as $row) {
             $events[] = ['key' => 'review-' . $row->id, 'type' => 'assessment', 'title' => 'Safety review due', 'at' => $iso($row->next_review_at), 'case_id' => $row->id, 'case_number' => $row->case_number, 'source' => 'Intake safety plan'];
         }
-        foreach (DB::table('case_plans')->join('cases', 'cases.id', '=', 'case_plans.case_id')->whereIn('case_plans.case_id', $caseIds)->where('case_plans.is_current', true)
-            ->whereNotNull('case_plans.review_due_at')->whereBetween('case_plans.review_due_at', [$from, $to])->get(['case_plans.id', 'case_plans.case_id', 'case_plans.review_due_at', 'cases.case_number']) as $row) {
-            $events[] = ['key' => 'plan-' . $row->id, 'type' => 'deadline', 'title' => 'Care plan review due', 'at' => $iso($row->review_due_at), 'case_id' => $row->case_id, 'case_number' => $row->case_number, 'source' => 'Care plan'];
-        }
+        // The Case plan (Plan & continuity) is hidden for now (owner, 2026-10-28): its review dates are not shown.
         $targets = app(ReferralTracking::class)->targets();
         foreach (DB::table('referrals')->join('cases', 'cases.id', '=', 'referrals.case_id')->whereIn('referrals.case_id', $caseIds)->whereIn('referrals.status', ['SENT', 'ACCEPTED', 'IN_PROGRESS'])
             ->get(['referrals.id', 'referrals.case_id', 'referrals.status', 'referrals.service_category', 'referrals.referred_at', 'referrals.accepted_at', 'referrals.created_at', 'cases.case_number']) as $row) {
@@ -267,6 +296,28 @@ class OperationsController extends Controller
                 continue;
             }
             $events[] = ['key' => 'ref-' . $row->id, 'type' => 'referral_follow_up', 'title' => ($accepted ? 'Service completion due: ' : 'Referral response due: ') . $row->service_category, 'at' => $due->toIso8601String(), 'case_id' => $row->case_id, 'case_number' => $row->case_number, 'source' => 'Referral tracking'];
+        }
+        // Intervention Plan target dates (kept for the calendar; not printed). Only the item
+        // number shows, never the plan text.
+        foreach (DB::table('case_forms')->join('cases', 'cases.id', '=', 'case_forms.case_id')->whereIn('case_forms.case_id', $caseIds)->where('case_forms.form_type', 'plan')
+            ->get(['case_forms.case_id', 'case_forms.content', 'cases.case_number']) as $form) {
+            foreach (array_values((array) ((json_decode((string) $form->content, true) ?: [])['rows'] ?? [])) as $index => $row) {
+                if (($row['status'] ?? '') === 'done') {
+                    continue;
+                }
+                foreach (['target_start' => 'starts', 'target_end' => 'target end'] as $key => $label) {
+                    $date = (string) ($row[$key] ?? '');
+                    if ($date === '' || !strtotime($date)) {
+                        continue;
+                    }
+                    $at = Carbon::parse($date . ' 08:00', 'Asia/Manila');
+                    if ($at->lt($from) || $at->gt($to)) {
+                        continue;
+                    }
+                    $events[] = ['key' => "planrow-{$form->case_id}-{$index}-{$key}", 'type' => 'deadline', 'title' => 'Intervention Plan item ' . ($index + 1) . ' ' . $label,
+                        'at' => $at->toIso8601String(), 'case_id' => $form->case_id, 'case_number' => $form->case_number, 'source' => 'Intervention Plan'];
+                }
+            }
         }
         usort($events, fn ($a, $b) => strcmp($a['at'], $b['at']));
 

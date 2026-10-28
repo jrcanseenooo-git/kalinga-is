@@ -24,7 +24,8 @@ test('real closure endpoints preserve independent review and reviewer-only closi
         expect(await write(reviewer,`/cases/${id}/status`,{_method:'patch',status:'CLOSED'})).toBe(200);
         await page.reload();await expect(page.getByRole('region',{name:'Case folder summary',exact:true})).toContainText('Closed');
         expect(await write(page,`/cases/${id}/status`,{_method:'patch',status:'REOPENED'})).toBe(200);
-        expect(await write(page,`/cases/${id}/status`,{_method:'patch',status:'IN_PROGRESS'})).toBe(200);
+        // Working statuses are automatic; a reopened case can start a new closure review directly.
+        expect(await write(page,`/cases/${id}/status`,{_method:'patch',status:'IN_PROGRESS'})).toBe(422);
         expect(await write(page,`/cases/${id}/status`,{_method:'patch',status:'FOR_CLOSURE_REVIEW'})).toBe(200);
         expect(await write(reviewer,`/cases/${id}/status`,{_method:'patch',status:'CLOSED'})).toBe(422);
         await page.reload();await expect(page.getByRole('region',{name:'Case folder summary',exact:true})).toContainText('For Closure Review');

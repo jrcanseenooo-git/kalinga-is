@@ -106,6 +106,9 @@
   .field-card { @apply transition-colors hover:brightness-[.98]; }
 }
 
+/* Text size control: scales the forms only (see utils/textSize.ts). */
+.kalinga-form { zoom: var(--form-zoom, 1); }
+
 /* Kalinga Intake: larger, easier-to-read fields for field use and older eyes.
    Unlayered on purpose so it also reaches the address pickers, dropdowns and
    family cards inside the form. */

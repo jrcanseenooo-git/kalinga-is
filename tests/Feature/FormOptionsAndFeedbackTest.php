@@ -54,14 +54,12 @@ class FormOptionsAndFeedbackTest extends TestCase
 
         $this->post(route('admin.options.store', 'ip_groups'), ['label' => 'Kalinga'])->assertSessionHasNoErrors();
         $this->post(route('admin.options.store', 'ip_groups'), ['label' => 'kalinga'])->assertSessionHasErrors('label');
-        $this->post(route('admin.options.store', 'grant_types'), ['label' => 'Burial assistance'])->assertSessionHasNoErrors();
+        $this->post(route('admin.options.store', 'grant_types'), ['label' => 'Burial assistance'])->assertNotFound();
         $this->post(route('admin.options.store', 'nonexistent'), ['label' => 'X'])->assertNotFound();
 
         $this->actingAs($this->worker)->get(route('dashboard'))->assertInertia(fn (Assert $page) => $page
             ->where('optionSets.IP_MEMBERSHIP', fn ($options) => collect($options)->pluck('label')->contains('Kalinga'))
             ->where('optionSets.RELIGIONS', fn ($options) => collect($options)->pluck('value')->contains('Islam (Muslim)')));
-        $case = DB::table('cases')->value('id');
-        $this->post(route('cases.grants.store', $case), ['grant_type' => 'burial_assistance', 'amount' => 1000, 'released_at' => now()->toDateString()])->assertSessionHasNoErrors();
 
         // Retiring keeps saved records; the last active option cannot be retired.
         $other = DB::table('reference_data')->where('set_name', 'ip_groups')->where('label', '!=', 'Kalinga')->value('code');

@@ -27,9 +27,11 @@ class CaseworkFlowTest extends TestCase
         $user = User::factory()->create(['role' => 'social_worker']);
         $client = DB::table('clients')->insertGetId(['first_name' => 'Ana', 'last_name' => 'Cruz', 'created_at' => now(), 'updated_at' => now()]);
         $case = DB::table('cases')->insertGetId(['case_number' => 'KLG-2026-00001', 'client_id' => $client, 'assigned_to' => $user->id, 'status' => 'OPEN', 'stage' => 'intake', 'priority' => 'normal', 'opened_at' => now(), 'created_at' => now(), 'updated_at' => now()]);
-        $this->actingAs($user)->patch(route('cases.transition', $case), ['status' => 'IN_PROGRESS'])->assertRedirect();
-        $this->assertDatabaseHas('cases', ['id' => $case, 'status' => 'IN_PROGRESS']);
-        $this->assertDatabaseHas('case_status_history', ['case_id' => $case, 'from_status' => 'OPEN', 'to_status' => 'IN_PROGRESS']);
+        // Working statuses are automatic; by hand only the closure review can be started.
+        $this->actingAs($user)->patch(route('cases.transition', $case), ['status' => 'IN_PROGRESS'])->assertStatus(422);
+        $this->patch(route('cases.transition', $case), ['status' => 'FOR_CLOSURE_REVIEW'])->assertRedirect();
+        $this->assertDatabaseHas('cases', ['id' => $case, 'status' => 'FOR_CLOSURE_REVIEW']);
+        $this->assertDatabaseHas('case_status_history', ['case_id' => $case, 'from_status' => 'OPEN', 'to_status' => 'FOR_CLOSURE_REVIEW']);
         $this->actingAs($user)->patch(route('cases.transition', $case), ['status' => 'CLOSED'])->assertStatus(422);
     }
 

@@ -44,6 +44,13 @@ final class CalendarSharing
         return $lguIds === null ? null : DB::table('lgu_units')->whereIn('id', $lguIds ?: [0])->distinct()->pluck('region')->filter()->values()->all();
     }
 
+    /**
+     * People who can be invited, found by name (any letter case) or by role
+     * ("supervisor", "CPU", "field office", "project manager"): case
+     * managers, LGU Heads (supervisors) and CPU members of the organizer's
+     * LGUs, Field Office focals of its regions and Project Managers covering
+     * them. CPU members are also found through the LGU CPU member list.
+     */
     public function candidates(User $organizer, string $search = ''): Collection
     {
         $lguIds = $this->areaLguIds($organizer);
@@ -54,19 +61,35 @@ final class CalendarSharing
                 $where->whereExists(fn ($assigned) => $assigned->selectRaw('1')->from('user_lgu_assignments as assignment')->whereColumn('assignment.user_id', 'users.id')
                     ->where('assignment.active', true)->whereIn('assignment.lgu_id', $lguIds ?: [0])
                     ->where(fn ($dates) => $dates->whereNull('assignment.effective_to')->orWhere('assignment.effective_to', '>', now())))
-                    ->orWhere(fn ($fo) => $fo->where('users.role', 'fo_user')->whereIn('users.region', $regions ?: ['']))
+                    ->orWhereExists(fn ($cpu) => $cpu->selectRaw('1')->from('lgu_cpu_members as member')->whereColumn('member.user_id', 'users.id')
+                        ->where('member.active', true)->whereIn('member.lgu_id', $lguIds ?: [0]))
+                    ->orWhere(fn ($fo) => $fo->where('users.role', 'fo_user')->where(fn ($region) => $region->whereIn('users.region', $regions ?: [''])->orWhereNotNull('users.region_scope')))
                     ->orWhere(fn ($pm) => $pm->where('users.role', 'project_manager'));
             });
         }
-        if (trim($search) !== '') {
-            $query->where('users.name', 'like', '%' . str_replace(['%', '_'], ['\%', '\_'], trim($search)) . '%');
+        $term = mb_strtolower(trim($search));
+        if ($term !== '') {
+            // Role words match from 3 letters ("sup" finds supervisors), so a short name search stays a name search.
+            $roles = mb_strlen($term) < 3 ? [] : collect(self::ROLE_WORDS)->filter(fn ($words) => collect($words)->contains(fn ($word) => str_starts_with($word, $term) || str_contains($term, $word)))->keys()->all();
+            $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $term) . '%';
+            $query->where(fn ($match) => $match->whereRaw('LOWER(users.name) LIKE ?', [$like])->when($roles, fn ($byRole) => $byRole->orWhereIn('users.role', $roles)));
         }
 
-        return $query->orderBy('users.name')->limit(200)->get(['users.id', 'users.name', 'users.role', 'users.region', 'users.region_scope'])
-            // A regional Project Manager is invited only inside their regions.
-            ->filter(fn ($user) => $user->role !== 'project_manager' || $this->coversRegions($user, $regions))
-            ->take(30)->map(fn ($user) => ['id' => $user->id, 'name' => $user->name, 'role' => RolePermissions::label($user->role)])->values();
+        return $query->orderBy('users.name')->limit(200)->get(['users.id', 'users.name', 'users.role', 'users.region', 'users.region_scope', 'users.position'])
+            // Field Office and Project Managers are invited only for the regions they cover.
+            ->filter(fn ($user) => !in_array($user->role, ['project_manager', 'fo_user'], true) || $lguIds === null
+                || ($user->role === 'fo_user' && in_array($user->region, $regions ?? [], true)) || $this->coversRegions($user, $regions))
+            ->take(30)->map(fn ($user) => ['id' => $user->id, 'name' => $user->name, 'role' => RolePermissions::label($user->role) . ($user->position ? ' - ' . $user->position : '')])->values();
     }
+
+    /** Words that find people by role in the invite search (lower case). */
+    private const ROLE_WORDS = [
+        'lgu_head' => ['supervisor', 'lgu head', 'head', 'mswdo', 'cswdo'],
+        'cpu_member' => ['cpu', 'child protection', 'mdt'],
+        'fo_user' => ['field office', 'focal', 'regional'],
+        'project_manager' => ['project manager', 'central office', 'focal'],
+        'social_worker' => ['case manager', 'social worker'],
+    ];
 
     public function canInvite(User $organizer, array $userIds): bool
     {

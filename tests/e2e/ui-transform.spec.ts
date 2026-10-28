@@ -139,7 +139,7 @@ for(const width of [360,390,768,1024,1440,1920]) test(`case workspace overview a
  const payload=JSON.parse((await page.locator('#app').getAttribute('data-page'))!).props;
  await expect(page.getByRole('heading',{name:payload.caseRecord.case_number,exact:true})).toBeVisible();
  const tabs=page.getByRole('tablist',{name:'Case record sections',exact:true});
- await expect(tabs.getByRole('tab')).toHaveCount(7);
+ await expect(tabs.getByRole('tab')).toHaveCount(8);
  const viewportOverflow=await page.evaluate(()=>document.documentElement.scrollWidth-document.documentElement.clientWidth);
  if(viewportOverflow>1) await test.info().attach('overflow-layout-metadata',{body:JSON.stringify(await page.evaluate(()=>Array.from(document.querySelectorAll('main *')).filter(element=>element.getBoundingClientRect().right>document.documentElement.clientWidth+1).map(element=>({tag:element.tagName,classes:element.getAttribute('class'),right:Math.round(element.getBoundingClientRect().right)})))),contentType:'application/json'});
  await expectNoHorizontalOverflow(page);
@@ -158,7 +158,10 @@ for(const width of [360,390,768,1024,1440,1920]) test(`case workspace overview a
   await target.getByRole('button',{name:'Show fewer case tasks',exact:true}).click();
   await expect(target.locator('#case-task-records > div')).toHaveCount(5);
  }
- if(payload.transitions.length){await page.getByText('Case status actions',{exact:true}).click();await expect(page.getByRole('button',{name:/^Move to /})).toHaveCount(payload.transitions.length);}
+ // The status is automatic: a status line, and only the closure review can be started by hand.
+ await expect(page.getByText(/^Status: /).first()).toBeVisible();
+ await expect(page.getByRole('button',{name:/^Move to /})).toHaveCount(0);
+ if(payload.transitions.includes('FOR_CLOSURE_REVIEW'))await expect(page.getByRole('button',{name:'Start closure review',exact:true})).toBeVisible();
  await tabs.getByRole('tab',{name:'Overview',exact:true}).click(); await page.keyboard.press('ArrowRight');
  await expect(tabs.getByRole('tab',{name:'Client & Intake',exact:true})).toBeFocused();
  await page.keyboard.press('End');await expect(tabs.getByRole('tab',{name:'Documents',exact:true})).toHaveAttribute('aria-selected','true');

@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Services\CaseAccessScope;
+use App\Services\ChatUnread;
 use App\Services\OptionSets;
 use App\Services\RolePermissions;
 use App\Services\WebPush;
@@ -52,7 +53,7 @@ class HandleInertiaRequests extends Middleware
     private function navCounts(Request $request): array
     {
         $user = $request->user();
-        $counts = ['activeCases' => null, 'calendarDue' => null];
+        $counts = ['activeCases' => null, 'calendarDue' => null, 'connectUnread' => null, 'teamUnread' => null];
         try {
             if ($user->hasPermission('cases.view') && in_array($user->role, ['social_worker', 'fo_user'], true)) {
                 $cases = DB::table('cases')->join('clients', 'clients.id', '=', 'cases.client_id')->whereNull('cases.deleted_at')->whereNotIn('cases.status', ['CLOSED']);
@@ -61,6 +62,12 @@ class HandleInertiaRequests extends Middleware
             if ($user->hasPermission('activities.manage')) {
                 $endOfToday = now()->timezone('Asia/Manila')->endOfDay()->utc();
                 $counts['calendarDue'] = DB::table('tasks')->where('assigned_to', $user->id)->where('status', 'open')->whereNotNull('due_at')->where('due_at', '<=', $endOfToday)->count();
+            }
+            if ($user->hasPermission('cpu.chat.view')) {
+                $counts['connectUnread'] = ChatUnread::connect($user);
+            }
+            if ($user->hasPermission('connect.network') || $user->hasPermission('cases.monitor') || $user->hasPermission('cases.update')) {
+                $counts['teamUnread'] = ChatUnread::team($user);
             }
         } catch (\Throwable) {
             // Badges are a convenience; never block a page over them.

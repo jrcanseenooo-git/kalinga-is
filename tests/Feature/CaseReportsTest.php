@@ -51,6 +51,20 @@ class CaseReportsTest extends TestCase
                 ->missing('caseInfo.pregnancy_parenting_status')->missing('intake.pregnancy_parenting_status'));
     }
 
+    public function test_intake_sheet_prints_actual_addresses_contact_channels_and_consent_form(): void
+    {
+        extract($this->fixture());
+        DB::table('clients')->where('id', $client)->update(['house_no_street' => 'Purok 3', 'barangay' => 'Poblacion', 'caregiver_same_address' => true,
+            'contact_channels' => json_encode([['channel' => 'Facebook Messenger', 'handle' => 'synthetic.child']])]);
+        DB::table('relationships')->insert(['client_id' => $client, 'name' => 'Synthetic Sibling', 'relationship_type' => 'Sibling', 'same_address_as_client' => true, 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('cases')->where('id', $case)->update(['pregnancy_parenting_status' => 'not_recorded', 'consent_form_type' => 'consent_and_assent']);
+        $this->actingAs($worker)->get(route('cases.reports.show', [$case, 'intake']))->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->where('client.caregiver_address', 'Purok 3, Poblacion, Synthetic Town, Synthetic Province')
+                ->where('family.0.area', 'Poblacion, Synthetic Town, Synthetic Province')->where('family.0.street', 'Purok 3')
+                ->where('client.contact_channels.0.channel', 'Facebook Messenger')
+                ->where('intake.health_recorded', false)->where('intake.consent_form_type', 'consent_and_assent')->missing('intake.data_sharing_basis'));
+    }
+
     public function test_progress_notes_report_lists_case_team_notes_with_addenda_within_the_period(): void
     {
         extract($this->fixture());

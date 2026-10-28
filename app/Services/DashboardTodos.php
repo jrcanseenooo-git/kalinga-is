@@ -28,6 +28,9 @@ final class DashboardTodos
             }
         };
         $add('invitations', 'Invitations to answer', $this->invitations($user));
+        if ($user->hasPermission('activities.manage')) {
+            $add('moves', $user->role === 'lgu_head' ? 'Activities moved by your case managers' : 'Activities you moved', $this->moves($user));
+        }
         if ($user->hasPermission('closure.approve')) {
             $add('closures', 'Closures waiting for your approval', $this->closures($user));
         }
@@ -46,6 +49,21 @@ final class DashboardTodos
         }
 
         return $groups;
+    }
+
+    /** Rescheduled activities (accountability): the supervisor reviews them; the case manager sees them until then. */
+    private function moves(User $user): array
+    {
+        $supervisor = $user->role === 'lgu_head';
+        $date = fn ($value) => $value ? Carbon::parse($value)->timezone('Asia/Manila')->format('M j, g:i A') : 'no date';
+
+        return app(TeamActivities::class)->moves($user)->map(fn ($row) => [
+            'tone' => $supervisor ? 'action' : 'info',
+            'title' => ($supervisor ? $row->actor . ' moved: ' : 'You moved: ') . $row->title . ($row->case_number ? " ({$row->case_number})" : ''),
+            'text' => 'From ' . $date($row->from_due_at) . ' to ' . $date($row->to_due_at) . '. Reason: ' . ($row->reason ?: 'not given') . ($supervisor ? '' : ' Your supervisor sees this until it is reviewed.'),
+            'href' => route('calendar.index'), 'when' => Carbon::parse($row->created_at)->toIso8601String(),
+            'review' => $supervisor ? route('calendar.moves.review', $row->id) : null,
+        ])->all();
     }
 
     private function invitations(User $user): array

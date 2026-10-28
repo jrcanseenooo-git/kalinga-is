@@ -49,10 +49,7 @@ return [
         'defaults' => ['no_support_need_declared' => 'No disability support need declared', 'deaf_hard_of_hearing' => 'Deaf / hard of hearing', 'intellectual_disability' => 'Intellectual disability',
             'learning_disability' => 'Learning disability', 'mental_disability' => 'Mental disability', 'physical_disability' => 'Physical disability', 'psychosocial_disability' => 'Psychosocial disability',
             'speech_language_impairment' => 'Speech and language impairment', 'visual_disability' => 'Visual disability', 'cancer' => 'Cancer', 'rare_disease' => 'Rare disease']],
-    'grant_types' => ['title' => 'Grant types', 'kind' => 'coded', 'description' => 'Grants log of each case.', 'client' => null,
-        'usage' => [['case_grants', 'grant_type']],
-        'defaults' => ['educational' => 'Educational assistance', 'financial' => 'Financial assistance (AICS)', 'medical' => 'Medical assistance', 'livelihood' => 'Livelihood / seed capital',
-            'transportation' => 'Transportation assistance', 'food' => 'Food / material assistance', 'other' => 'Other']],
+    // Grant types are fixed: Transportation Support Allowance only (owner, 2026-10-28; App\Services\CaseGrants).
     'intake_risk_factors' => ['title' => 'Risk factors (intake safety triage)', 'kind' => 'coded', 'weighted' => true, 'description' => 'Intake step 4. The points add up to the suggested risk level.', 'client' => null,
         'usage' => [['cases', 'risk_indicators', 'json']],
         'defaults' => null],

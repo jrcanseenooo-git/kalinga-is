@@ -36,6 +36,8 @@ class CoordinationDirectMessageController extends Controller
             ->when(!empty($data['q']), fn ($query) => $query->whereRaw('LOWER(body) LIKE ?', ['%' . strtolower(trim($data['q'])) . '%']));
         $rows = (clone $base)->when(!empty($data['before']), fn ($query) => $query->where('id', '<', $data['before']))
             ->orderByDesc('id')->limit(40)->get()->reverse()->values();
+        // Opening the conversation marks the messages to this user as read (menu badge).
+        DB::table('coordination_direct_messages')->where('circle_id', $circle)->where('sender_id', $member)->where('recipient_id', $request->user()->id)->whereNull('read_at')->update(['read_at' => now()]);
         $users = $this->access->members($circle)->get(['users.id', 'users.name', 'users.role', 'users.cpu_discipline', 'member.membership_role'])->keyBy('id');
         $messages = $rows->map(fn ($row) => [
             'id' => $row->id, 'parent_id' => $row->parent_id, 'case_id' => null, 'case_reference' => null,

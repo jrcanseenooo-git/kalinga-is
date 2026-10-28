@@ -3,9 +3,11 @@
 namespace App\Services;
 
 use App\Support\AuditLog;
+use App\Support\PhilippineDate;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -18,31 +20,49 @@ use Illuminate\Validation\ValidationException;
  * cannot overwrite each other); "Finalize" keeps a numbered copy in
  * case_form_versions and the form stays editable for the next version.
  *
- * Sequence of Kalinga forms: Intake Sheet, Case Summary Report, Progress
- * Notes, Intervention Plan, Social Case Study Report (final report).
+ * Sequence of Kalinga forms (owner, 2026-10-28): Intake Sheet, Case Summary
+ * Report, Social Case Study Report, Intervention Plan and Referrals, Progress
+ * Notes. The Social Case Study Report starts from what the Case Summary
+ * Report says (see carryFromSummary).
  * OWNER REVIEW: section titles and guide questions.
  */
 final class CaseForms
 {
-    public const TYPES = ['summary' => 'Case Summary Report', 'plan' => 'Intervention Plan', 'study' => 'Social Case Study Report'];
+    public const TYPES = ['summary' => 'Case Summary Report', 'study' => 'Social Case Study Report', 'plan' => 'Intervention Plan and Referrals'];
 
     /** Printed order of all Kalinga forms (report type => title). */
-    public const SEQUENCE = ['intake' => 'Kalinga Intake Sheet', 'summary' => 'Kalinga Case Summary Report', 'notes' => 'Kalinga Progress Notes',
-        'plan' => 'Kalinga Intervention Plan', 'study' => 'Kalinga Social Case Study Report'];
+    public const SEQUENCE = ['intake' => 'Kalinga Intake Sheet', 'summary' => 'Kalinga Case Summary Report', 'study' => 'Kalinga Social Case Study Report',
+        'plan' => 'Kalinga Intervention Plan and Referrals', 'notes' => 'Kalinga Progress Notes'];
 
+    /**
+     * Social Case Study Report sections that start from the Case Summary
+     * Report (study section => summary section). The case manager adds to or
+     * updates them; once the case study section has its own text it is kept.
+     */
+    public const CARRY_FROM_SUMMARY = ['presented_problem' => 'presenting_problem', 'background_client' => 'case_history', 'assessment' => 'assessment', 'recommendations' => 'recommendations'];
+
+    /** Printed columns of the Intervention Plan matrix. */
     public const PLAN_COLUMNS = ['problem' => 'Problem / need', 'objective' => 'Objective', 'activities' => 'Activities', 'responsible' => 'Person/s responsible',
         'timeframe' => 'Time frame', 'expected_output' => 'Expected output'];
+
+    /**
+     * Status of a plan row (not printed). Target start / end dates are also
+     * kept per row, for the calendar and for monitoring only (owner,
+     * 2026-10-28): the printed plan shows the free-text Time frame.
+     */
+    public const PLAN_ROW_STATUSES = ['not_started' => 'Not started', 'in_progress' => 'In progress', 'done' => 'Done'];
+
+    /** The Intervention Plan is submitted (first finalized) within this many days of the intake. */
+    public const PLAN_DUE_DAYS = 7;
 
     /** type => list of [key, title, kind (text|auto), guide] */
     private const SECTIONS = [
         'summary' => [
             ['identifying', 'Identifying information', 'auto', null],
             ['incidence', 'CEFMU incidence', 'auto', null],
-            ['presenting_problem', 'Presenting problem / reason for referral', 'text', 'What happened, when and how the case reached the office. Write facts, not opinions.'],
+            ['presenting_problem', 'Presenting problem', 'text', 'What happened, when and how the case reached the office. Write facts, not opinions.'],
             ['case_history', 'Brief case history', 'text', "The child's situation before and since the marriage or union; family, schooling, health and community context."],
-            ['assessment', 'Assessment / findings', 'text', 'Your professional assessment: risks, needs, strengths and protective factors. Refer to the KaVAT result where it helps.'],
-            ['interventions', 'Interventions and services provided', 'auto', null],
-            ['interventions_remarks', 'Remarks on the interventions', 'text', 'How the child and family responded to the services and referrals.'],
+            ['assessment', 'Assessment', 'text', 'Your professional assessment: risks, needs, strengths and protective factors. Refer to the KaVAT result where it helps.'],
             ['recommendations', 'Recommendations', 'text', 'What should happen next, by whom.'],
             ['status', 'Current status', 'auto', null],
         ],
@@ -85,8 +105,31 @@ final class CaseForms
                 'versions' => ($versions->get($type) ?? collect())->values()->all(),
             ];
         }
+        $forms['study'] = self::carryFromSummary($forms['study'], $forms['summary']['content']['sections'] ?? []);
 
         return $forms;
+    }
+
+    /**
+     * The Social Case Study Report shows what the Case Summary Report says in
+     * the matching sections while the case study section is still empty, so
+     * the case manager adds to it or updates it instead of writing it again.
+     * The carried text is saved with the next change to the case study.
+     * 'carried' lists the sections that currently show Case Summary text.
+     */
+    public static function carryFromSummary(array $study, array $summary): array
+    {
+        $carried = [];
+        foreach (self::CARRY_FROM_SUMMARY as $target => $source) {
+            $text = trim((string) ($summary[$source] ?? ''));
+            if ($text !== '' && trim((string) ($study['content']['sections'][$target] ?? '')) === '') {
+                $study['content']['sections'][$target] = $text;
+                $carried[] = $target;
+            }
+        }
+        $study['carried'] = $carried;
+
+        return $study;
     }
 
     public static function empty(string $type): array
@@ -122,6 +165,20 @@ final class CaseForms
                         $fail('Each plan cell can have up to 3,000 characters.');
                     }
                     $clean[$column] = $value;
+                }
+                $id = (string) ($row['id'] ?? '');
+                $clean['id'] = preg_match('/^[A-Za-z0-9-]{1,40}$/', $id) ? $id : (string) Str::uuid();
+                $status = (string) ($row['status'] ?? 'not_started');
+                $clean['status'] = isset(self::PLAN_ROW_STATUSES[$status]) ? $status : 'not_started';
+                foreach (['target_start', 'target_end'] as $key) {
+                    $date = (string) ($row[$key] ?? '');
+                    if ($date !== '' && (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) || !strtotime($date))) {
+                        $fail('Target dates must be valid dates.');
+                    }
+                    $clean[$key] = $date;
+                }
+                if ($clean['target_start'] !== '' && $clean['target_end'] !== '' && $clean['target_end'] < $clean['target_start']) {
+                    $fail('The target end date cannot be before the start date.');
                 }
 
                 return $clean;
@@ -189,10 +246,33 @@ final class CaseForms
         });
     }
 
+    /**
+     * The 7-day deadline of the Intervention Plan: due date (from the intake),
+     * when the first version was finalized (submitted) and how long it took.
+     *
+     * @return array{due: string, submitted_at: ?string, days_to_submit: ?int, days_left: ?int, overdue: bool}
+     */
+    public static function planDeadline(object $case): array
+    {
+        $intake = Carbon::parse($case->intake_completed_at ?? $case->opened_at ?? $case->created_at ?? now())->timezone('Asia/Manila')->startOfDay();
+        $due = $intake->copy()->addDays(self::PLAN_DUE_DAYS);
+        $submitted = DB::table('case_form_versions')->where('case_id', $case->id)->where('form_type', 'plan')->orderBy('version')->value('created_at');
+        $today = Carbon::parse(PhilippineDate::today(), 'Asia/Manila');
+        $submittedDay = $submitted ? Carbon::parse($submitted)->timezone('Asia/Manila')->startOfDay() : null;
+
+        return [
+            'due' => $due->toDateString(),
+            'submitted_at' => $submitted ? Carbon::parse($submitted)->toIso8601String() : null,
+            'days_to_submit' => $submittedDay ? (int) $intake->diffInDays($submittedDay) : null,
+            'days_left' => $submittedDay ? null : (int) $today->diffInDays($due, false),
+            'overdue' => !$submittedDay && $today->gt($due),
+        ];
+    }
+
     public static function hasContent(string $type, array $content): bool
     {
         if ($type === 'plan') {
-            return collect($content['rows'] ?? [])->contains(fn ($row) => trim(implode('', (array) $row)) !== '');
+            return collect($content['rows'] ?? [])->contains(fn ($row) => trim(implode('', array_intersect_key((array) $row, self::PLAN_COLUMNS))) !== '');
         }
 
         return collect($content['sections'] ?? [])->contains(fn ($text) => trim((string) $text) !== '');

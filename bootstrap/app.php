@@ -6,6 +6,7 @@ use App\Http\Middleware\EnsureTwoFactorVerified;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\HandleTrustedCors;
 use App\Http\Middleware\SecurityHeaders;
+use App\Http\Middleware\SyncCaseStatus;
 use App\Support\AuditExceptions;
 use App\Support\DatabaseFailurePrivacy;
 use Illuminate\Foundation\Application;
@@ -36,6 +37,7 @@ return Application::configure(basePath: dirname(__DIR__))
             HandleTrustedCors::class,
             SecurityHeaders::class,
             EnsureTwoFactorVerified::class,
+            SyncCaseStatus::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
