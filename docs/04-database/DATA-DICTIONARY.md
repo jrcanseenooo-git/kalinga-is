@@ -1,12 +1,12 @@
 # Data dictionary - Kalinga CEFMU Case Management Information System
 
-Generated from the PostgreSQL schema by scripts/generate_data_dictionary.py. 108 tables. PK = primary key; FK = references another table.
+Generated from the PostgreSQL schema by scripts/generate_data_dictionary.py. 109 tables. PK = primary key; FK = references another table.
 
 ## Clients and identity
 
 ### clients
 
-The child (client) of a case: identifying information, address, safe contact and primary caregiver.
+The child (client) of a case: identifying information, address, child contact details (mobile number and other channels in contact_channels) and primary caregiver.
 
 | Column | Type | Null | Key | Description |
 |---|---|---|---|---|
@@ -52,6 +52,7 @@ The child (client) of a case: identifying information, address, safe contact and
 | caregiver_province | varchar(120) | Yes |  | Caregiver province. |
 | caregiver_municipality | varchar(120) | Yes |  | Caregiver municipality. |
 | caregiver_barangay | varchar(120) | Yes |  | Caregiver barangay. |
+| contact_channels | text | Yes |  | Contact channels. |
 
 ### client_identifiers
 
@@ -438,7 +439,7 @@ Rules for allowed case status changes.
 
 ### case_notes
 
-Progress notes and their addenda (corrections), with purpose, action taken and next steps.
+Progress notes and their addenda (corrections), with record type (Other is specified in note_type_other), action taken and next steps. Referrals are kept here too.
 
 | Column | Type | Null | Key | Description |
 |---|---|---|---|---|
@@ -463,6 +464,7 @@ Progress notes and their addenda (corrections), with purpose, action taken and n
 | is_current | boolean | No |  | Whether this is the current version. |
 | action_taken | text | Yes |  | Action taken. |
 | next_steps | text | Yes |  | Next steps. |
+| note_type_other | varchar(120) | Yes |  | Note type other. |
 
 ### monitoring_visits
 
@@ -520,7 +522,7 @@ People invited to a calendar activity, with their reply (pending, going, not goi
 
 ### task_history
 
-Change history of a calendar activity: rescheduling and cancellation with the reason given.
+Change history of a calendar activity: rescheduling and cancellation with the reason given. A move is reviewed by the supervisor (reviewed_at, reviewed_by).
 
 | Column | Type | Null | Key | Description |
 |---|---|---|---|---|
@@ -532,6 +534,8 @@ Change history of a calendar activity: rescheduling and cancellation with the re
 | to_due_at | timestamp | Yes |  | Date and time: to due. |
 | reason | varchar(500) | Yes |  | Reason given. |
 | created_at | timestamp | No |  | When the record was created. |
+| reviewed_at | timestamp | Yes |  | Date and time: reviewed. |
+| reviewed_by | bigint | Yes | FK users | User who reviewed the record. |
 
 ### consents
 
@@ -591,7 +595,7 @@ Remarks from the LGU Head, Field Office or Project Manager on a case, the case m
 
 ### case_grants
 
-Grants log per case: type, amount, date released, fund source and receiver. Wrong entries are voided with a reason, never deleted.
+Grants log per case: Transportation Support Allowance only (older entries keep their type), amount, date released, purpose of the travel and receiver. The fund source is no longer asked. Wrong entries are voided with a reason, never deleted.
 
 | Column | Type | Null | Key | Description |
 |---|---|---|---|---|
@@ -633,7 +637,7 @@ Result of the baseline KaVAT done before intake in the project's screening tool 
 
 ### kavat_assessments
 
-Kalinga Vulnerability Assessment Tool administrations: answers (draft or final), scores, priority and red flags.
+Kalinga Vulnerability Assessment Tool administrations in Kalinga: one Midline and one Endline per case; answers (draft or final), scores, priority and red flags. A correction keeps the previous answers until it is finalized with a reason.
 
 | Column | Type | Null | Key | Description |
 |---|---|---|---|---|
@@ -658,6 +662,11 @@ Kalinga Vulnerability Assessment Tool administrations: answers (draft or final),
 | finalized_at | timestamp | Yes |  | When the record was finalized (locked). |
 | created_at | timestamp | Yes |  | When the record was created. |
 | updated_at | timestamp | Yes |  | When the record was last changed. |
+| previous_answers | json | Yes |  | Previous answers. |
+| previous_final_score | numeric | Yes |  | Previous final score. |
+| correction_reason | text | Yes |  | Correction reason. |
+| corrected_at | timestamp | Yes |  | Date and time: corrected. |
+| corrected_by | bigint | Yes | FK users | User who corrected the record. |
 
 ### case_forms
 
@@ -1064,7 +1073,7 @@ Directory of agencies and offices that receive referrals.
 
 ### referrals
 
-Referrals to CPU members and agencies, with status, outcome and dates.
+Referrals to CPU members and agencies, with status, outcome and dates; plan_row_key links a referral conducted from an Intervention Plan row.
 
 | Column | Type | Null | Key | Description |
 |---|---|---|---|---|
@@ -1092,6 +1101,7 @@ Referrals to CPU members and agencies, with status, outcome and dates.
 | recipient_user_id | bigint | Yes | FK users | Link to the user record (users). |
 | mdt_case_access_id | bigint | Yes | FK mdt_case_access | Link to the mdt case acce record (mdt_case_access). |
 | target_date | date | Yes |  | Target completion date. |
+| plan_row_key | varchar(40) | Yes |  | Plan row key. |
 
 ### referral_events
 
@@ -1244,7 +1254,7 @@ Closure summaries and their review (versioned).
 
 ### case_aftercare_plans
 
-Aftercare plans after closure.
+Aftercare plan written at closure: where and with whom the child will live, support people, services that continue, risks to watch, visit frequency, first visit and end date (older continuity records keep their earlier fields).
 
 | Column | Type | Null | Key | Description |
 |---|---|---|---|---|
@@ -1259,6 +1269,29 @@ Aftercare plans after closure.
 | status | varchar(30) | No |  | Current status of the record. |
 | continuity_notes | text | Yes |  | Continuity notes. |
 | created_by | bigint | No | FK users | User who created the record. |
+| created_at | timestamp | Yes |  | When the record was created. |
+| updated_at | timestamp | Yes |  | When the record was last changed. |
+| living_arrangement | varchar(255) | Yes |  | Living arrangement. |
+| support_people | text | Yes |  | Support people. |
+| services_to_continue | text | Yes |  | Services to continue. |
+| risks_to_watch | text | Yes |  | Risks to watch. |
+| follow_up_frequency | varchar(20) | Yes |  | Follow up frequency. |
+| follow_up_until | date | Yes |  | Follow up until. |
+| updated_by | bigint | Yes | FK users | User who updated the record. |
+
+### aftercare_visits
+
+Follow-up visits after closure: date, the child's status (stable, needs support, at risk) and notes. At risk suggests reopening the case.
+
+| Column | Type | Null | Key | Description |
+|---|---|---|---|---|
+| id | bigint | No | PK | Unique record number. |
+| case_id | bigint | No | FK cases | Link to the case record (cases). |
+| aftercare_plan_id | bigint | Yes | FK case_aftercare_plans | Link to the case aftercare plan record (case_aftercare_plans). |
+| visited_on | date | No |  | Visited on. |
+| status | varchar(20) | No |  | Current status of the record. |
+| notes | text | No |  | Notes. |
+| recorded_by | bigint | No | FK users | User who recorded the record. |
 | created_at | timestamp | Yes |  | When the record was created. |
 | updated_at | timestamp | Yes |  | When the record was last changed. |
 
@@ -1536,6 +1569,7 @@ Participant-only online coordination messages between two currently eligible mem
 | follow_up | boolean | No |  | Yes/no: follow up. |
 | created_at | timestamp | Yes |  | When the record was created. |
 | updated_at | timestamp | Yes |  | When the record was last changed. |
+| read_at | timestamp | Yes |  | Date and time: read. |
 
 ### connect_threads
 
