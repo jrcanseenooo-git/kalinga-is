@@ -10,6 +10,7 @@ use App\Services\NoteReferrals;
 use App\Services\OperationalNotification;
 use App\Services\ReferenceNumberService;
 use App\Services\ReferralTracking;
+use App\Services\TeamActivities;
 use App\Services\WorkerTasks;
 use App\Support\AuditLog;
 use Carbon\Carbon;
@@ -111,7 +112,7 @@ class OperationsController extends Controller
         });
 
         return Inertia::render('Calendar/Index', [
-            'tasks' => $events->values()->merge($this->invitedActivities($user))->values(),
+            'tasks' => $this->withTeam($user, $events->values()->merge($this->invitedActivities($user))->values()),
             'caseEvents' => $this->caseCalendarEvents($user),
             'availableCases' => $service->cases($user)->whereNotIn('cases.status', ['CLOSED', 'ARCHIVED'])->orderByDesc('cases.updated_at')->limit(300)->get(['cases.id', 'cases.case_number']),
             'summary' => ['open' => (clone $open)->count(), 'overdue' => (clone $open)->where('tasks.due_at', '<', $now)->count(),
@@ -143,6 +144,27 @@ class OperationsController extends Controller
                 'case_number' => $visible ? $row->case_number : ($row->case_id ? 'Case-linked activity' : null),
                 'shared' => true, 'organizer' => $row->organizer, 'my_response' => $row->response, 'participants' => [], 'history' => []];
         });
+    }
+
+    /** The supervisor also sees the case managers' activities (read only), once each. */
+    private function withTeam($user, Collection $tasks): Collection
+    {
+        $teams = app(TeamActivities::class);
+        if (!$teams->isSupervisor($user)) {
+            return $tasks;
+        }
+        $known = $tasks->pluck('id')->all();
+
+        return $tasks->merge($teams->calendar($user)->reject(fn ($row) => in_array($row->id, $known, true)))->values();
+    }
+
+    /** The supervisor marks a rescheduled activity of a case manager as reviewed. */
+    public function reviewMove(Request $request, int $history)
+    {
+        $this->authorize('activities.manage');
+        abort_unless(app(TeamActivities::class)->review($request->user(), $history), 404);
+
+        return back()->with('success', 'Marked as reviewed.');
     }
 
     /** Users the organizer can invite (name search), for the activity form. */
@@ -267,6 +289,28 @@ class OperationsController extends Controller
                 continue;
             }
             $events[] = ['key' => 'ref-' . $row->id, 'type' => 'referral_follow_up', 'title' => ($accepted ? 'Service completion due: ' : 'Referral response due: ') . $row->service_category, 'at' => $due->toIso8601String(), 'case_id' => $row->case_id, 'case_number' => $row->case_number, 'source' => 'Referral tracking'];
+        }
+        // Intervention Plan target dates (kept for the calendar; not printed). Only the item
+        // number shows, never the plan text.
+        foreach (DB::table('case_forms')->join('cases', 'cases.id', '=', 'case_forms.case_id')->whereIn('case_forms.case_id', $caseIds)->where('case_forms.form_type', 'plan')
+            ->get(['case_forms.case_id', 'case_forms.content', 'cases.case_number']) as $form) {
+            foreach (array_values((array) ((json_decode((string) $form->content, true) ?: [])['rows'] ?? [])) as $index => $row) {
+                if (($row['status'] ?? '') === 'done') {
+                    continue;
+                }
+                foreach (['target_start' => 'starts', 'target_end' => 'target end'] as $key => $label) {
+                    $date = (string) ($row[$key] ?? '');
+                    if ($date === '' || !strtotime($date)) {
+                        continue;
+                    }
+                    $at = Carbon::parse($date . ' 08:00', 'Asia/Manila');
+                    if ($at->lt($from) || $at->gt($to)) {
+                        continue;
+                    }
+                    $events[] = ['key' => "planrow-{$form->case_id}-{$index}-{$key}", 'type' => 'deadline', 'title' => 'Intervention Plan item ' . ($index + 1) . ' ' . $label,
+                        'at' => $at->toIso8601String(), 'case_id' => $form->case_id, 'case_number' => $form->case_number, 'source' => 'Intervention Plan'];
+                }
+            }
         }
         usort($events, fn ($a, $b) => strcmp($a['at'], $b['at']));
 

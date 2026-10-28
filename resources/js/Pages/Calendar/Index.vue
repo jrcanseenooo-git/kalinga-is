@@ -12,9 +12,9 @@ import { formatPh, manilaDayKey, parseStored, storedUtcToManilaInput } from '@/u
 
 type Person = { id: number; name: string; role?: string; response?: string };
 type HistoryItem = { event: string; from_due_at: string | null; to_due_at: string | null; reason: string | null; created_at: string; actor: string };
-/** shared = invited by someone else (read only; answer the invitation). */
+/** shared = invited by someone else (read only; answer the invitation). team = a case manager's activity shown to the supervisor (read only). */
 type Task = { id: number; title: string; event_type: string | null; due_at: string | null; location: string | null; details: string | null; status: string; case_id: number | null; case_number?: string | null;
-  shared?: boolean; organizer?: string; my_response?: string; participants?: Person[]; history?: HistoryItem[] };
+  shared?: boolean; team?: boolean; organizer?: string; my_response?: string; participants?: Person[]; history?: HistoryItem[] };
 type CaseEvent = { key: string; type: string; title: string; at: string; case_id: number; case_number: string; source: string };
 type Entry = { key: string; title: string; type: string; at: string; caseId: number | null; caseNumber: string | null; location: string | null; details: string | null; status: string; source: string | null; task: Task | null };
 
@@ -30,8 +30,11 @@ const view = ref<'month' | 'agenda'>('month');
 const selectedKey = ref(todayKey);
 const legendOpen = ref(false);
 
+/** Supervisor: show or hide the case managers' activities. */
+const hasTeam = computed(() => props.tasks.some(task => task.team));
+const showTeam = ref(true);
 const entries = computed<Entry[]>(() => [
-  ...props.tasks.filter(task => task.due_at).map(task => ({ key: `t${task.id}`, title: task.title, type: task.event_type || 'other', at: task.due_at as string, caseId: task.case_id, caseNumber: task.case_number ?? null, location: task.location, details: task.details, status: task.status, source: null, task })),
+  ...props.tasks.filter(task => task.due_at && (showTeam.value || !task.team)).map(task => ({ key: `t${task.id}`, title: task.title, type: task.event_type || 'other', at: task.due_at as string, caseId: task.case_id, caseNumber: task.case_number ?? null, location: task.location, details: task.details, status: task.status, source: null, task })),
   ...props.caseEvents.map(event => ({ key: event.key, title: event.title, type: event.type, at: event.at, caseId: event.case_id, caseNumber: event.case_number, location: null, details: null, status: 'open', source: event.source, task: null })),
 ].sort((a, b) => atMs(a.at) - atMs(b.at)));
 const byDay = computed(() => {
@@ -70,7 +73,7 @@ const agenda = computed(() => {
   return [...byDay.value.entries()].filter(([key]) => key.startsWith(prefix) && (!isCurrent || key >= todayKey)).sort(([a], [b]) => a.localeCompare(b));
 });
 const upcoming = computed(() => entries.value.filter(entry => !done(entry) && atMs(entry.at) >= Date.now()).slice(0, 5));
-const overdue = computed(() => entries.value.filter(isOverdue));
+const overdue = computed(() => entries.value.filter(entry => isOverdue(entry) && !entry.task?.team));
 
 // Add / edit
 const formOpen = ref(false);
@@ -147,6 +150,9 @@ const toneClass = (type: string) => `tone-${eventTone(type)}`;
         <h1 class="text-xl font-bold tracking-tight text-[var(--color-ink)] sm:text-2xl">Calendar</h1>
         <button type="button" class="ui-button-primary min-h-11" @click="openAdd(selectedKey)"><CalendarPlus class="h-4 w-4" aria-hidden="true"/>Add activity</button>
       </header>
+      <label v-if="hasTeam" class="flex min-h-11 w-fit cursor-pointer items-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-3 text-sm font-medium text-sky-950">
+        <input v-model="showTeam" type="checkbox" class="h-5 w-5 rounded border-sky-400 text-brand-700">Show my case managers' activities
+      </label>
 
       <button v-if="overdue.length" type="button" class="flex w-full items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-left text-sm font-medium text-rose-800" @click="overdue[0] && (detail = overdue[0])">
         <AlertTriangle class="h-4 w-4 shrink-0" aria-hidden="true"/><span class="min-w-0 flex-1">{{ overdue.length }} {{ overdue.length === 1 ? 'activity is' : 'activities are' }} past due. Mark done or reschedule.</span><span class="shrink-0 text-xs font-semibold underline">Review</span>
@@ -233,6 +239,7 @@ const toneClass = (type: string) => `tone-${eventTone(type)}`;
           <div v-if="detail.caseNumber" class="flex gap-2"><dt class="sr-only">Case</dt><FolderOpen class="mt-0.5 h-4 w-4 text-slate-500" aria-hidden="true"/><dd><Link v-if="detail.caseId" :href="route('cases.show', detail.caseId)" class="font-semibold text-brand-700 hover:underline">{{ detail.caseNumber }}</Link></dd></div>
         </dl>
         <p v-if="detail.details" class="mt-4 whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-sm text-slate-700">{{ detail.details }}</p>
+        <p v-if="detail.task?.team" class="mt-4 flex items-center gap-2 rounded-lg bg-sky-50 p-3 text-sm text-sky-950"><Users class="h-4 w-4 shrink-0" aria-hidden="true"/>Activity of {{ detail.task.organizer }} (case manager). You see it as the supervisor; only they can change it.</p>
         <p v-if="detail.task?.shared" class="mt-4 flex items-center gap-2 rounded-lg bg-brand-50 p-3 text-sm text-brand-900"><Users class="h-4 w-4 shrink-0" aria-hidden="true"/>Invited by {{ detail.task.organizer }}. Your answer: <b>{{ responseLabel[detail.task.my_response ?? 'pending'] }}</b></p>
         <div v-if="detail.task?.participants?.length" class="mt-4"><h3 class="text-xs font-semibold uppercase tracking-wide text-slate-600">Invited</h3><ul class="mt-1 flex flex-wrap gap-1.5"><li v-for="person in detail.task.participants" :key="person.id" class="rounded-full border border-slate-200 px-2.5 py-1 text-xs">{{ person.name }} <span class="text-slate-600">- {{ responseLabel[person.response ?? 'pending'] ?? person.response }}</span></li></ul></div>
         <details v-if="detail.task?.history?.length" class="mt-4 text-sm"><summary class="flex min-h-9 cursor-pointer items-center gap-1.5 text-xs font-semibold text-slate-700"><History class="h-4 w-4" aria-hidden="true"/>History ({{ detail.task.history.length }})</summary>
@@ -247,7 +254,7 @@ const toneClass = (type: string) => `tone-${eventTone(type)}`;
             <button type="button" class="ui-button" :disabled="detail.task.my_response === 'declined'" @click="respond(detail.task, 'declined')"><X class="h-4 w-4" aria-hidden="true"/>Not going</button>
             <button type="button" class="ui-button-primary" :disabled="detail.task.my_response === 'accepted'" @click="respond(detail.task, 'accepted')"><Check class="h-4 w-4" aria-hidden="true"/>Going</button>
           </template>
-          <template v-else-if="detail.task && detail.status === 'open' && !cancelling">
+          <template v-else-if="detail.task && !detail.task.team && detail.status === 'open' && !cancelling">
             <button type="button" class="ui-button text-rose-700" @click="cancelling = true"><XCircle class="h-4 w-4" aria-hidden="true"/>Cancel activity</button>
             <button type="button" class="ui-button" @click="openEdit(detail.task)">Edit</button>
             <button type="button" class="ui-button-primary" @click="transition(detail.task, 'completed')"><CheckCircle2 class="h-4 w-4" aria-hidden="true"/>Mark done</button>

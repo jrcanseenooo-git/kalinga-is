@@ -70,6 +70,7 @@ Route::middleware('auth')->group(function () {
     Route::patch('/referrals/{referral}/status', [OperationsController::class, 'transitionReferral'])->middleware('throttle:sensitive-write')->name('referrals.transition');
     Route::get('/tasks', [OperationsController::class, 'tasks'])->name('tasks.index');
     Route::get('/calendar', [OperationsController::class, 'calendar'])->name('calendar.index');
+    Route::post('/calendar/moves/{history}/review', [OperationsController::class, 'reviewMove'])->whereNumber('history')->name('calendar.moves.review');
     Route::post('/tasks', [OperationsController::class, 'storeTask'])->middleware('throttle:sensitive-write')->name('tasks.store');
     Route::patch('/tasks/{task}', [OperationsController::class, 'updateTask'])->middleware('throttle:sensitive-write')->name('tasks.update');
     Route::get('/calendar/invitees', [OperationsController::class, 'inviteCandidates'])->name('calendar.invitees');

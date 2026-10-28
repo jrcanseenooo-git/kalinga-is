@@ -5,7 +5,7 @@
  */
 import { formatPh, manilaHour } from '@/utils/philippineTime';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head, Link, usePage } from '@inertiajs/vue3';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 import CaseActionQueue from '@/Components/CaseActionQueue.vue';
 import KalingaSuggests from '@/Components/Dashboard/KalingaSuggests.vue';
@@ -15,7 +15,8 @@ import { BarChart3, CalendarDays, CheckCircle2, ChevronRight, CircleAlert, Info,
 import type { CaseActionRow } from '@/types/casework';
 import type { PageProps } from '@/types';
 
-type Todo = { tone: 'urgent' | 'action' | 'info'; title: string; text: string; href: string; when?: string | null };
+/** review: a supervisor marks a rescheduled activity reviewed (POST url). */
+type Todo = { tone: 'urgent' | 'action' | 'info'; title: string; text: string; href: string; when?: string | null; review?: string | null };
 const props = defineProps<{
   asOf: string;
   todos: Array<{ key: string; title: string; items: Todo[] }>;
@@ -36,6 +37,8 @@ const visibleUpcoming = computed(() => showAllUpcoming.value ? (props.upcomingAc
 const toneIcon = { urgent: CircleAlert, action: ListTodo, info: Info };
 const toneClass = { urgent: 'border-rose-200 bg-rose-50 text-rose-900', action: 'border-brand-100 bg-white text-slate-900', info: 'border-sky-100 bg-sky-50/60 text-slate-900' };
 const todoCount = computed(() => props.todos.reduce((sum, group) => sum + group.items.length, 0) + (props.suggestions?.length ?? 0) + (props.actionQueue?.length ?? 0));
+const reviewing = ref<string | null>(null);
+const markReviewed = (url: string) => { reviewing.value = url; router.post(url, {}, { preserveScroll: true, onFinish: () => { reviewing.value = null; } }); };
 const isExternal = (href: string) => /^https?:/.test(href) && !href.startsWith(window.location.origin);
 </script>
 
@@ -62,12 +65,13 @@ const isExternal = (href: string) => /^https?:/.test(href) && !href.startsWith(w
           <section v-for="group in todos" :key="group.key" class="ui-panel overflow-hidden p-0" :aria-labelledby="`todo-${group.key}`">
             <header class="flex items-center justify-between gap-2 border-b border-[var(--color-line)] px-4 py-3"><h2 :id="`todo-${group.key}`" class="ui-section-title">{{ group.title }}</h2><span class="rounded-full bg-brand-50 px-2 py-0.5 text-xs font-semibold text-brand-800">{{ group.items.length }}</span></header>
             <ul class="space-y-2 p-3">
-              <li v-for="(item, index) in group.items" :key="index">
-                <component :is="isExternal(item.href) ? 'a' : Link" :href="item.href" class="flex min-h-14 items-start gap-3 rounded-xl border p-3 transition hover:shadow-md" :class="toneClass[item.tone]">
+              <li v-for="(item, index) in group.items" :key="index" class="flex flex-col gap-2 sm:flex-row sm:items-stretch">
+                <component :is="isExternal(item.href) ? 'a' : Link" :href="item.href" class="flex min-h-14 min-w-0 flex-1 items-start gap-3 rounded-xl border p-3 transition hover:shadow-md" :class="toneClass[item.tone]">
                   <component :is="toneIcon[item.tone]" class="mt-0.5 h-5 w-5 shrink-0" :class="item.tone === 'urgent' ? 'text-rose-700' : 'text-brand-700'" aria-hidden="true" />
                   <span class="min-w-0 flex-1"><span class="block text-sm font-semibold">{{ item.title }}</span><span class="block text-xs text-slate-700">{{ item.text }}</span><span v-if="item.when" class="mt-0.5 block text-[11px] text-slate-600">{{ formatPh(item.when, 'dateTimeShort') }}</span></span>
                   <ChevronRight class="mt-0.5 h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
                 </component>
+                <button v-if="item.review" type="button" class="ui-button min-h-11 shrink-0 justify-center" :disabled="reviewing === item.review" @click="markReviewed(item.review)"><CheckCircle2 class="h-4 w-4" aria-hidden="true" />Mark reviewed</button>
               </li>
             </ul>
           </section>

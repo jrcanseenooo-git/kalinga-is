@@ -155,6 +155,7 @@ final class AuditCatalogue
         'feedback.answered' => ['data_modification', 'UPDATE', 'Feedback answered'],
         'analytics.pdf_exported' => ['report_generation', 'EXPORT', 'Analytics exported to PDF'],
         'task.rescheduled' => ['workflow_status', 'UPDATE', 'Activity rescheduled'],
+        'task.move_reviewed' => ['workflow_status', 'UPDATE', 'Rescheduled activity reviewed by the supervisor'],
         'task.cancelled' => ['workflow_status', 'UPDATE', 'Activity cancelled'],
         'task.accepted' => ['workflow_status', 'UPDATE', 'Calendar invitation accepted'],
         'task.declined' => ['workflow_status', 'UPDATE', 'Calendar invitation declined'],

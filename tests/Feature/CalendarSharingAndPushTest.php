@@ -136,6 +136,60 @@ class CalendarSharingAndPushTest extends TestCase
         $this->assertDatabaseMissing('notifications', ['user_id' => $this->worker->id, 'type' => 'calendar.cancelled']);
     }
 
+    public function test_invite_search_finds_cpu_members_supervisors_and_focals_by_name_in_any_case_or_by_role(): void
+    {
+        $cpuAccount = $this->user('cpu_member', 'Maria CPU Listed');
+        DB::table('lgu_cpu_members')->insert(['lgu_id' => $this->lgu, 'name' => 'Maria CPU Listed', 'cpu_role' => 'Health representative', 'user_id' => $cpuAccount->id, 'active' => true, 'created_at' => now(), 'updated_at' => now()]);
+        $head = $this->user('lgu_head', 'Rosa Supervisor', $this->lgu);
+        $fo = $this->user('fo_user', 'Pedro Region Focal', null, ['region' => 'CAR']);
+        $pm = $this->user('project_manager', 'Juan Project Manager', null, ['region_scope' => ['CAR']]);
+        $otherPm = $this->user('project_manager', 'Ana Other Region PM', null, ['region_scope' => ['Region VIII']]);
+        $search = fn (string $q) => collect($this->actingAs($this->worker)->getJson(route('calendar.invitees', ['q' => $q]))->assertOk()->json('users'))->pluck('name')->all();
+
+        $this->assertContains('Maria CPU Listed', $search('maria'), 'Lower-case search and the LGU CPU member list.');
+        $this->assertContains('Rosa Supervisor', $search('ROSA'));
+        $this->assertContains('Rosa Supervisor', $search('supervisor'), 'Found by role.');
+        $this->assertContains('Pedro Region Focal', $search('focal'));
+        $this->assertContains('Juan Project Manager', $search('project manager'));
+        $this->assertNotContains('Ana Other Region PM', $search('project manager'));
+        $this->assertNotContains('Rosa Supervisor', $search('ma'), 'Two letters search names only.');
+        $this->post(route('tasks.store'), ['title' => 'Synthetic meeting', 'due_at' => now()->addDay()->format('Y-m-d\TH:i'), 'participants' => [$cpuAccount->id, $head->id, $fo->id, $pm->id]])->assertSessionHasNoErrors();
+    }
+
+    public function test_supervisor_sees_case_manager_activities_and_reviews_each_move(): void
+    {
+        $head = $this->user('lgu_head', 'Synthetic Supervisor', $this->lgu);
+        $outsider = $this->user('social_worker', 'Synthetic Far Worker', $this->otherLgu);
+        $task = $this->activity();
+        $this->actingAs($head)->get(route('calendar.index'))->assertInertia(fn ($page) => $page->where('tasks', fn ($tasks) => collect($tasks)->contains(fn ($row) => $row['id'] === $task && $row['team'] === true && $row['details'] === null && $row['organizer'] === 'Synthetic Organizer')));
+
+        $this->actingAs($this->worker)->patch(route('tasks.update', $task), ['title' => 'Synthetic family meeting', 'due_at' => now()->addDays(6)->format('Y-m-d\TH:i'), 'reason' => 'I was not able to go that day.'])->assertSessionHasNoErrors();
+        $move = (int) DB::table('task_history')->where('task_id', $task)->where('event', 'rescheduled')->value('id');
+        $this->get(route('dashboard'))->assertInertia(fn ($page) => $page->where('todos', fn ($groups) => collect($groups)->firstWhere('key', 'moves')['items'][0]['review'] === null));
+        $this->actingAs($head)->get(route('dashboard'))->assertInertia(fn ($page) => $page->where('todos', fn ($groups) => str_contains(collect($groups)->firstWhere('key', 'moves')['items'][0]['text'], 'I was not able to go that day.')));
+
+        $this->actingAs($outsider)->post(route('calendar.moves.review', $move))->assertNotFound();
+        $this->actingAs($this->worker)->post(route('calendar.moves.review', $move))->assertNotFound();
+        $this->actingAs($head)->post(route('calendar.moves.review', $move))->assertRedirect();
+        $this->assertDatabaseHas('task_history', ['id' => $move, 'reviewed_by' => $head->id]);
+        $this->assertDatabaseHas('audit_logs', ['event' => 'task.move_reviewed']);
+        $this->get(route('dashboard'))->assertInertia(fn ($page) => $page->where('todos', fn ($groups) => collect($groups)->firstWhere('key', 'moves') === null));
+    }
+
+    public function test_intervention_plan_target_dates_appear_on_the_calendar_without_the_plan_text(): void
+    {
+        $client = DB::table('clients')->insertGetId(['first_name' => 'A', 'last_name' => 'B', 'created_at' => now(), 'updated_at' => now()]);
+        $case = DB::table('cases')->insertGetId(['case_number' => 'CAL-PLAN-1', 'client_id' => $client, 'lgu_id' => $this->lgu, 'assigned_to' => $this->worker->id, 'status' => 'IN_PROGRESS', 'priority' => 'normal', 'opened_at' => now(), 'offline_version' => 1, 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('case_forms')->insert(['case_id' => $case, 'form_type' => 'plan', 'status' => 'draft', 'revision' => 1, 'created_at' => now(), 'updated_at' => now(),
+            'content' => json_encode(['rows' => [['id' => 'a', 'problem' => 'Secret need', 'status' => 'in_progress', 'target_start' => now()->addDays(2)->toDateString(), 'target_end' => now()->addDays(20)->toDateString()],
+                ['id' => 'b', 'problem' => 'Done need', 'status' => 'done', 'target_start' => now()->addDays(3)->toDateString(), 'target_end' => '']]])]);
+        $this->actingAs($this->worker)->get(route('calendar.index'))->assertInertia(fn ($page) => $page->where('caseEvents', function ($events) {
+            $plan = collect($events)->where('source', 'Intervention Plan');
+
+            return $plan->count() === 2 && $plan->pluck('title')->all() === ['Intervention Plan item 1 starts', 'Intervention Plan item 1 target end'] && !str_contains(json_encode($events), 'Secret need');
+        }));
+    }
+
     public function test_phone_notifications_send_a_contentless_signed_push_and_drop_expired_subscriptions(): void
     {
         $this->actingAs($this->worker)->postJson(route('push.subscribe'), ['endpoint' => 'https://push.example.test/abc'])->assertNotFound();
