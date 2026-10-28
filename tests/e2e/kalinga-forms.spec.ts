@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
-import { expectNoHorizontalOverflow, login } from './helpers';
+import { acceptConfirm, expectNoHorizontalOverflow, login } from './helpers';
 
 /** Phase 4: KaVAT, the Kalinga forms and the grants log in the case workspace. */
 async function openCase(page: Page, number = 'DEMO-KLG-2026-0002') {
@@ -31,9 +31,25 @@ test('case manager answers the KaVAT with a live score and finalizes it', async 
     await expectNoHorizontalOverflow(page);
     const scan = await new AxeBuilder({ page }).include('#case-panel-kavat').analyze();
     expect(scan.violations.filter(item => ['critical', 'serious'].includes(item.impact ?? ''))).toEqual([]);
+    // No scoring hints next to the statements or the options.
+    await expect(panel.locator('#kavat-item-p1-4')).not.toContainText('reversed');
+    await expect(panel.locator('#kavat-item-p2-safety')).not.toContainText('pts');
     await score.getByRole('button', { name: 'Finalize' }).click();
-    await expect(panel.getByRole('heading', { name: 'KaVAT history' })).toBeVisible();
-    await expect(panel.getByRole('table')).toContainText('26.92');
+    await expect(panel.getByRole('heading', { name: 'KaVAT results' })).toBeVisible();
+    const midline = panel.locator('[data-kavat-slot="midline"]');
+    await expect(midline).toContainText('26.92');
+    await expect(panel.locator('[data-kavat-slot="endline"]')).toContainText('Not yet done');
+    await expectNoHorizontalOverflow(page);
+
+    // Correct the Midline: the result is kept until the correction is finalized with a reason.
+    await midline.getByRole('button', { name: 'Correct the Midline KaVAT' }).click();
+    await acceptConfirm(page);
+    await expect(panel.getByText(/Correcting the Midline KaVAT/)).toBeVisible();
+    await score.getByRole('button', { name: 'Finalize the correction' }).click();
+    await expect(score).toContainText('at least 5 characters');
+    await score.getByLabel(/Reason for the correction/).fill('Checked the answers with the child again.');
+    await score.getByRole('button', { name: 'Finalize the correction' }).click();
+    await expect(midline).toContainText('Checked the answers with the child again.');
 });
 
 test('baseline KaVAT result from the screening tool is recorded with a live score check', async ({ page }) => {

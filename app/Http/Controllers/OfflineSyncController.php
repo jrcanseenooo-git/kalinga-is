@@ -165,8 +165,10 @@ class OfflineSyncController extends Controller
         $id = $kavat['kavat_id'] ?? null;
         if (!$id) {
             // Started in field mode: becomes the case's draft unless one was started elsewhere meanwhile.
+            abort_unless(isset(Kavat::OCCASIONS[$kavat['occasion']]), 422, 'Only the Midline or the Endline KaVAT can be started.');
             $draft = DB::table('kavat_assessments')->where('case_id', $case->id)->where('status', 'draft')->value('id');
-            if ($draft) {
+            // One Midline and one Endline per case: a second one started on another device is a conflict.
+            if ($draft || DB::table('kavat_assessments')->where('case_id', $case->id)->where('occasion', $kavat['occasion'])->exists()) {
                 return $conflict(0);
             }
             $id = DB::table('kavat_assessments')->insertGetId(['case_id' => $case->id, 'instrument_version' => Kavat::VERSION, 'occasion' => $kavat['occasion'], 'administered_at' => $kavat['administered_at'],

@@ -76,12 +76,12 @@ class SmartSuggestionsTest extends TestCase
             ->where('cases.data', fn ($rows) => collect($rows)->pluck('id')->all() === [$due]));
     }
 
-    /** A finalized KaVAT this quarter and the baseline result, so no KaVAT reminder is due. */
+    /** A finalized Midline KaVAT and the baseline result, so no KaVAT reminder is due. */
     private function finalKavat(int $case, int $user): void
     {
         DB::table('kavat_baselines')->insert(['case_id' => $case, 'administered_at' => now()->subMonth()->toDateString(), 'empowerment_rate' => 60, 'safety_rate' => 70, 'final_score' => 66,
             'priority' => 'high', 'recorded_by' => $user, 'created_at' => now(), 'updated_at' => now()]);
-        DB::table('kavat_assessments')->insert(['case_id' => $case, 'instrument_version' => '2026-pilot', 'occasion' => 'quarterly', 'administered_at' => now()->toDateString(), 'administered_by' => $user,
+        DB::table('kavat_assessments')->insert(['case_id' => $case, 'instrument_version' => '2026-pilot', 'occasion' => 'midline', 'administered_at' => now()->toDateString(), 'administered_by' => $user,
             'status' => 'final', 'answers' => '{}', 'final_score' => 80, 'priority' => 'standard', 'revision' => 1, 'finalized_at' => now(), 'created_at' => now(), 'updated_at' => now()]);
     }
 }

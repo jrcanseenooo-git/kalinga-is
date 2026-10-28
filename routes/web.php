@@ -212,6 +212,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/cases/{case}/kavat', [CaseFormController::class, 'startKavat'])->middleware('throttle:sensitive-write')->name('cases.kavat.store');
     Route::put('/cases/{case}/kavat/{kavat}', [CaseFormController::class, 'saveKavat'])->middleware('throttle:intake-autosave')->name('cases.kavat.save');
     Route::post('/cases/{case}/kavat/{kavat}/finalize', [CaseFormController::class, 'finalizeKavat'])->middleware('throttle:sensitive-write')->name('cases.kavat.finalize');
+    Route::post('/cases/{case}/kavat/{kavat}/correct', [CaseFormController::class, 'correctKavat'])->middleware('throttle:sensitive-write')->name('cases.kavat.correct');
     Route::delete('/cases/{case}/kavat/{kavat}', [CaseFormController::class, 'discardKavat'])->middleware('throttle:sensitive-write')->name('cases.kavat.destroy');
     Route::post('/cases/{case}/grants', [CaseFormController::class, 'storeGrant'])->middleware('throttle:sensitive-write')->name('cases.grants.store');
     Route::post('/cases/{case}/grants/{grant}/void', [CaseFormController::class, 'voidGrant'])->middleware('throttle:sensitive-write')->name('cases.grants.void');

@@ -170,11 +170,8 @@ const formState = (type: FormType) => props.forms[type].status === 'final' ? 'fi
 const formsDone = computed(() => (['summary', 'plan', 'study'] as FormType[]).filter(type => formState(type) === 'final').length);
 
 const manilaToday = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
-const quarterOf = (date: string) => { const [year, month] = date.slice(0, 10).split('-').map(Number); return `Q${Math.floor((month - 1) / 3) + 1} ${year}`; };
-const quarterStart = (() => { const [year, month] = manilaToday.split('-').map(Number); return `${year}-${String(Math.floor((month - 1) / 3) * 3 + 1).padStart(2, '0')}-01`; })();
-/** The quarterly KaVAT is due when none was finalized this quarter and the case was opened before this quarter. */
-const quarterlyKavatDue = computed(() => !['CLOSED', 'ARCHIVED'].includes(props.caseRecord.status) && !finalKavat.value.some(item => item.administered_at.slice(0, 10) >= quarterStart)
-    && String(props.caseRecord.opened_at ?? props.caseRecord.created_at ?? manilaToday).slice(0, 10) < quarterStart);
+/** KaVAT: Baseline (screening tool), Midline and Endline. The Endline is due when the case goes to closure review. */
+const endlineDue = computed(() => props.caseRecord.status === 'FOR_CLOSURE_REVIEW' && !props.kavat.some((item: KavatRecord) => item.occasion === 'endline'));
 const smartAlerts = computed(() => {
     const alerts: { level: 'critical'|'warning'|'info'; text: string; tab?: TabKey }[] = [];
     const status = props.caseRecord.status;
@@ -183,7 +180,7 @@ const smartAlerts = computed(() => {
     if (latestKavat.value?.score.red_flags.length) alerts.push({ level: 'warning', text: `KaVAT red flag: the child refused to answer ${latestKavat.value.score.red_flags.length} ${latestKavat.value.score.red_flags.length === 1 ? 'question' : 'questions'}`, tab: 'kavat' });
     if (!props.kavatBaseline && status !== 'CLOSED') alerts.push({ level: 'warning', text: 'No baseline KaVAT result recorded - enter it from the screening tool', tab: 'kavat' });
     if (kavatDraft.value) alerts.push({ level: 'info', text: 'Finish the KaVAT in progress', tab: 'kavat' });
-    else if (quarterlyKavatDue.value) alerts.push({ level: 'info', text: `${quarterOf(manilaToday)} quarterly KaVAT is due`, tab: 'kavat' });
+    else if (endlineDue.value) alerts.push({ level: 'warning', text: 'Administer the Endline KaVAT before closing the case', tab: 'kavat' });
     if (!['OPEN', 'CLOSED'].includes(status) && formState('plan') === 'not_started') alerts.push({ level: 'warning', text: 'No intervention plan written yet', tab: 'forms' });
     if (overdueTasks.value.length) alerts.push({ level: 'warning', text: `${overdueTasks.value.length} overdue ${overdueTasks.value.length === 1 ? 'task' : 'tasks'}` });
     const pending = props.referrals.filter((r: any) => r.status === 'PENDING' || r.status === 'SENT');
@@ -212,7 +209,7 @@ const nextStep = computed(() => {
     if (kavatDraft.value) return { text: 'Finish the KaVAT in progress with the child.', tab: 'kavat' as TabKey };
     if (formState('summary') === 'not_started') return { text: 'Write the Case Summary Report.', tab: 'forms' as TabKey };
     if (formState('plan') === 'not_started') return { text: 'Write the Intervention Plan with the child and family.', tab: 'forms' as TabKey };
-    if (quarterlyKavatDue.value) return { text: `Administer the ${quarterOf(manilaToday)} quarterly KaVAT with the child.`, tab: 'kavat' as TabKey };
+    if (endlineDue.value) return { text: 'Administer the Endline KaVAT with the child.', tab: 'kavat' as TabKey };
     if (status === 'FOR_CLOSURE_REVIEW') return { text: 'Complete the closure checklist and closure record.', tab: 'closure' as TabKey };
     if (formState('study') !== 'final' && props.notes.length >= 3) return { text: 'Write the Social Case Study Report (final report with assessment and findings).', tab: 'forms' as TabKey };
     return { text: 'Record progress notes, referrals, services and grants as the plan is carried out.', tab: 'notes' as TabKey };
