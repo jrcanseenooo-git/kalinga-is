@@ -90,7 +90,6 @@ Owner answers that still apply:
    reason, analytics map and PDF, form options, feedback, team chat).
 3. Owner to finish the open items in section 5 (list defaults, Release 6
    KaVAT and form questions); apply the answers.
-4. Merge the README commit with the next pull request.
 5. Housekeeping noticed: release note files RELEASE-6 and RELEASE-7 carry
    dates 2026-10-28 and 2026-10-29 in their names although work finished
    2026-10-27; rename if the owner wants accurate dates.
@@ -139,6 +138,7 @@ Still open:
 
 | Date | Task | Commit |
 |---|---|---|
+| 2026-10-28 | PR #5 merged to main (everything up to ce07506 is live) | 897f65e |
 | 2026-10-28 | Batch of 2026-10-28 finished; all tests green (PHP SQLite and PostgreSQL, front end, browser 246); not yet merged to main | 02edb5e |
 | 2026-10-28 | Analytics PDF report layout; Kalinga Assist on every page; nav label Office & signatories; release notes RELEASE-8 | b50d38d, 8637205 |
 | 2026-10-28 | Consent register removed; camera capture with smart checks; intake redesign + text size; modern dialogs; KaVAT baseline result + quarterly; Philippine date fix (dates were rejected before 8 AM) | b44ef0b..c5d3038 |
