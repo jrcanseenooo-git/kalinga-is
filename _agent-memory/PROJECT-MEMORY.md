@@ -10,7 +10,7 @@ build, tests or deployment reads it, and it is excluded from the Docker
 image. **To remove it before turnover:** delete the `_agent-memory/` folder
 and the one line marked `agent-memory` in `AGENTS.md`.
 
-Last updated: 2026-10-28 (Asia/Manila)
+Last updated: 2026-10-29 (Asia/Manila)
 
 ---
 
@@ -65,7 +65,7 @@ Owner answers that still apply:
 | 7 | Smart (rule-based, no external AI) assistance across the whole system; rename the cut-off "Office profile & signatories" nav label | Done (8637205) |
 | 8 | Bug sweep, tests, docs, push | Done (02edb5e) |
 
-### Batch of 2026-10-28 evening (owner request, in progress)
+### Batch of 2026-10-28 evening (owner request, done 2026-10-29, Release 9)
 
 Owner decisions: case status fully automatic (Open -> In progress when work
 is recorded; Awaiting referral while a referral is unanswered; For follow-up
@@ -97,7 +97,7 @@ only way to change a case manager); page /cases/{id}/plan-workspace still works.
 | J | Dashboard -> Workboard; analytics (Reporting Pipeline, age-sex by exact age, priority charts on top, services chart, average plan submission time) | Done (fdd5133) |
 | K | Aftercare module | Done (47a0255) |
 | L | Offline field mode upgrade | Done (f05e89f) |
-| M | Tests, docs, push | Pending |
+| M | Tests, docs, push | Done (25c6ed8 + test fixes) |
 
 ## 3. Current progress
 
@@ -118,6 +118,11 @@ only way to change a case manager); page /cases/{id}/plan-workspace still works.
 
 ## 4. Next things to do
 
+0. Owner: open a pull request from `feature-enhancements` to `main` for
+   Release 9 (everything after ce07506) and run the Release 9 checklist in
+   `docs/10-migration-history/2026-10/RELEASE-9-...md`. Answer the two new
+   review items (Midline timing; formal handover while Plan & continuity is
+   hidden).
 1. Owner: confirm the Render deploy is Live and the VAPID keys are set; test
    "Turn on phone notifications" from the bell on a phone.
 2. Owner: run the release-7 checklist (dashboard, calendar invite and
@@ -172,6 +177,7 @@ Still open:
 
 | Date | Task | Commit |
 |---|---|---|
+| 2026-10-29 | Release 9 finished: intake fixes and Child Contact Details, chat badges, automatic status, KaVAT Midline/Endline with corrections, forms order and prints, Intervention Plan and Referrals with 7-day deadline, Monitoring tab, calendar team view and reviewed moves, grants transport only, Workboard and analytics, aftercare, field mode upgrade. Tests: PHP 502 (SQLite) / 503 (PostgreSQL), front end 46, browser 253 | a371bbb..25c6ed8 |
 | 2026-10-28 | PR #5 merged to main (everything up to ce07506 is live) | 897f65e |
 | 2026-10-28 | Batch of 2026-10-28 finished; all tests green (PHP SQLite and PostgreSQL, front end, browser 246); not yet merged to main | 02edb5e |
 | 2026-10-28 | Analytics PDF report layout; Kalinga Assist on every page; nav label Office & signatories; release notes RELEASE-8 | b50d38d, 8637205 |

@@ -139,7 +139,7 @@ for(const width of [360,390,768,1024,1440,1920]) test(`case workspace overview a
  const payload=JSON.parse((await page.locator('#app').getAttribute('data-page'))!).props;
  await expect(page.getByRole('heading',{name:payload.caseRecord.case_number,exact:true})).toBeVisible();
  const tabs=page.getByRole('tablist',{name:'Case record sections',exact:true});
- await expect(tabs.getByRole('tab')).toHaveCount(7);
+ await expect(tabs.getByRole('tab')).toHaveCount(8);
  const viewportOverflow=await page.evaluate(()=>document.documentElement.scrollWidth-document.documentElement.clientWidth);
  if(viewportOverflow>1) await test.info().attach('overflow-layout-metadata',{body:JSON.stringify(await page.evaluate(()=>Array.from(document.querySelectorAll('main *')).filter(element=>element.getBoundingClientRect().right>document.documentElement.clientWidth+1).map(element=>({tag:element.tagName,classes:element.getAttribute('class'),right:Math.round(element.getBoundingClientRect().right)})))),contentType:'application/json'});
  await expectNoHorizontalOverflow(page);
