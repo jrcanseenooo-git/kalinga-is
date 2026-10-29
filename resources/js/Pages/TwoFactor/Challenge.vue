@@ -177,7 +177,7 @@ onUnmounted(() => {
 
         <!-- Dev mode code hint -->
         <div v-if="debugCode && mode === 'email'" class="mt-4 rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-2.5 text-center">
-            <p class="text-[11px] font-bold uppercase tracking-wider text-amber-600">Development mode</p>
+            <p class="text-[11px] font-bold uppercase tracking-wider text-amber-600">Test Mode</p>
             <p class="mt-0.5 font-mono text-lg font-extrabold tracking-[.35em] text-amber-800">{{ debugCode }}</p>
         </div>
 
