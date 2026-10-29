@@ -177,6 +177,7 @@ Still open:
 
 | Date | Task | Commit |
 |---|---|---|
+| 2026-10-29 | CEFMU classification counts only the 4 codes (Analytics, Quarterly); quarterly services from services_provided; services ranked bar chart (waffle removed); sidebar Case intake > Cases > Calendar; plan step button Print; demo seeder uses CEFMU codes | 42e1680 |
 | 2026-10-29 | Release 9 finished: intake fixes and Child Contact Details, chat badges, automatic status, KaVAT Midline/Endline with corrections, forms order and prints, Intervention Plan and Referrals with 7-day deadline, Monitoring tab, calendar team view and reviewed moves, grants transport only, Workboard and analytics, aftercare, field mode upgrade. Tests: PHP 502 (SQLite) / 503 (PostgreSQL), front end 46, browser 253 | a371bbb..25c6ed8 |
 | 2026-10-28 | PR #5 merged to main (everything up to ce07506 is live) | 897f65e |
 | 2026-10-28 | Batch of 2026-10-28 finished; all tests green (PHP SQLite and PostgreSQL, front end, browser 246); not yet merged to main | 02edb5e |

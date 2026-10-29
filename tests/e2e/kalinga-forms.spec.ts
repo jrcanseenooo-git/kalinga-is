@@ -77,7 +77,7 @@ test('Kalinga forms save as the case manager types and keep their order', async 
     await expect(steps.nth(0)).toContainText('Intake Sheet');
     await expect(steps.nth(2)).toContainText('Social Case Study Report');
     await expect(steps.nth(3)).toContainText('Intervention Plan and Referrals');
-    await expect(steps.nth(3).getByRole('link', { name: 'Print Kalinga Intervention Plan' })).toHaveText('Print Intervention Plan');
+    await expect(steps.nth(3).getByRole('link', { name: 'Print Kalinga Intervention Plan' })).toHaveText('Print');
     await expect(steps.nth(4)).toContainText('Progress Notes');
     await steps.nth(1).getByRole('button', { name: /Write|Continue/ }).click();
     const text = 'Synthetic presenting problem written in the Case Summary Report.';

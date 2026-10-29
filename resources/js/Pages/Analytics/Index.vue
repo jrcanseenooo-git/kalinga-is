@@ -237,7 +237,7 @@ const trendTotal = computed(() => numericTrend.value.length === props.trend.leng
       </div>
 
       <div class="grid gap-5 lg:grid-cols-2">
-        <article class="chart-card"><h2>Services provided</h2><p class="mt-1 text-xs text-slate-500">By type: services given, cases served and amount.</p><div class="mt-4"><ServicesBars title="Services provided" :rows="props.services" /></div><ChartTable title="Services provided" :rows="props.services.map(row => ({ label: row.label, total: row.total }))" label-header="Service" value-header="Services" /></article>
+        <article class="chart-card"><h2>Services provided</h2><p class="mt-1 text-xs text-slate-500">By type: services given, cases served and amount.</p><div class="mt-4"><ServicesBars title="Services provided" :rows="props.services" /></div></article>
         <article class="chart-card"><h2>Cases by sex</h2><div class="mt-4"><DonutChart title="Cases by sex" :rows="props.sex" center-label="cases" :colors="['#e0607e', '#3b82d6', '#64748b']" /></div></article>
       </div>
       <article class="chart-card"><h2>KaVAT priority (latest per case)</h2><p class="mt-1 text-xs text-slate-500">From finalized KaVAT results only.</p><div class="mt-4"><DonutChart v-if="kavatPriority.length" title="KaVAT priority" :rows="kavatPriority" center-label="cases" :colors="['#e0607e', '#2f9e6b']" /><p v-else class="text-sm text-slate-600">No finalized KaVAT to show here.</p></div></article>

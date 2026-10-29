@@ -82,6 +82,23 @@ class AnalyticsSuppressionTest extends TestCase
             ->where('planSubmission.averageDays', 7)->where('planSubmission.onTime', 1)->where('planSubmission.late', 1)->where('planSubmission.overdue', 1));
     }
 
+    public function test_cefmu_classification_counts_only_the_four_cefmu_classifications_on_both_pages(): void
+    {
+        $worker = User::factory()->create(['role' => 'social_worker']);
+        $lgu = DB::table('lgu_units')->insertGetId(['psgc_code' => 'CLS-1', 'name' => 'Synthetic Class Town', 'province' => 'Kalinga', 'region' => 'CAR', 'active' => true, 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('user_lgu_assignments')->insert(['user_id' => $worker->id, 'lgu_id' => $lgu, 'active' => true, 'effective_from' => now()->subDay(), 'created_at' => now(), 'updated_at' => now()]);
+        foreach ([['CEFMU', ['early_union', 'forced_union']], ['CEFMU', ['early_union']], ['Child protection', []], ['Education support', ['education_support']]] as $index => [$category, $codes]) {
+            $client = DB::table('clients')->insertGetId(['first_name' => 'S', 'last_name' => 'C' . $index, 'sex' => 'Female', 'created_at' => now(), 'updated_at' => now()]);
+            $case = DB::table('cases')->insertGetId(['case_number' => 'CLS-' . $index, 'client_id' => $client, 'lgu_id' => $lgu, 'assigned_to' => $worker->id, 'status' => 'AWAITING_REFERRAL', 'priority' => 'normal',
+                'category' => $category, 'cefmu_classifications' => json_encode($codes), 'opened_at' => now(), 'created_at' => now(), 'updated_at' => now()]);
+        }
+        DB::table('services_provided')->insert(['case_id' => $case, 'service_type' => 'Medical', 'date_provided' => now()->toDateString(), 'recorded_by' => $worker->id, 'created_at' => now(), 'updated_at' => now()]);
+        $expected = [['label' => 'Early union', 'total' => 2], ['label' => 'Forced union', 'total' => 1]];
+        $this->actingAs($worker)->get(route('analytics.index'))->assertOk()->assertInertia(fn (Assert $page) => $page->where('classification', $expected));
+        $this->get(route('analytics.quarterly'))->assertOk()->assertInertia(fn (Assert $page) => $page->where('classification', $expected)
+            ->where('status.0.label', 'Awaiting referral')->where('services.0.label', 'Medical')->where('services.0.total', 1));
+    }
+
     public function test_quarterly_payload_and_export_apply_the_same_small_count_rule(): void
     {
         $this->cases(4);

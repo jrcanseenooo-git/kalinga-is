@@ -86,7 +86,7 @@ const tone = (state: Step['state']) => (state === 'done' ? 'text-emerald-700' : 
         <div class="mt-2 flex flex-wrap gap-1.5">
           <button v-if="step.form" type="button" class="ui-button min-h-9 px-2.5 text-xs" :aria-expanded="open === step.form" @click="open = open === step.form ? null : step.form!"><PenLine class="h-3.5 w-3.5" aria-hidden="true" />{{ open === step.form ? 'Close' : canEdit ? (step.state === 'todo' ? 'Write' : 'Continue') : 'Read' }}</button>
           <button v-else-if="step.key === 'notes'" type="button" class="ui-button min-h-9 px-2.5 text-xs" @click="emit('openNotes')"><PenLine class="h-3.5 w-3.5" aria-hidden="true" />Notes</button>
-          <Link :href="route('cases.reports.show', [caseId, step.key])" class="ui-button min-h-9 px-2.5 text-xs" :aria-label="`Print ${printTitle(step)}`"><FileText class="h-3.5 w-3.5" aria-hidden="true" />{{ step.key === 'plan' ? 'Print Intervention Plan' : 'Print' }}</Link>
+          <Link :href="route('cases.reports.show', [caseId, step.key])" class="ui-button min-h-9 px-2.5 text-xs" :aria-label="`Print ${printTitle(step)}`"><FileText class="h-3.5 w-3.5" aria-hidden="true" />Print</Link>
         </div>
       </li>
     </ol>

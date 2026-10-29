@@ -31,9 +31,10 @@ const navCounts = computed(() => (page.props as unknown as { navCounts?: { activ
 const groups = computed<{ title: string; links: NavigationLink[] }[]>(() => [
   { title:'', links:[homeLink.value] },
   { title:'Case work', links:[
+    // Case manager order (owner, 2026-10-29): Case intake, Cases, Calendar.
+    ...(can('cases.create') ? [{ label:'Case intake', icon:'intake', route:'cases.create', match:['cases.create'] }] : []),
     ...(can('cases.create') ? [{ label:'Cases', icon:'cases', route:'cases.index', match:['cases.index','cases.show','cases.plans.workspace','cases.conferences.index','reports.index','identity.review.index'], badge: navCounts.value?.activeCases, badgeTone: 'brand' as const }]
       : can('cases.monitor') ? [{ label:'Cases', icon:'cases', route:'monitoring.cases.index', match:['monitoring.cases.index','monitoring.cases.show'] }] : []),
-    ...(can('cases.create') ? [{ label:'Case intake', icon:'intake', route:'cases.create', match:['cases.create'] }] : []),
     ...(can('activities.manage') ? [{ label:'Calendar', icon:'calendar', route:'calendar.index', match:['calendar.index','tasks.index'], badge: navCounts.value?.calendarDue, badgeTone: 'alert' as const }] : []),
   ]},
   { title:'Coordination', links:[
