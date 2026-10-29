@@ -74,7 +74,7 @@ final class CaseForms
             ['background_client', 'V. Background information - A. The client', 'text', "The child's history: childhood, schooling, relationships, the marriage or union, health and wellbeing."],
             ['background_family', 'V. Background information - B. Family', 'text', 'Parents and siblings, relationships within the family, how the family supports or affects the child.'],
             ['background_community', 'V. Background information - C. Community and environment', 'text', 'Community norms, culture, services and influences around the child (optional).'],
-            ['plan', 'VI. Intervention and treatment plan', 'auto', null],
+            ['plan', 'VI. Intervention Plan', 'auto', null],
             ['assessment', 'VII. Assessment', 'text', 'Your analysis of the case, the core issue and what drives it (for example using an ecological or systems view).'],
             ['recommendations', 'VII. Recommendations', 'text', 'Your recommendations for the child and family.'],
         ],
