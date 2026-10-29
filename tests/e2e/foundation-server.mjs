@@ -17,6 +17,7 @@ const env = {
     DB_CONNECTION: 'sqlite', DB_DATABASE: database, DB_URL: '',
     CACHE_STORE: 'array', SESSION_DRIVER: 'file', SESSION_COOKIE: 'kalinga_foundation_session',
     QUEUE_CONNECTION: 'sync', MAIL_MAILER: 'array', MFA_ENFORCEMENT: 'false',
+    UAT_ENABLED: 'true',
 };
 execFileSync('php', ['artisan', 'migrate', '--seed', '--force', '--no-interaction'], { env, stdio: 'pipe' });
 const fixtureOutput = execFileSync('php', ['tests/e2e/foundation-fixtures.php'], { env, stdio: 'pipe', encoding: 'utf8' });

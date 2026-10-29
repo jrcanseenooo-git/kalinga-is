@@ -10,7 +10,7 @@ build, tests or deployment reads it, and it is excluded from the Docker
 image. **To remove it before turnover:** delete the `_agent-memory/` folder
 and the one line marked `agent-memory` in `AGENTS.md`.
 
-Last updated: 2026-10-29 (Asia/Manila)
+Last updated: 2026-10-30 (Asia/Manila)
 
 ---
 
@@ -118,6 +118,8 @@ only way to change a case manager); page /cases/{id}/plan-workspace still works.
 
 ## 4. Next things to do
 
+UAT activation: owner approved publishing/deploying the reviewed 43-account change, enabling on-screen UAT codes and creating accounts expiring 2026-10-30 23:59 Asia/Manila. PostgreSQL and browser regressions are running against disposable local databases before publication. Render dashboard and application administrator reauthentication are requested; no live account creation yet. Keep APP_DEBUG=false and enable only the dedicated UAT mode. Record publication, deployment revision and actual provisioning after verification.
+
 0. Owner: open a pull request from `feature-enhancements` to `main` for
    Release 9 (everything after ce07506) and run the Release 9 checklist in
    `docs/10-migration-history/2026-10/RELEASE-9-...md`. Answer the two new
@@ -177,6 +179,9 @@ Still open:
 
 | Date | Task | Commit |
 |---|---|---|
+| 2026-10-30 | Prepared opt-in 43-account regional UAT setup at /admin/uat with marked/expiring accounts, unique credentials, correct LGU/circle/FO scope and on-screen codes only for roster accounts. Personal verification retained; no production debug exposure. New nullable users.uat_key/uat_expires_at migration, docs/dictionary, nine feature tests. Full SQLite PHP: 512 passed, two skipped (514 total); final UAT refinement rerun 9 passed/316 assertions; frontend 46 passed; TypeScript/Vite build and Pint pass. Local desktop/mobile setup and UAT code-to-Paracelis Workboard browser checks passed. Live admin inspected but NO live changes/push/deploy. Next: owner approval to publish/enable/create with expiry and BCPC mapping, Render environment access, PostgreSQL/full-browser validation and live smoke tests. | Local changes pending publication approval |
+| 2026-10-30 | Prepared 43-account UAT roster for Paracelis, Brooke's Point, City of Catbalogan and Socorro (Surigao del Norte): 28 participants + 15 ITO role accounts. Verified PSGC codes and existing role/discipline mappings. Output UAT-ACCOUNT-PLAN.md; 43 unique roster rows checked. No live accounts created. Next: reachable emails/alias inbox, live administrator or owner-operated Render access, BCPC mapping confirmation, then provision and verify active LGU/circle/region scopes and login delivery. Separate ITO logins do not isolate LGU supervisor visibility. | Local plan only |
+| 2026-10-29 | Local demo/UAT preparation review for 30 October: live login/registration render checked; Release 9 confirmed on main fde5ac7; 46 frontend tests passed after npm ci. vue-tsc blocked by missing Composer Ziggy dependency. Prepared READ-FIRST, DEMO-SCRIPT, UAT-CHECKLIST and VALIDATION under the parent chat outputs folder. No app edits, push, deployment or live data writes. Next: approved test accounts, fresh live login/code delivery, role/LGU scope and authenticated rehearsal; confirm actual Render revision/storage/scanner. | Local review only |
 | 2026-10-29 | CEFMU classification counts only the 4 codes (Analytics, Quarterly); quarterly services from services_provided; services ranked bar chart (waffle removed); sidebar Case intake > Cases > Calendar; plan step button Print; demo seeder uses CEFMU codes | 42e1680 |
 | 2026-10-29 | Release 9 finished: intake fixes and Child Contact Details, chat badges, automatic status, KaVAT Midline/Endline with corrections, forms order and prints, Intervention Plan and Referrals with 7-day deadline, Monitoring tab, calendar team view and reviewed moves, grants transport only, Workboard and analytics, aftercare, field mode upgrade. Tests: PHP 502 (SQLite) / 503 (PostgreSQL), front end 46, browser 253 | a371bbb..25c6ed8 |
 | 2026-10-28 | PR #5 merged to main (everything up to ce07506 is live) | 897f65e |

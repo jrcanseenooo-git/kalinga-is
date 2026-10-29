@@ -17,6 +17,7 @@ const props = defineProps<{
   regionOptions: string[]
   scopeLabel: string
   canManageSystem: boolean
+  uatEnabled?: boolean
   lguUnits: any[]
   lguAssignments: any[]
   pendingRegistrations: any[]
@@ -282,6 +283,7 @@ const fmtDateTime = (d: string) => formatPh(d, 'dateTimeShort')
     <div class="w-full max-w-none space-y-4">
       <SectionNav v-if="props.canManageSystem" section="admin" />
       <header v-else class="ui-panel p-5"><p class="text-sm font-bold text-brand-700">{{ props.scopeLabel }}</p><h1 class="mt-1 text-2xl font-extrabold text-slate-900">Users and account approvals</h1><p class="mt-1 text-sm text-slate-600">Approve the accounts registered in your regions, assign their LGU and keep access up to date.</p></header>
+      <Link v-if="props.uatEnabled" :href="route('admin.uat.index')" class="mb-4 inline-flex rounded-lg bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-900">UAT account setup</Link>
       <div v-if="flash" class="rounded-xl bg-emerald-50 border border-emerald-200 p-3 text-sm font-medium text-emerald-700">{{ flash }}</div>
 
       <!-- ── TABS ── -->

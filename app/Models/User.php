@@ -61,6 +61,7 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
+            'uat_expires_at' => 'immutable_datetime',
             'password' => 'hashed',
             'active' => 'boolean',
             'region_scope' => 'array',

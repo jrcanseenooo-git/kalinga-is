@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Http\Controllers\Auth\TwoFactorController;
+use App\Services\UatAccounts;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -37,9 +38,9 @@ class EnsureTwoFactorVerified
         }
 
         $hasTotp = $user->two_factor_secret && $user->two_factor_confirmed_at;
-        $requiresMfa = config('kalinga.mfa_enforcement', true)
+        $requiresMfa = UatAccounts::usable($user) || (config('kalinga.mfa_enforcement', true)
             && $user->role
-            && TwoFactorController::requiresMfa($user->role);
+            && TwoFactorController::requiresMfa($user->role));
 
         if ($hasTotp || $requiresMfa) {
             return redirect()->route('two-factor.challenge');

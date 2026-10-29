@@ -167,6 +167,8 @@ TABLES = {
 }
 
 COMMON = {
+    'uat_key': 'Unique fixed-roster identity of a temporary UAT account; null for ordinary accounts. Not assignable through public registration.',
+    'uat_expires_at': 'UTC expiry of temporary UAT access. UAT mode must also be enabled; existing sessions are denied after expiry.',
     'id': 'Unique record number.', 'created_at': 'When the record was created.', 'updated_at': 'When the record was last changed.',
     'deleted_at': 'When the record was archived (soft delete); empty if active.', 'status': 'Current status of the record.',
     'version': 'Version number; a new version is created instead of overwriting.', 'is_current': 'Whether this is the current version.',

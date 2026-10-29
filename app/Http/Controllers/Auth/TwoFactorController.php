@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Notifications\TwoFactorCodeNotification;
+use App\Services\UatAccounts;
 use App\Support\AuditLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -56,7 +57,9 @@ class TwoFactorController extends Controller
             'two_factor_email_code_expires_at' => now()->addMinutes(10),
         ]);
 
-        $user->notify(new TwoFactorCodeNotification($code));
+        if (!UatAccounts::usable($user)) {
+            $user->notify(new TwoFactorCodeNotification($code));
+        }
 
         return $code;
     }
@@ -98,18 +101,22 @@ class TwoFactorController extends Controller
             'status' => session('status'),
         ];
 
-        if ($method === 'email' && config('app.debug')) {
+        if ($method === 'email' && UatAccounts::usable($user)) {
+            $props['uatCode'] = decrypt($user->two_factor_email_code);
+        } elseif ($method === 'email' && app()->environment('local', 'testing') && config('app.debug')) {
             $props['debugCode'] = $user->two_factor_email_code ? decrypt($user->two_factor_email_code) : null;
         }
 
-        return Inertia::render('TwoFactor/Challenge', $props);
+        return Inertia::render('TwoFactor/Challenge', $props)->toResponse($request)
+            ->header('Cache-Control', 'no-store, private')->header('Pragma', 'no-cache');
     }
 
     public function resendEmailOtp(Request $request)
     {
         $this->generateAndSendEmailOtp($request->user());
 
-        return back()->with('status', 'A new verification code has been sent to your email.');
+        return back()->with('status', UatAccounts::usable($request->user())
+            ? 'A new UAT code is displayed below.' : 'A new verification code has been sent to your email.');
     }
 
     public function setup(Request $request)
@@ -298,7 +305,7 @@ class TwoFactorController extends Controller
         $request->session()->put('two_factor_confirmed', true);
 
         AuditLog::insert([
-            'user_id' => $user->id, 'event' => 'two_factor.verified',
+            'user_id' => $user->id, 'event' => UatAccounts::usable($user) ? 'two_factor.uat_verified' : 'two_factor.verified',
             'auditable_type' => 'user', 'auditable_id' => $user->id,
             'changes' => json_encode([]), 'created_at' => now(), 'updated_at' => now(),
         ]);
