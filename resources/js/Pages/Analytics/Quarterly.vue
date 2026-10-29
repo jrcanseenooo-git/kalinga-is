@@ -3,7 +3,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import SectionNav from '@/Components/SectionNav.vue';
 import { Head, Link } from '@inertiajs/vue3';
 import DonutChart from '@/Components/Charts/DonutChart.vue';
-import WaffleChart from '@/Components/Charts/WaffleChart.vue';
+import ServicesBars, { type ServiceRow } from '@/Components/Charts/ServicesBars.vue';
 import LollipopChart from '@/Components/Charts/LollipopChart.vue';
 
 type Row = { label: string; total: number };
@@ -14,7 +14,7 @@ const props = defineProps<{
   classification: Row[];
   status: Row[];
   sex: Row[];
-  services: Row[];
+  services: ServiceRow[];
   areas: { area: string; total: number }[];
 }>();
 
@@ -62,12 +62,12 @@ const pretty = (value: string) => value.replace(/([A-Z])/g, ' $1').replace(/^./,
         </article>
       </div>
 
-      <!-- Breakdowns: donuts for shares, waffle for the service mix, funnel-free ranking for status -->
+      <!-- Breakdowns: donuts for shares, ranked bars for the services provided -->
       <div class="grid gap-5 md:grid-cols-2">
         <article class="ui-panel p-5"><h2 class="font-extrabold text-slate-900">CEFMU classification</h2><div class="mt-4"><DonutChart title="CEFMU classification" :rows="classification" center-label="cases" /></div></article>
         <article class="ui-panel p-5"><h2 class="font-extrabold text-slate-900">Case status</h2><div class="mt-4"><DonutChart title="Case status" :rows="status" center-label="cases" /></div></article>
         <article class="ui-panel p-5"><h2 class="font-extrabold text-slate-900">Cases by sex</h2><div class="mt-4"><DonutChart title="Cases by sex" :rows="sex" center-label="cases" :colors="['#e0607e', '#3b82d6', '#64748b']" /></div></article>
-        <article class="ui-panel p-5"><h2 class="font-extrabold text-slate-900">Services provided</h2><div class="mt-4"><WaffleChart title="Services provided" :rows="services" /></div></article>
+        <article class="ui-panel p-5"><h2 class="font-extrabold text-slate-900">Services provided</h2><p class="mt-1 text-xs text-slate-600">Services given in the quarter, by type, with the cases served and the amount.</p><div class="mt-4"><ServicesBars title="Services provided" :rows="services" /></div></article>
       </div>
 
       <!-- Geographic -->

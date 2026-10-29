@@ -112,12 +112,12 @@ class AnalyticsController extends Controller
                 'reportsReceived' => DB::table('reports')->whereIn('client_id', (clone $cases)->select('clients.id'))->whereBetween('submitted_at', [$start, $end])->count(),
                 'referralsCompleted' => DB::table('referrals')->whereIn('case_id', $caseIds)->whereBetween('completed_at', [$start, $end])->count(),
             ]),
-            'classification' => (clone $cases)->selectRaw("COALESCE(cases.category, 'Not classified') as label, COUNT(*) as total")->groupBy('label')->havingRaw('COUNT(*) >= ?', [$this->minimum($request)])->orderByDesc('total')->get(),
-            'status' => (clone $cases)->select('cases.status as label', DB::raw('COUNT(*) as total'))->groupBy('cases.status')->havingRaw('COUNT(*) >= ?', [$this->minimum($request)])->orderByDesc('total')->get(),
+            'classification' => $this->classificationCounts(clone $cases, $this->minimum($request)),
+            'status' => (clone $cases)->select('cases.status as label', DB::raw('COUNT(*) as total'))->groupBy('cases.status')->havingRaw('COUNT(*) >= ?', [$this->minimum($request)])->orderByDesc('total')->get()
+                ->map(fn ($row) => ['label' => ucfirst(strtolower(str_replace('_', ' ', (string) $row->label))), 'total' => (int) $row->total])->values(),
             'sex' => (clone $cases)->selectRaw("COALESCE(clients.sex, 'Not recorded') as label, COUNT(*) as total")->groupBy('label')->havingRaw('COUNT(*) >= ?', [$this->minimum($request)])->orderByDesc('total')->get(),
-            'services' => $this->scopedCases(DB::table('interventions')->join('case_plans', 'case_plans.id', '=', 'interventions.case_plan_id')->join('cases', 'cases.id', '=', 'case_plans.case_id')->join('clients', 'clients.id', '=', 'cases.client_id')
-                ->whereNull('cases.deleted_at')->whereBetween('interventions.created_at', [$start, $end]), $request)
-                ->selectRaw("COALESCE(interventions.service_category, 'Other') as label, COUNT(*) as total")->groupBy('label')->havingRaw('COUNT(*) >= ?', [$this->minimum($request)])->orderByDesc('total')->get(),
+            // Services provided in the quarter, for the cases opened in the quarter.
+            'services' => $this->servicesProvided($caseIds, $this->minimum($request), [$start, $end]),
             'areas' => (clone $cases)->selectRaw("COALESCE(clients.municipality, 'Unspecified') as area, COUNT(*) as total")
                 ->groupBy('area')->havingRaw('COUNT(*) >= ?', [$this->minimum($request)])->orderByDesc('total')->get(),
         ];
@@ -221,10 +221,7 @@ class AnalyticsController extends Controller
             'sex' => (clone $base)->selectRaw("COALESCE(clients.sex, 'Not recorded') as label, count(*) as total")->groupBy('label')->havingRaw('COUNT(*) >= ?', [$min])->orderByDesc('total')->get(),
             'classification' => $this->classificationCounts(clone $base, $min),
             ...$this->ageAndSex(clone $base, $min),
-            'services' => DB::table('services_provided')->whereIn('case_id', $caseIds)
-                ->select('service_type as label', DB::raw('count(*) as total'), DB::raw('count(distinct case_id) as cases'), DB::raw('COALESCE(SUM(amount), 0) as amount'))
-                ->groupBy('service_type')->havingRaw('COUNT(*) >= ?', [$min])->orderByDesc('total')->get()
-                ->map(fn ($row) => ['label' => $row->label, 'total' => (int) $row->total, 'cases' => (int) $row->cases >= $min ? (int) $row->cases : 'Suppressed', 'amount' => round((float) $row->amount, 2)]),
+            'services' => $this->servicesProvided($caseIds, $min),
             'planSubmission' => $this->planSubmission(clone $base, $request),
             'kavatPriority' => (clone $latestKavat)->select('k.priority as label', DB::raw('count(*) as total'))->groupBy('k.priority')->havingRaw('COUNT(*) >= ?', [$min])->get()
                 ->map(fn ($row) => ['label' => Kavat::priorityLabel($row->label), 'total' => (int) $row->total]),
@@ -298,20 +295,35 @@ class AnalyticsController extends Controller
         ];
     }
 
+    /** The four CEFMU classifications recorded at intake (a case can have more than one). */
+    public const CEFMU_CLASSIFICATIONS = ['early_marriage' => 'Early marriage', 'early_union' => 'Early union', 'forced_marriage' => 'Forced marriage', 'forced_union' => 'Forced union'];
+
+    /**
+     * CEFMU classification counts. Only the four CEFMU classifications are
+     * counted (owner, 2026-10-29): older categories such as "Child
+     * protection" are not CEFMU classifications and are left out.
+     */
     private function classificationCounts($cases, int $min): array
     {
-        $labels = ['early_marriage' => 'Early marriage', 'early_union' => 'Early union', 'forced_marriage' => 'Forced marriage', 'forced_union' => 'Forced union'];
-        $counts = [];
-        foreach ($cases->select('cases.cefmu_classifications', 'cases.category')->cursor() as $row) {
+        $counts = array_fill_keys(array_values(self::CEFMU_CLASSIFICATIONS), 0);
+        foreach ($cases->select('cases.cefmu_classifications')->cursor() as $row) {
             $codes = json_decode($row->cefmu_classifications ?? '[]', true) ?: [];
-            foreach ($codes ?: [$row->category ?: 'Not classified'] as $code) {
-                $label = $labels[$code] ?? (string) $code;
-                $counts[$label] = ($counts[$label] ?? 0) + 1;
+            foreach (array_unique(array_filter((array) $codes, fn ($code) => is_string($code) && isset(self::CEFMU_CLASSIFICATIONS[$code]))) as $code) {
+                $counts[self::CEFMU_CLASSIFICATIONS[$code]]++;
             }
         }
         arsort($counts);
 
-        return collect($counts)->filter(fn ($total) => $total >= $min)->map(fn ($total, $label) => ['label' => $label, 'total' => $total])->values()->all();
+        return collect($counts)->filter(fn ($total) => $total > 0 && $total >= $min)->map(fn ($total, $label) => ['label' => $label, 'total' => $total])->values()->all();
+    }
+
+    /** Services provided by type (from the Services provided records): services, cases served and amount. */
+    private function servicesProvided($caseIds, int $min, ?array $period = null)
+    {
+        return DB::table('services_provided')->whereIn('case_id', $caseIds)->when($period, fn ($q) => $q->whereBetween('date_provided', [$period[0]->toDateString(), $period[1]->toDateString()]))
+            ->select('service_type as label', DB::raw('count(*) as total'), DB::raw('count(distinct case_id) as cases'), DB::raw('COALESCE(SUM(amount), 0) as amount'))
+            ->groupBy('service_type')->havingRaw('COUNT(*) >= ?', [$min])->orderByDesc('total')->get()
+            ->map(fn ($row) => ['label' => $row->label, 'total' => (int) $row->total, 'cases' => (int) $row->cases >= $min ? (int) $row->cases : 'Suppressed', 'amount' => round((float) $row->amount, 2)])->values();
     }
 
     /** Records that a user printed or saved the analytics view as PDF (the page carries a watermark with the same name and time). */
@@ -344,8 +356,9 @@ class AnalyticsController extends Controller
         $rows = collect([
             ['metric' => 'Reporting period', 'value' => $data['period']['label']],
             ...collect($data['totals'])->map(fn ($value, $key) => ['metric' => preg_replace('/([A-Z])/', ' $1', $key), 'value' => $value])->values()->all(),
-            ...collect($data['classification'])->map(fn ($item) => ['metric' => "Classification: {$item->label}", 'value' => $item->total])->all(),
-            ...collect($data['status'])->map(fn ($item) => ['metric' => "Status: {$item->label}", 'value' => $item->total])->all(),
+            ...collect($data['classification'])->map(fn ($item) => ['metric' => "Classification: {$item['label']}", 'value' => $item['total']])->all(),
+            ...collect($data['status'])->map(fn ($item) => ['metric' => "Status: {$item['label']}", 'value' => $item['total']])->all(),
+            ...collect($data['services'])->map(fn ($item) => ['metric' => "Services provided: {$item['label']}", 'value' => $item['total']])->all(),
             ...collect($data['areas'])->map(fn ($item) => ['metric' => "Municipality: {$item->area}", 'value' => $item->total])->all(),
         ]);
         $contents = "metric,value\n" . $rows->map(fn ($row) => $this->csvCell($row['metric']) . ',' . $this->csvCell($row['value']))->implode("\n") . "\n";
