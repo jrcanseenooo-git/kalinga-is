@@ -118,7 +118,7 @@ only way to change a case manager); page /cases/{id}/plan-workspace still works.
 
 ## 4. Next things to do
 
-UAT activation: owner approved publishing/deploying the reviewed 43-account change, enabling on-screen UAT codes and creating accounts expiring 2026-10-30 23:59 Asia/Manila. PostgreSQL and browser regressions are running against disposable local databases before publication. Render dashboard and application administrator reauthentication are requested; no live account creation yet. Keep APP_DEBUG=false and enable only the dedicated UAT mode. Record publication, deployment revision and actual provisioning after verification.
+UAT activation: owner approved publishing/deploying the reviewed 43-account change, enabling on-screen UAT codes and creating accounts expiring 2026-10-30 23:59 Asia/Manila. Published branch uat-regional-accounts, PR #9. SQLite PHP 512 passed/two skipped; PostgreSQL 513 passed/one skipped with the disposable database set to UTC (its inherited Windows timezone initially caused an expiry-trigger test failure). Dedicated creation/download/code-login browser regression passed. Broader existing-screen browser run continues with report loading-indicator ARIA failures and short intake error-response timing failures; do not call it a clean pass. Application admin session restored; owner is signing into Render hosting separately. No live account creation yet. Keep APP_DEBUG=false. Next: deploy approved head, enable UAT mode, provision once, save credentials privately, verify all live role/location sign-ins, then update this note with actual counts and deployed revision.
 
 0. Owner: open a pull request from `feature-enhancements` to `main` for
    Release 9 (everything after ce07506) and run the Release 9 checklist in
