@@ -7,6 +7,8 @@ use App\Notifications\TwoFactorCodeNotification;
 use App\Services\LguAssignmentScope;
 use App\Services\MonitoringScope;
 use App\Services\UatAccounts;
+use App\Services\UatCredentialDelivery;
+use App\Support\AuditLog;
 use Carbon\CarbonImmutable;
 use Database\Seeders\ReferenceDataSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -34,6 +36,64 @@ class UatAccountsTest extends TestCase
     private function createRoster(): array
     {
         return app(UatAccounts::class)->create($this->admin, CarbonImmutable::now()->addDay());
+    }
+
+    public function test_encrypted_export_survives_lost_response_but_is_owner_scoped_and_expires(): void
+    {
+        $accounts = $this->createRoster();
+        $stored = DB::table('cache')->where('key', 'like', 'kalinga-uat-delivery:%')->value('value');
+        $this->assertStringNotContainsString($accounts[0]['password'], $stored);
+        $before = User::whereNotNull('uat_key')->pluck('password')->all();
+        $this->actingAs($this->admin)->withSession(['two_factor_confirmed' => true]);
+        $response = $this->get(route('admin.uat.download'))->assertOk()->assertJsonCount(43, 'accounts');
+        $this->assertSame($accounts[0]['password'], $response->json('accounts.0.password'));
+        $this->assertStringContainsString('no-store', $response->headers->get('Cache-Control'));
+        $this->assertStringContainsString('attachment', $response->headers->get('Content-Disposition'));
+        $other = User::factory()->create(['role' => 'system_admin', 'active' => true]);
+        $this->actingAs($other)->get(route('admin.uat.download'))->assertNotFound();
+        $this->actingAs(User::factory()->create(['role' => 'project_manager']))->get(route('admin.uat.download'))->assertForbidden();
+        $this->assertSame($before, User::whereNotNull('uat_key')->pluck('password')->all());
+        $this->travel(31)->minutes();
+        $this->actingAs($this->admin)->get(route('admin.uat.download'))->assertNotFound();
+        $this->assertSame(0, DB::table('cache')->where('key', 'like', 'kalinga-uat-delivery:%')->count());
+    }
+
+    public function test_explicit_unused_roster_recovery_is_once_only_and_preserves_scope_and_expiry(): void
+    {
+        $accounts = $this->createRoster();
+        UatCredentialDelivery::forget($this->admin); // Simulate the original release with no delivery escrow.
+        $before = DB::table('users')->whereNotNull('uat_key')->orderBy('id')->get(['uat_key', 'role', 'region', 'province', 'municipality', 'uat_expires_at'])->toJson();
+        $this->actingAs($this->admin)->withSession(['two_factor_confirmed' => true]);
+        $this->post(route('admin.uat.recover'), ['confirmed' => false])->assertSessionHasErrors('confirmed');
+        $this->post(route('admin.uat.recover'), ['confirmed' => true])->assertRedirect(route('admin.uat.index'));
+        $replacement = UatCredentialDelivery::read($this->admin)['accounts'];
+        $this->assertCount(43, $replacement);
+        $this->assertFalse(Hash::check($accounts[0]['password'], User::where('uat_key', $accounts[0]['uat_key'])->firstOrFail()->password));
+        $this->assertTrue(Hash::check($replacement[0]['password'], User::where('uat_key', $replacement[0]['uat_key'])->firstOrFail()->password));
+        $this->assertSame($before, DB::table('users')->whereNotNull('uat_key')->orderBy('id')->get(['uat_key', 'role', 'region', 'province', 'municipality', 'uat_expires_at'])->toJson());
+        $this->assertSame(43, DB::table('audit_logs')->where('event', 'user.uat_reissued')->count());
+        UatCredentialDelivery::forget($this->admin);
+        $hashes = User::whereNotNull('uat_key')->pluck('password')->all();
+        $this->postJson(route('admin.uat.recover'), ['confirmed' => true])->assertUnprocessable();
+        $this->assertSame($hashes, User::whereNotNull('uat_key')->pluck('password')->all());
+    }
+
+    public function test_recovery_refuses_used_changed_or_other_administrator_rosters(): void
+    {
+        $this->createRoster();
+        UatCredentialDelivery::forget($this->admin);
+        $this->withSession(['two_factor_confirmed' => true]);
+        $other = User::factory()->create(['role' => 'system_admin', 'active' => true]);
+        $this->actingAs($other)->postJson(route('admin.uat.recover'), ['confirmed' => true])->assertUnprocessable();
+        $user = User::where('uat_key', 'car-cm01')->firstOrFail();
+        $user->forceFill(['municipality' => 'Changed'])->save();
+        $this->actingAs($this->admin)->postJson(route('admin.uat.recover'), ['confirmed' => true])->assertUnprocessable();
+        $user->forceFill(['municipality' => 'Paracelis'])->save();
+        AuditLog::record('auth.login', 'user', $user->id, [], $user->id);
+        $hashes = User::whereNotNull('uat_key')->pluck('password')->all();
+        $this->postJson(route('admin.uat.recover'), ['confirmed' => true])->assertUnprocessable();
+        $this->assertSame($hashes, User::whereNotNull('uat_key')->pluck('password')->all());
+        $this->assertFalse(UatCredentialDelivery::available($this->admin));
     }
 
     public function test_exact_roster_counts_password_hashing_scope_and_no_secrets_in_audit(): void

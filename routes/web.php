@@ -53,6 +53,9 @@ Route::get('/faq', fn () => Inertia::render('Help/Faq'))->name('faq');
 Route::middleware('auth')->group(function () {
     Route::get('/admin/uat', [UatAccountsController::class, 'index'])->name('admin.uat.index');
     Route::post('/admin/uat', [UatAccountsController::class, 'store'])->middleware('throttle:sensitive-write')->name('admin.uat.store');
+    Route::get('/admin/uat/credentials', [UatAccountsController::class, 'download'])->middleware('throttle:sensitive-write')->name('admin.uat.download');
+    Route::post('/admin/uat/acknowledge', [UatAccountsController::class, 'acknowledge'])->middleware('throttle:sensitive-write')->name('admin.uat.acknowledge');
+    Route::post('/admin/uat/recover', [UatAccountsController::class, 'recover'])->middleware('throttle:sensitive-write')->name('admin.uat.recover');
     Route::post('/session/activity', function (Request $request) {
         $request->session()->put('kalinga.last_activity_at', now('Asia/Manila')->toIso8601String());
 
