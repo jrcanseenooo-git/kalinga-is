@@ -38,6 +38,44 @@ class UatAccountsTest extends TestCase
         return app(UatAccounts::class)->create($this->admin, CarbonImmutable::now()->addDay());
     }
 
+    public function test_shared_password_changes_only_unused_roster_with_unique_hashes_and_preserved_scope(): void
+    {
+        $this->createRoster();
+        $adminHash = $this->admin->password;
+        $before = DB::table('users')->whereNotNull('uat_key')->orderBy('id')->get(['uat_key', 'role', 'cpu_discipline', 'region', 'province', 'municipality', 'uat_expires_at'])->toJson();
+        $payload = ['confirmed' => true, 'password' => 'FixtureSharedPass123!', 'password_confirmation' => 'FixtureSharedPass123!'];
+        $this->actingAs($this->admin)->withSession(['two_factor_confirmed' => true]);
+        $this->postJson(route('admin.uat.shared-password'), $payload + [])->assertRedirect(route('admin.uat.index'));
+        foreach (User::whereNotNull('uat_key')->get() as $user) {
+            $this->assertTrue(Hash::check($payload['password'], $user->password));
+        }
+        $this->assertSame(43, User::whereNotNull('uat_key')->distinct()->count('password'));
+        $this->assertSame($adminHash, $this->admin->fresh()->password);
+        $this->assertSame($before, DB::table('users')->whereNotNull('uat_key')->orderBy('id')->get(['uat_key', 'role', 'cpu_discipline', 'region', 'province', 'municipality', 'uat_expires_at'])->toJson());
+        $this->assertSame([$payload['password']], array_values(array_unique(array_column(UatCredentialDelivery::read($this->admin)['accounts'], 'password'))));
+        $this->assertSame(43, DB::table('audit_logs')->where('event', 'user.uat_shared_password_set')->count());
+        $this->assertStringNotContainsString($payload['password'], DB::table('audit_logs')->get()->toJson());
+        $this->postJson(route('admin.uat.shared-password'), $payload)->assertUnprocessable();
+    }
+
+    public function test_shared_password_requires_confirmation_matching_passwords_and_enabled_admin(): void
+    {
+        $this->createRoster();
+        $payload = ['confirmed' => true, 'password' => 'FixtureSharedPass123!', 'password_confirmation' => 'different'];
+        $hashes = User::whereNotNull('uat_key')->pluck('password')->all();
+        $this->actingAs($this->admin)->withSession(['two_factor_confirmed' => true]);
+        $this->postJson(route('admin.uat.shared-password'), $payload)->assertUnprocessable();
+        $payload['password_confirmation'] = $payload['password'];
+        $payload['confirmed'] = false;
+        $this->postJson(route('admin.uat.shared-password'), $payload)->assertUnprocessable();
+        $payload['confirmed'] = true;
+        config(['kalinga.uat_enabled' => false]);
+        $this->postJson(route('admin.uat.shared-password'), $payload)->assertForbidden();
+        config(['kalinga.uat_enabled' => true]);
+        $this->actingAs(User::factory()->create(['role' => 'project_manager', 'active' => true]))->postJson(route('admin.uat.shared-password'), $payload)->assertForbidden();
+        $this->assertSame($hashes, User::whereNotNull('uat_key')->pluck('password')->all());
+    }
+
     public function test_encrypted_export_survives_lost_response_but_is_owner_scoped_and_expires(): void
     {
         $accounts = $this->createRoster();
@@ -94,6 +132,8 @@ class UatAccountsTest extends TestCase
         $this->postJson(route('admin.uat.recover'), ['confirmed' => true])->assertUnprocessable();
         $this->assertSame($hashes, User::whereNotNull('uat_key')->pluck('password')->all());
         $this->assertFalse(UatCredentialDelivery::available($this->admin));
+        $this->postJson(route('admin.uat.shared-password'), ['confirmed' => true, 'password' => 'FixtureSharedPass123!', 'password_confirmation' => 'FixtureSharedPass123!'])->assertUnprocessable();
+        $this->assertSame($hashes, User::whereNotNull('uat_key')->pluck('password')->all());
     }
 
     public function test_exact_roster_counts_password_hashing_scope_and_no_secrets_in_audit(): void
