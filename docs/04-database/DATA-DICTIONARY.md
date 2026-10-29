@@ -1901,6 +1901,8 @@ User accounts: role, position, location, 2FA settings and status.
 | two_factor_email_code_expires_at | timestamp | Yes |  | Date and time: two factor email code expires. |
 | position | varchar(160) | Yes |  | Position. |
 | region_scope | json | Yes |  | Region scope. |
+| uat_key | varchar(80) | Yes |  | Unique fixed-roster identity of a temporary UAT account; null for ordinary accounts. Not assignable through public registration. |
+| uat_expires_at | timestamp | Yes |  | UTC expiry of temporary UAT access. UAT mode must also be enabled; existing sessions are denied after expiry. |
 
 ### roles
 

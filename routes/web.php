@@ -36,6 +36,7 @@ use App\Http\Controllers\PublicReportController;
 use App\Http\Controllers\RecordsGovernanceController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SocialCaseManagementReportController;
+use App\Http\Controllers\UatAccountsController;
 use App\Services\CaseReports;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -50,6 +51,8 @@ Route::post('/public-dashboard/reports', [PublicReportController::class, 'store'
 Route::get('/faq', fn () => Inertia::render('Help/Faq'))->name('faq');
 
 Route::middleware('auth')->group(function () {
+    Route::get('/admin/uat', [UatAccountsController::class, 'index'])->name('admin.uat.index');
+    Route::post('/admin/uat', [UatAccountsController::class, 'store'])->middleware('throttle:sensitive-write')->name('admin.uat.store');
     Route::post('/session/activity', function (Request $request) {
         $request->session()->put('kalinga.last_activity_at', now('Asia/Manila')->toIso8601String());
 

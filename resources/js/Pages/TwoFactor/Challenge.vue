@@ -10,6 +10,7 @@ const props = defineProps<{
     maskedEmail: string
     status?: string
     debugCode?: string
+    uatCode?: string
 }>()
 
 type Mode = 'email' | 'totp' | 'recovery'
@@ -162,7 +163,8 @@ onUnmounted(() => {
                 <template v-else>Verify your identity</template>
             </h2>
             <p class="mx-auto mt-2 max-w-[280px] text-sm leading-6 text-slate-500">
-                <template v-if="mode === 'email'">Enter the 6-digit code we sent to <span class="font-semibold text-slate-700">{{ maskedEmail }}</span></template>
+                <template v-if="mode === 'email' && uatCode">Enter the 6-digit UAT code displayed below. This temporary account is for fictional test data only.</template>
+                <template v-else-if="mode === 'email'">Enter the 6-digit code we sent to <span class="font-semibold text-slate-700">{{ maskedEmail }}</span></template>
                 <template v-else-if="mode === 'totp'">Enter the 6-digit code from your authenticator app</template>
                 <template v-else>Enter one of your saved recovery codes</template>
             </p>
@@ -176,6 +178,11 @@ onUnmounted(() => {
         </Transition>
 
         <!-- Dev mode code hint -->
+        <div v-if="uatCode && mode === 'email'" class="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-center" data-testid="uat-code">
+            <p class="text-xs font-bold text-amber-800">UAT test code</p>
+            <p class="mt-1 font-mono text-xl font-bold tracking-[.35em] text-amber-900">{{ uatCode }}</p>
+            <p class="mt-1 text-xs text-amber-800">For testing only. This on-screen code does not verify email ownership.</p>
+        </div>
         <div v-if="debugCode && mode === 'email'" class="mt-4 rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-2.5 text-center">
             <p class="text-[11px] font-bold uppercase tracking-wider text-amber-600">Test Mode</p>
             <p class="mt-0.5 font-mono text-lg font-extrabold tracking-[.35em] text-amber-800">{{ debugCode }}</p>

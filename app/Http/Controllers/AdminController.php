@@ -133,6 +133,7 @@ class AdminController extends Controller
             'regionOptions' => DB::table('lgu_units')->whereNotNull('region')->distinct()->orderBy('region')->pluck('region'),
             'scopeLabel' => $regions === null ? 'All regions' : (implode(', ', $regions) ?: 'No region assigned'),
             'canManageSystem' => $r->user()->hasPermission('admin.manage'),
+            'uatEnabled' => $r->user()->role === 'system_admin' && (bool) config('kalinga.uat_enabled'),
         ]);
     }
 

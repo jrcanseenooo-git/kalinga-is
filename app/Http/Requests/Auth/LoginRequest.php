@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Auth;
 
 use App\Models\User;
+use App\Services\UatAccounts;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -53,7 +54,7 @@ class LoginRequest extends FormRequest
         }
 
         $user = Auth::user();
-        if ($user instanceof User && !$user->active) {
+        if ($user instanceof User && (!$user->active || ($user->uat_key && !UatAccounts::usable($user)))) {
             Auth::logout();
             RateLimiter::hit($this->throttleKey());
 

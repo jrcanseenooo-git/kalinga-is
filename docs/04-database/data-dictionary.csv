@@ -1074,6 +1074,8 @@ Users and security,users,,,,"User accounts: role, position, location, 2FA settin
 ,users,two_factor_email_code_expires_at,timestamp,,Date and time: two factor email code expires.
 ,users,position,varchar(160),,
 ,users,region_scope,json,,
+,users,uat_key,varchar(80),,Unique fixed-roster identity of a temporary UAT account; null for ordinary accounts. Not assignable through public registration.
+,users,uat_expires_at,timestamp,,UTC expiry of temporary UAT access. UAT mode must also be enabled; existing sessions are denied after expiry.
 Users and security,roles,,,,Roles available in the system.
 ,roles,code,text,Yes,Short code.
 ,roles,name,text,Yes,
