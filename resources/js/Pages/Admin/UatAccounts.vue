@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, useForm } from '@inertiajs/vue3';
 import axios from 'axios';
 import { ref } from 'vue';
 
 type RosterRow = { uat_key: string; name: string; email: string; role: string; cpu_discipline: string | null; region: string; province: string; municipality: string };
-const props = defineProps<{ roster: RosterRow[]; existingCount: number; defaultExpiry: string }>();
+const props = defineProps<{ roster: RosterRow[]; existingCount: number; defaultExpiry: string; exportAvailable: boolean }>();
+const recovery = useForm({ confirmed: false });
+const acknowledgement = useForm({ confirmed: true });
 const roles: Record<string, string> = { social_worker: 'Case Manager', cpu_member: 'CPU Member', lgu_head: 'LGU Head / Supervisor', fo_user: 'Field Office User' };
 const disciplines: Record<string, string> = { health_officer: 'Health Officer', barangay_official: 'Barangay Official / BCPC', lea: 'Law Enforcement' };
 const expiry = ref(props.defaultExpiry);
@@ -52,8 +54,8 @@ const create = async () => {
                 Supervisors share their LGU's normal visibility; separate ITO logins are not separate sandboxes.
                 BCPC maps to Barangay Official. Accounts stop working at expiry or when UAT mode is switched off.
             </div>
-            <p v-if="created" role="status" class="rounded-xl bg-emerald-50 p-4 text-emerald-900">43 accounts created. Save the downloaded credentials privately and distribute only each participant's own accounts. Passwords cannot be downloaded again here.</p>
-            <p v-else-if="existingCount" role="status" class="rounded-xl bg-slate-100 p-4">A roster account already exists. Creation is blocked to prevent credential resets. Check Users.</p>
+            <p v-if="created" role="status" class="rounded-xl bg-emerald-50 p-4 text-emerald-900">43 accounts created. Save the downloaded credentials privately and distribute only each participant's own accounts. Reload this page if the download failed; an encrypted retry export is available for 30 minutes.</p>
+            <p v-else-if="existingCount" role="status" class="rounded-xl bg-slate-100 p-4">{{ existingCount }} roster accounts exist. Creation is blocked to prevent credential resets. Check Users.</p>
             <form v-else @submit.prevent="create" data-skip-generic-confirm="true" class="space-y-4 rounded-xl border bg-white p-5">
                 <label class="block text-sm font-semibold">Access ends (Philippine time)
                     <input v-model="expiry" type="datetime-local" required class="mt-2 block rounded-lg border-slate-300" />
@@ -61,6 +63,19 @@ const create = async () => {
                 <label class="flex items-start gap-3 text-sm"><input v-model="confirmed" type="checkbox" required class="mt-1" /><span>I reviewed the roster, BCPC mapping, shared LGU visibility and expiry. Create these accounts and download their credentials.</span></label>
                 <p v-if="error" role="alert" class="text-sm text-rose-700">{{ error }}</p>
                 <button :disabled="!confirmed || busy" class="rounded-lg bg-brand-700 px-4 py-3 font-semibold text-white disabled:opacity-50">{{ busy ? 'Creating accounts...' : 'Create 43 accounts and download credentials' }}</button>
+            </form>
+            <section v-if="exportAvailable" class="space-y-3 rounded-xl border border-emerald-300 bg-emerald-50 p-5">
+                <h2 class="font-semibold">Credentials ready for private download</h2>
+                <p>The encrypted retry export expires after 30 minutes or at account expiry. Download and check the file before removing this server copy.</p>
+                <a :href="route('admin.uat.download')" class="block font-semibold underline">Download saved UAT credentials</a>
+                <button :disabled="acknowledgement.processing" @click="acknowledgement.post(route('admin.uat.acknowledge'))" class="rounded-lg border bg-white px-4 py-3">I saved the file - remove the server copy</button>
+            </section>
+            <form v-else-if="existingCount && !created" @submit.prevent="recovery.post(route('admin.uat.recover'))" data-skip-generic-confirm="true" class="space-y-3 rounded-xl border border-amber-300 bg-amber-50 p-5">
+                <h2 class="font-semibold">Recover a failed first credential download</h2>
+                <p>This changes passwords for all 43 accounts. It runs only once, only for the original administrator, and only while every account is unused, unchanged and unexpired. Roles, locations and expiry stay the same. After completion, reload this page and download the saved credentials.</p>
+                <label class="flex items-start gap-3"><input v-model="recovery.confirmed" type="checkbox" required /><span>No credentials were received or distributed. I want to replace the unused roster passwords.</span></label>
+                <p v-for="message in recovery.errors" :key="message" role="alert" class="text-rose-700">{{ message }}</p>
+                <button :disabled="!recovery.confirmed || recovery.processing" class="rounded-lg bg-brand-700 px-4 py-3 font-semibold text-white disabled:opacity-50">{{ recovery.processing ? 'Preparing credentials...' : 'Replace unused UAT passwords' }}</button>
             </form>
             <div class="overflow-x-auto rounded-xl border bg-white">
                 <table class="w-full text-left text-sm">

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Services\UatAccounts;
+use App\Services\UatCredentialDelivery;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -23,7 +24,36 @@ class UatAccountsController extends Controller
             'roster' => UatAccounts::roster(),
             'existingCount' => User::whereIn('email', array_column(UatAccounts::roster(), 'email'))->orWhereNotNull('uat_key')->count(),
             'defaultExpiry' => now('Asia/Manila')->endOfDay()->format('Y-m-d\TH:i'),
+            'exportAvailable' => UatCredentialDelivery::available($request->user()),
         ]);
+    }
+
+    public function download(Request $request)
+    {
+        $this->guard($request);
+        $data = UatCredentialDelivery::read($request->user());
+
+        return response()->json(['system' => $request->getSchemeAndHttpHost()] + $data)
+            ->header('Content-Disposition', 'attachment; filename="kalinga-uat-credentials.json"')
+            ->header('Cache-Control', 'no-store, private')->header('Pragma', 'no-cache');
+    }
+
+    public function acknowledge(Request $request)
+    {
+        $this->guard($request);
+        $request->validate(['confirmed' => 'accepted']);
+        UatCredentialDelivery::forget($request->user());
+
+        return redirect()->route('admin.uat.index');
+    }
+
+    public function recover(Request $request)
+    {
+        $this->guard($request);
+        $request->validate(['confirmed' => 'accepted']);
+        UatCredentialDelivery::reissueUnused($request->user());
+
+        return redirect()->route('admin.uat.index');
     }
 
     public function store(Request $request, UatAccounts $accounts)

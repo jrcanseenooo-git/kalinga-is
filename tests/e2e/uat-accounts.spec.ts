@@ -20,6 +20,13 @@ test('administrator downloads the exact UAT roster and a new worker signs in usi
     await expect(page.getByRole('status')).toContainText('43 accounts created.');
     await page.reload();
     await expect(page.getByRole('status')).toContainText('Creation is blocked');
+    const retryDownloadPromise = page.waitForEvent('download');
+    await page.getByRole('link', { name: 'Download saved UAT credentials', exact: true }).click();
+    const retryFile = await (await retryDownloadPromise).path();
+    const retryPayload = JSON.parse(readFileSync(retryFile!, 'utf8'));
+    expect(retryPayload.accounts).toEqual(payload.accounts);
+    await page.getByRole('button', { name: 'I saved the file - remove the server copy', exact: true }).click();
+    await expect(page.getByRole('link', { name: 'Download saved UAT credentials', exact: true })).toHaveCount(0);
 
     const worker = payload.accounts.find(row => row.uat_key === 'car-cm01')!;
     const workerPage = await browser.newPage({ baseURL: new URL(page.url()).origin });

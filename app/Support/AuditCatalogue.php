@@ -73,6 +73,7 @@ final class AuditCatalogue
         'user.self_registered' => ['user_management', 'CREATE', 'Account registered (pending approval)'],
         'user.created' => ['user_management', 'CREATE', 'Account created'],
         'user.uat_created' => ['user_management', 'CREATE', 'Temporary UAT account created'],
+        'user.uat_reissued' => ['user_management', 'UPDATE', 'Unused UAT credentials reissued after failed delivery'],
         'user.registration_approved' => ['user_management', 'APPROVE', 'Account registration approved'],
         'user.registration_declined' => ['user_management', 'REJECT', 'Account registration declined'],
         'user.activated' => ['user_management', 'UPDATE', 'Account activated'],

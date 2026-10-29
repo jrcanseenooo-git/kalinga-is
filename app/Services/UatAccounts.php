@@ -133,6 +133,8 @@ final class UatAccounts
                 $credentials[] = $row + ['password' => $password, 'expires_at' => $expires->toIso8601String()];
             }
 
+            UatCredentialDelivery::save($actor, $credentials);
+
             return $credentials;
         });
     }
