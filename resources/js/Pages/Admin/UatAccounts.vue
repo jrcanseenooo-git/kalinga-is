@@ -7,6 +7,7 @@ import { ref } from 'vue';
 type RosterRow = { uat_key: string; name: string; email: string; role: string; cpu_discipline: string | null; region: string; province: string; municipality: string };
 const props = defineProps<{ roster: RosterRow[]; existingCount: number; defaultExpiry: string; exportAvailable: boolean }>();
 const recovery = useForm({ confirmed: false });
+const shared = useForm({ confirmed: false, password: '', password_confirmation: '' });
 const acknowledgement = useForm({ confirmed: true });
 const roles: Record<string, string> = { social_worker: 'Case Manager', cpu_member: 'CPU Member', lgu_head: 'LGU Head / Supervisor', fo_user: 'Field Office User' };
 const disciplines: Record<string, string> = { health_officer: 'Health Officer', barangay_official: 'Barangay Official / BCPC', lea: 'Law Enforcement' };
@@ -76,6 +77,15 @@ const create = async () => {
                 <label class="flex items-start gap-3"><input v-model="recovery.confirmed" type="checkbox" required /><span>No credentials were received or distributed. I want to replace the unused roster passwords.</span></label>
                 <p v-for="message in recovery.errors" :key="message" role="alert" class="text-rose-700">{{ message }}</p>
                 <button :disabled="!recovery.confirmed || recovery.processing" class="rounded-lg bg-brand-700 px-4 py-3 font-semibold text-white disabled:opacity-50">{{ recovery.processing ? 'Preparing credentials...' : 'Replace unused UAT passwords' }}</button>
+            </form>
+            <form v-if="existingCount" @submit.prevent="shared.post(route('admin.uat.shared-password'), { onFinish: () => shared.reset('password', 'password_confirmation') })" data-skip-generic-confirm="true" class="space-y-3 rounded-xl border border-amber-300 bg-amber-50 p-5">
+                <h2 class="font-semibold">Set one shared UAT password</h2>
+                <p>For this temporary test roster only. Anyone with this password and a roster email can use that account. This runs once before any roster account signs in. Roles, locations and account expiry stay the same. Personal accounts are excluded.</p>
+                <label class="block font-semibold">Shared UAT password<input v-model="shared.password" type="password" autocomplete="new-password" required minlength="12" maxlength="128" class="mt-2 block rounded-lg border-slate-300" /></label>
+                <label class="block font-semibold">Confirm shared UAT password<input v-model="shared.password_confirmation" type="password" autocomplete="new-password" required minlength="12" maxlength="128" class="mt-2 block rounded-lg border-slate-300" /></label>
+                <label class="flex items-start gap-3"><input v-model="shared.confirmed" type="checkbox" required /><span>I want to replace all 43 unused UAT passwords with this shared test password.</span></label>
+                <p v-for="message in shared.errors" :key="message" role="alert" class="text-rose-700">{{ message }}</p>
+                <button :disabled="!shared.confirmed || shared.processing" class="rounded-lg bg-brand-700 px-4 py-3 font-semibold text-white disabled:opacity-50">{{ shared.processing ? 'Setting UAT password...' : 'Set shared password for 43 UAT accounts' }}</button>
             </form>
             <div class="overflow-x-auto rounded-xl border bg-white">
                 <table class="w-full text-left text-sm">

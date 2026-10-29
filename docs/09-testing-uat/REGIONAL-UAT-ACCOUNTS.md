@@ -38,6 +38,10 @@ Existing-account/email collisions block the entire batch without password change
 
 ## Verification and limits
 
+### Owner-requested shared test password
+
+On `/admin/uat`, **Set one shared UAT password** lets the original administrator enter and confirm a password for all 43 unused roster accounts. Submit the separate confirmation checkbox and **Set shared password for 43 UAT accounts** once. The value is never embedded in source or a default. The original random creation/recovery remains available for those who do not choose this option. Shared setup can replace a previous random recovery, but cannot run twice or after any roster sign-in. It preserves roles, geography, assignments, circles and expiry, uses independent salted hashes, audits no password values and replaces the short-lived encrypted export. Personal accounts are excluded. Anyone who knows this password and a roster email can sign in as that role; use this option only for the approved temporary testing session. Password entry and submission are owner-operated under browser-control handoff rules.
+
 `UatAccountsTest` covers exact counts, hashed unique passwords, LGU/circle and region scope, no secret audit values, collision rollback, authorized creation, expiry, disabled access, code display without SMTP and protection of ordinary accounts. Existing authentication suites cover invalid/expired code handling.
 
 Validation on 2026-10-30: SQLite PHP tests passed (512 executed, two skipped); PostgreSQL tests passed (513 executed, one skipped) against a disposable UTC-configured local database; frontend tests passed (46); production TypeScript/Vite build and changed-file Pint checks passed. The dedicated browser regression passed actual 43-account creation, one-time download, collision prevention and a new UAT worker's displayed-code sign-in. The broader existing-screen browser run is separate and has report loading-indicator ARIA and short intake error-response wait failures under investigation; do not treat it as a clean full-browser pass.

@@ -28,7 +28,14 @@ test('administrator downloads the exact UAT roster and a new worker signs in usi
     await page.getByRole('button', { name: 'I saved the file - remove the server copy', exact: true }).click();
     await expect(page.getByRole('link', { name: 'Download saved UAT credentials', exact: true })).toHaveCount(0);
 
+    await page.getByLabel('Shared UAT password', { exact: true }).fill('FixtureSharedPass123!');
+    await page.getByLabel('Confirm shared UAT password', { exact: true }).fill('FixtureSharedPass123!');
+    await page.getByRole('checkbox', { name: /replace all 43 unused UAT passwords/ }).check();
+    await page.getByRole('button', { name: 'Set shared password for 43 UAT accounts', exact: true }).click();
+    await expect(page.getByRole('link', { name: 'Download saved UAT credentials', exact: true })).toBeVisible();
+
     const worker = payload.accounts.find(row => row.uat_key === 'car-cm01')!;
+    worker.password = 'FixtureSharedPass123!';
     const workerPage = await browser.newPage({ baseURL: new URL(page.url()).origin });
     try {
         await workerPage.goto('/login');

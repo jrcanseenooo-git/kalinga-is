@@ -56,6 +56,15 @@ class UatAccountsController extends Controller
         return redirect()->route('admin.uat.index');
     }
 
+    public function sharedPassword(Request $request)
+    {
+        $this->guard($request);
+        $data = $request->validate(['confirmed' => 'accepted', 'password' => 'required|string|min:12|max:128|confirmed']);
+        UatCredentialDelivery::reissueUnused($request->user(), $data['password']);
+
+        return redirect()->route('admin.uat.index');
+    }
+
     public function store(Request $request, UatAccounts $accounts)
     {
         $this->guard($request);

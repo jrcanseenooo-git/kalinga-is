@@ -52,15 +52,19 @@ final class UatCredentialDelivery
     }
 
     /** One recovery only, for the creator's complete, unused and unchanged roster. */
-    public static function reissueUnused(User $actor): void
+    public static function reissueUnused(User $actor, ?string $sharedPassword = null): void
     {
         abort_unless($actor->active && $actor->role === 'system_admin' && config('kalinga.uat_enabled'), 403);
-        DB::transaction(function () use ($actor) {
+        DB::transaction(function () use ($actor, $sharedPassword) {
+            if ($sharedPassword !== null && (strlen($sharedPassword) < 12 || strlen($sharedPassword) > 128)) {
+                throw ValidationException::withMessages(['password' => 'Use a password between 12 and 128 characters.']);
+            }
+            $event = $sharedPassword === null ? 'user.uat_reissued' : 'user.uat_shared_password_set';
             $users = User::whereNotNull('uat_key')->orderBy('id')->lockForUpdate()->get();
             $ids = $users->modelKeys();
-            if ($users->count() !== 43 || self::available($actor)
+            if ($users->count() !== 43 || ($sharedPassword === null && self::available($actor))
                 || DB::table('audit_logs')->whereIn('user_id', $ids)->whereIn('event', ['auth.login', 'auth.google_login', 'two_factor.uat_verified'])->exists()
-                || DB::table('audit_logs')->where('event', 'user.uat_reissued')->whereIn('auditable_id', $ids)->exists()) {
+                || DB::table('audit_logs')->whereIn('event', $sharedPassword === null ? ['user.uat_reissued', 'user.uat_shared_password_set'] : ['user.uat_shared_password_set'])->whereIn('auditable_id', $ids)->exists()) {
                 throw ValidationException::withMessages(['roster' => 'Recovery requires the complete unused roster and can run only once. Download an available export instead.']);
             }
             foreach ($users as $user) {
@@ -71,10 +75,10 @@ final class UatCredentialDelivery
             $rows = collect(UatAccounts::roster())->keyBy('uat_key');
             $accounts = [];
             foreach ($users as $user) {
-                $password = Str::password(20, symbols: false);
+                $password = $sharedPassword ?? Str::password(20, symbols: false);
                 $user->forceFill(['password' => $password, 'remember_token' => null])->save();
                 $accounts[] = $rows[$user->uat_key] + ['password' => $password, 'expires_at' => $user->uat_expires_at->toIso8601String()];
-                AuditLog::record('user.uat_reissued', 'user', $user->id, ['uat_key' => $user->uat_key], $actor->id);
+                AuditLog::record($event, 'user', $user->id, ['uat_key' => $user->uat_key], $actor->id);
             }
             self::save($actor, $accounts);
         });
